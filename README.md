@@ -7,7 +7,7 @@ A webpage for visualizing the training progress of neural networks.
 ## Running
 To run the application, execute:
 ```
-export FLASK_APP=hello.py
+export FLASK_APP=visualizer.py
 python -m flask initdb
 python -m flask run
 ```

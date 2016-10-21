@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if session.logged_in and file %}
+        <title>Uploaded file</title>
+        <h1>Filename: {{ file.name }}</h1>
+        <h1>Date uploaded: {{ file.upload_date }}</h1>
+        <h1>{{ file.content }}</h1>
+    {% endif %}
+{% endblock %}

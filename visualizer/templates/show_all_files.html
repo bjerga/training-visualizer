@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if session.logged_in %}
+        <title>All uploaded files</title>
+        <ul class=files>
+            {% for file in files %}
+                <h2>{{ file.name }}</h2>
+                <li>Upload date: {{ file.upload_date }}
+                <li>Content: {{ file.content }}
+            {% else %}
+                <em>No files here so far</em>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+{% endblock %}

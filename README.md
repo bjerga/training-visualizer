@@ -1,13 +1,16 @@
 # training-visualizer
 A webpage for visualizing the training progress of neural networks.
 
-## Prerequisites
-- Flask (Installation: `pip install flask`)
+## Installation
+```
+pip install -r visualizer/requirements.txt
+```
+
 
 ## Running
 To run the application, execute:
 ```
-export FLASK_APP=visualizer.py
+export FLASK_APP=visualizer
 python -m flask initdb
 python -m flask run
 ```

@@ -1,4 +1,5 @@
 import datetime
+import os
 from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash, send_from_directory
 from werkzeug.utils import secure_filename
 import flask_login as fl
@@ -7,9 +8,8 @@ from .helpers import *
 from .models import *
 from .forms import *
 
-
-# UPLOAD_FOLDER = 'temp_uploads'
-# ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+UPLOAD_FOLDER = 'temp_uploads'
+ALLOWED_EXTENSIONS = {'py', 'txt'}
 
 # Create application
 app = Flask(__name__)
@@ -28,7 +28,6 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(username):
 	return User.query.filter_by(username=username).first()
-
 
 # Load default config and override config from an environment variable
 app.config.update(dict(
@@ -146,10 +145,11 @@ def upload_file(username):
 			return redirect(request.url)
 		if file and allowed_file(file.filename):
 			filename = secure_filename(file.filename)
-			# file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-			db.session.add(File(filename, datetime.date.today(), 'replace with path', username))
+			path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+			file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+			db.session.add(File(filename, datetime.date.today(), path))
 			db.session.commit()
-			flash('File was successfully uploaded')
+			flash('File was successfully stored in database')
 			return redirect(url_for('show_file', username=username, filename=filename))
 	return render_template('upload.html')
 
@@ -166,5 +166,8 @@ def show_all_files(username):
 @app.route('/<username>/uploads/<filename>')
 def show_file(username, filename):
 	check_authorization(username)
-	file = File.query.filter_by(name=filename, owner=username).first()
-	return render_template('show_file.html', file=file)
+	meta = File.query.filter_by(name=filename, owner=username).first()
+	file = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+	file.direct_passthrough = False
+	content = str(file.data, 'utf-8')
+	return render_template('show_file.html', meta=meta, content=content)

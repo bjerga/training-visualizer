@@ -5,5 +5,8 @@
     <form action="" method=post enctype=multipart/form-data>
         <p><input type=file name=file>
             <input type=submit value='Upload'>
+        {% if content %}
+            <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
+        {% endif %}
     </form>
 {% endblock %}

@@ -4,7 +4,7 @@ from flask_login import current_user
 from visualizer.models import User
 
 
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}
 USERNAME_MINIMUM_LENGTH = 6
 USERNAME_MAXIMUM_LENGTH = 20
 PASSWORD_MINIMUM_LENGTH = 8

@@ -8,14 +8,11 @@ from visualizer.helpers import *
 from visualizer.models import *
 from visualizer.forms import *
 
-UPLOAD_FOLDER = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'py', 'txt'}
-
 # Create application
 app = Flask(__name__)
 app.config.from_object(__name__)
 
-# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = 'temp_uploads'
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'

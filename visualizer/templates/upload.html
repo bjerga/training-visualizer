@@ -1,11 +1,9 @@
 {% extends "layout.html" %}
 {% block body %}
-    {% if session.logged_in %}
-        <title>Upload new file</title>
-        <h1>Upload new file</h1>
-	    <form action="" method=post enctype=multipart/form-data>
-            <p><input type=file name=file>
-                <input type=submit value=Upload>
-        </form>
-    {% endif %}
+    <title>Upload new file</title>
+    <h1>Upload new file</h1>
+    <form action="" method=post enctype=multipart/form-data>
+        <p><input type=file name=file>
+            <input type=submit value='Upload'>
+    </form>
 {% endblock %}

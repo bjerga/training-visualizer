@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block body %}
+    <h2>Create user</h2>
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <form action="{{ url_for('create_user') }}" method=post>
+        <dl>
+            <dt>Username:
+            <dd><input type=text name=username>
+            <dt>Password:
+            <dd><input type=password name=password>
+            <dd><input type=submit value='Create'>
+        </dl>
+    </form>
+    <h2>Username requirements:</h2>
+    <li>Can only contain letters (capitalized or not), numbers and underscores</li>
+    <li>Must be between {{ username_min_length }} and {{ username_max_length }} characters long</li>
+    <h2>Password requirements:</h2>
+    <li>Can only contain letters (capitalized or not) and numbers</li>
+    <li>Must be {{ password_min_length }} characters or longer</li>
+    <li>Must contain at least 1 capitalized letter</li>
+    <li>Must contain at least 1 non-capitalized letter</li>
+    <li>Must contain at least 2 numbers</li>
+{% endblock %}

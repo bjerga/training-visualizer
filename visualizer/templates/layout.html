@@ -4,13 +4,14 @@
 <div class=page>
     <h1>Visualizer</h1>
     <div class=metanav>
-        {% if not session.logged_in %}
+        {% if not current_user.get_id() %}
             <a href="{{ url_for('login') }}">Log in</a>
+            <a href="{{ url_for('create_user') }}">Create user</a>
         {% else %}
-            <a href="{{ url_for('logout') }}">Log out</a>
-            <a href="{{ url_for('show_entries') }}">Write text</a>
-            <a href="{{ url_for('upload_file') }}">Upload file</a>
-            <a href="{{ url_for('show_all_files') }}">View files</a>
+            <a href="{{ url_for('logout', username=current_user) }}">Log out</a>
+            <a href="{{ url_for('show_entries', username=current_user) }}">Write text</a>
+            <a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a>
+            <a href="{{ url_for('show_all_files', username=current_user) }}">View files</a>
         {% endif %}
     </div>
     {% for message in get_flashed_messages() %}

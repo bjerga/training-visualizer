@@ -11,10 +11,6 @@ from .forms import *
 # UPLOAD_FOLDER = 'temp_uploads'
 # ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
-USERNAME_MINIMUM_LENGTH = 6
-USERNAME_MAXIMUM_LENGTH = 20
-PASSWORD_MINIMUM_LENGTH = 8
-
 # Create application
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -31,7 +27,7 @@ login_manager.init_app(app)
 
 @login_manager.user_loader
 def load_user(username):
-    return User.query.filter_by(username=username).first()
+	return User.query.filter_by(username=username).first()
 
 
 # Load default config and override config from an environment variable
@@ -52,8 +48,7 @@ def initdb_command():
 def create_user():
 	error = None
 	form = UserForm()
-	if request.method == 'POST':
-	# if form.validate_on_submit():
+	if form.validate_on_submit():
 		if not valid_username(form.username.data):
 			error = 'Username is invalid'
 		elif not unique_username(form.username.data):
@@ -65,7 +60,7 @@ def create_user():
 			db.session.commit()
 			flash('User successfully created. Try logging in!')
 			return redirect(url_for('login'))
-	return render_template('create_user.html', error=error,
+	return render_template('create_user.html', form=form, error=error,
 						   username_min_length=USERNAME_MINIMUM_LENGTH,
 						   username_max_length=USERNAME_MAXIMUM_LENGTH,
 						   password_min_length=PASSWORD_MINIMUM_LENGTH)
@@ -75,9 +70,7 @@ def create_user():
 def login():
 	error = None
 	form = UserForm()
-	if request.method == 'POST':
-	# TODO: check out how this works
-	# if form.validate_on_submit():
+	if form.validate_on_submit():
 		user = User.query.filter_by(username=form.username.data).first()
 		# user = load_user(form.username.data)
 		if not user:
@@ -102,7 +95,7 @@ def login():
 				return abort(400)
 	
 			return redirect(next_access or url_for('show_entries', username=user.username))
-	return render_template('login.html', error=error)
+	return render_template('login.html', form=form, error=error)
 
 
 @login_required
@@ -122,8 +115,7 @@ def logout(username):
 @app.route('/<username>/entries')
 def show_entries(username):
 	check_authorization(username)
-	# TODO: only get your own
-	entries = Entry.query.all()
+	entries = Entry.query.filter_by(owner=username).all()
 	return render_template('show_entries.html', username=username, entries=entries)
 
 
@@ -166,16 +158,13 @@ def upload_file(username):
 @app.route('/<username>/uploads/all')
 def show_all_files(username):
 	check_authorization(username)
-	# TODO: only get your own
-	files = File.query.all()
+	files = File.query.filter_by(owner=username).all()
 	return render_template('show_all_files.html', files=files)
 
 
-# TODO: check weird error when 'uploaded' in URL is changed with 'uploads', it redirects to URL of show_all_files
 @login_required
-@app.route('/<username>/uploaded/<filename>')
+@app.route('/<username>/uploads/<filename>')
 def show_file(username, filename):
 	check_authorization(username)
-	# TODO: only get your own
-	file = File.query.filter_by(name=filename).first()
+	file = File.query.filter_by(name=filename, owner=username).first()
 	return render_template('show_file.html', file=file)

@@ -3,11 +3,12 @@
     <h2>Create user</h2>
     {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
     <form action="{{ url_for('create_user') }}" method=post>
+        {{ form.csrf_token }}
         <dl>
             <dt>Username:
-            <dd><input type=text name=username>
+            <dd>{{ form.username }}
             <dt>Password:
-            <dd><input type=password name=password>
+            <dd>{{ form.password }}
             <dd><input type=submit value='Create'>
         </dl>
     </form>

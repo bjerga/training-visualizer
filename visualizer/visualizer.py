@@ -4,9 +4,9 @@ from flask import Flask, request, session, g, redirect, url_for, abort, render_t
 from werkzeug.utils import secure_filename
 import flask_login as fl
 from flask_login import login_required
-from .helpers import *
-from .models import *
-from .forms import *
+from visualizer.helpers import *
+from visualizer.models import *
+from visualizer.forms import *
 
 UPLOAD_FOLDER = 'temp_uploads'
 ALLOWED_EXTENSIONS = {'py', 'txt'}

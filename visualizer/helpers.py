@@ -1,7 +1,7 @@
 import re
 from flask import abort
 from flask_login import current_user
-from .models import User
+from visualizer.models import User
 
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}

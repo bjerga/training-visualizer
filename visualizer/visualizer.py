@@ -1,110 +1,145 @@
 import datetime
 from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash, send_from_directory
 from werkzeug.utils import secure_filename
-from flask_sqlalchemy import SQLAlchemy
+import flask_login as fl
+from flask_login import login_required
+from .helpers import *
+from .models import *
+from .forms import *
 
-UPLOAD_FOLDER = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
+# UPLOAD_FOLDER = 'temp_uploads'
+# ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+
+USERNAME_MINIMUM_LENGTH = 6
+USERNAME_MAXIMUM_LENGTH = 20
+PASSWORD_MINIMUM_LENGTH = 8
 
 # Create application
 app = Flask(__name__)
 app.config.from_object(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+
+# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
-db = SQLAlchemy(app)
+db.init_app(app)
+
+login_manager = fl.LoginManager()
+login_manager.init_app(app)
+
+
+@login_manager.user_loader
+def load_user(username):
+    return User.query.filter_by(username=username).first()
 
 
 # Load default config and override config from an environment variable
 app.config.update(dict(
-	SECRET_KEY='development key',
-	USERNAME='admin',
-	PASSWORD='admin'
+	SECRET_KEY='thisissupersecret',
 ))
 app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)
 
 
-class Entry(db.Model):
-	id = db.Column(db.Integer, primary_key=True)
-	title = db.Column(db.String(50), nullable=False)
-	text = db.Column(db.String(120), nullable=False)
-
-	def __init__(self, title, text):
-		self.title = title
-		self.text = text
-
-	def __repr__(self):
-		return self.title
-
-
-class File(db.Model):
-	id = db.Column(db.Integer, primary_key=True)
-	name = db.Column(db.String(50), nullable=False)
-	upload_date = db.Column(db.String(10), nullable=False)
-	content = db.Column(db.String(20), nullable=False)
-
-	def __init__(self, name, upload_date, content):
-		self.name = name
-		self.upload_date = upload_date
-		self.content = content
-
-	def __repr__(self):
-		return self.name
-
-
 @app.cli.command('initdb')
 def initdb_command():
-	"""Initializes the database."""
+	db.drop_all()
 	db.create_all()
 	print('Initialized the database')
 
 
-@app.route('/entries')
-def show_entries():
-	entries = Entry.query.all()
-	return render_template('show_entries.html', entries=entries)
-
-
-@app.route('/entries', methods=['POST'])
-def add_entry():
-	if not session.get('logged_in'):
-		abort(401)
-	db.session.add(Entry(request.form['title'], request.form['text']))
-	db.session.commit()
-	return redirect(url_for('show_entries'))
+@app.route('/create_user', methods=['GET', 'POST'])
+def create_user():
+	error = None
+	form = UserForm()
+	if request.method == 'POST':
+	# if form.validate_on_submit():
+		if not valid_username(form.username.data):
+			error = 'Username is invalid'
+		elif not unique_username(form.username.data):
+			error = 'Username is already taken'
+		elif not valid_password(form.password.data):
+			error = 'Password is invalid'
+		else:
+			db.session.add(User(form.username.data, form.password.data))
+			db.session.commit()
+			flash('User successfully created. Try logging in!')
+			return redirect(url_for('login'))
+	return render_template('create_user.html', error=error,
+						   username_min_length=USERNAME_MINIMUM_LENGTH,
+						   username_max_length=USERNAME_MAXIMUM_LENGTH,
+						   password_min_length=PASSWORD_MINIMUM_LENGTH)
 
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
 	error = None
+	form = UserForm()
 	if request.method == 'POST':
-		if request.form['username'] != app.config['USERNAME']:
+	# TODO: check out how this works
+	# if form.validate_on_submit():
+		user = User.query.filter_by(username=form.username.data).first()
+		# user = load_user(form.username.data)
+		if not user:
 			error = 'Invalid username'
-		elif request.form['password'] != app.config['PASSWORD']:
+		elif not user.check_password(form.password.data):
 			error = 'Invalid password'
 		else:
-			session['logged_in'] = True
+			user.authenticated = True
+			db.session.add(user)
+			db.session.commit()
+			
+			# set remember=True to enable cookies to remember user
+			fl.login_user(user, remember=True)
 			flash('You were logged in')
-			return redirect(url_for('show_entries'))
+			# return redirect(url_for('show_entries', username=user.username))
+			
+			# TODO: find out how to utilize this
+			next_access = request.args.get('next')
+			# next_is_valid should check if the user has valid
+			# permission to access the `next` url
+			if not has_permission(next_access):
+				return abort(400)
+	
+			return redirect(next_access or url_for('show_entries', username=user.username))
 	return render_template('login.html', error=error)
 
 
-@app.route('/logout')
-def logout():
-	session.pop('logged_in', None)
+@login_required
+@app.route('/<username>/logout')
+def logout(username):
+	check_authorization(username)
+	user = current_user
+	user.authenticated = False
+	db.session.add(user)
+	db.session.commit()
+	fl.logout_user()
 	flash('You were logged out')
-	return redirect(url_for('show_entries'))
+	return redirect(url_for('login'))
 
 
-def allowed_file(filename):
-	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+@login_required
+@app.route('/<username>/entries')
+def show_entries(username):
+	check_authorization(username)
+	# TODO: only get your own
+	entries = Entry.query.all()
+	return render_template('show_entries.html', username=username, entries=entries)
 
 
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-	if not session.get('logged_in'):
-		abort(401)
+@login_required
+@app.route('/<username>/entries', methods=['POST'])
+def add_entry(username):
+	check_authorization(username)
+	db.session.add(Entry(request.form['title'], request.form['text'], username))
+	db.session.commit()
+	return redirect(url_for('show_entries', username=username))
+
+
+@login_required
+@app.route('/<username>/upload', methods=['GET', 'POST'])
+def upload_file(username):
+	check_authorization(username)
 
 	if request.method == 'POST':
 		# check if the post request has the file part
@@ -118,23 +153,29 @@ def upload_file():
 			flash('No selected file')
 			return redirect(request.url)
 		if file and allowed_file(file.filename):
-			flash('New entry was successfully posted')
 			filename = secure_filename(file.filename)
 			# file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-			db.session.add(File(filename, datetime.date.today(), 'replace with content'))
+			db.session.add(File(filename, datetime.date.today(), 'replace with path', username))
 			db.session.commit()
 			flash('File was successfully uploaded')
-			return redirect(url_for('show_file', filename=filename))
+			return redirect(url_for('show_file', username=username, filename=filename))
 	return render_template('upload.html')
 
 
-@app.route('/uploads/all')
-def show_all_files():
+@login_required
+@app.route('/<username>/uploads/all')
+def show_all_files(username):
+	check_authorization(username)
+	# TODO: only get your own
 	files = File.query.all()
 	return render_template('show_all_files.html', files=files)
 
 
-@app.route('/uploads/<filename>')
-def show_file(filename):
+# TODO: check weird error when 'uploaded' in URL is changed with 'uploads', it redirects to URL of show_all_files
+@login_required
+@app.route('/<username>/uploaded/<filename>')
+def show_file(username, filename):
+	check_authorization(username)
+	# TODO: only get your own
 	file = File.query.filter_by(name=filename).first()
 	return render_template('show_file.html', file=file)

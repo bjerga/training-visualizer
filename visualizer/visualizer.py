@@ -12,7 +12,9 @@ from visualizer.forms import *
 app = Flask(__name__)
 app.config.from_object(__name__)
 
-app.config['UPLOAD_FOLDER'] = 'temp_uploads'
+UPLOAD_FOLDER = 'temp_uploads'
+
+app.config['UPLOAD_FOLDER'] = os.path.join('visualizer', UPLOAD_FOLDER)
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
@@ -143,8 +145,8 @@ def upload_file(username):
 		if file and allowed_file(file.filename):
 			filename = secure_filename(file.filename)
 			path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-			file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-			db.session.add(File(filename, datetime.date.today(), path))
+			file.save(path)
+			db.session.add(File(filename, datetime.date.today(), path, username))
 			db.session.commit()
 			flash('File was successfully stored in database')
 			return redirect(url_for('show_file', username=username, filename=filename))
@@ -152,7 +154,7 @@ def upload_file(username):
 
 
 @login_required
-@app.route('/<username>/uploads/all')
+@app.route('/<username>/uploads')
 def show_all_files(username):
 	check_authorization(username)
 	files = File.query.filter_by(owner=username).all()
@@ -164,7 +166,7 @@ def show_all_files(username):
 def show_file(username, filename):
 	check_authorization(username)
 	meta = File.query.filter_by(name=filename, owner=username).first()
-	file = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+	file = send_from_directory(UPLOAD_FOLDER, filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
 	return render_template('show_file.html', meta=meta, content=content)

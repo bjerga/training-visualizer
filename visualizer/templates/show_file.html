@@ -1,10 +1,11 @@
 {% extends "layout.html" %}
 {% block body %}
-    {% if file %}
+    {% if meta and content %}
         <title>Uploaded file</title>
-        <h1>Filename: {{ file.name }}</h1>
-        <h1>Date uploaded: {{ file.upload_date }}</h1>
-        <h1>Owner: {{ file.owner }}</h1>
-        <h1>Path: {{ file.path }}</h1>
+        <h1>{{ meta.name }}</h1>
+        <p>Date uploaded: {{ meta.upload_date }}
+        Owner: {{ meta.owner }}
+        Path: {{ meta.path }}</p>
+        <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
     {% endif %}
 {% endblock %}

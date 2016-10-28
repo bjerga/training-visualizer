@@ -1,7 +1,13 @@
 {% extends "layout.html" %}
 {% block body %}
     <h2>Create user</h2>
-    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    {% if errors %}
+        <ul class=error>
+            {% for error in errors %}
+                <dt><strong>Error:</strong> {{ error }}
+            {% endfor %}
+        </ul>
+    {% endif %}
     <form action="{{ url_for('create_user') }}" method=post>
         {{ form.csrf_token }}
         <dl>
@@ -9,7 +15,9 @@
             <dd>{{ form.username }}
             <dt>Password:
             <dd>{{ form.password }}
-            <dd><input type=submit value='Create'>
+            <dt>Confirm password:
+            <dd>{{ form.confirm }}
+            <dd>{{ form.submit }}
         </dl>
     </form>
     <h2>Username requirements:</h2>

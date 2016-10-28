@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 {% block body %}
     <title>All uploaded files</title>
-    <ul class=files>
-        {% for file in files %}
-            <h2>{{ file.name }}</h2>
-            <li>Upload date: {{ file.upload_date }}
-            <li>Owned by: {{ file.owner }}
-            <li>Path: {{ file.path }}
+    <ul class=metas>
+        {% for meta in metas %}
+            <h2><a href="{{ url_for('show_file', username=username, filename=meta.filename ) }}">{{ meta.filename }}</a></h2>
+            <li>Upload date: {{ meta.upload_date }}
+            <li>Owned by: {{ meta.owner }}
+            <li>Path: {{ meta.path }}
         {% else %}
             <em>No files here so far</em>
         {% endfor %}

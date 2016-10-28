@@ -156,7 +156,7 @@ def upload_file(username):
 			db.session.commit()
 			flash('File was successfully stored in database')
 			return redirect(url_for('show_file', username=username, filename=filename))
-	return render_template('upload.html', form=form, errors=get_form_errors(form))
+	return render_template('upload_file.html', form=form, errors=get_form_errors(form))
 
 
 @login_required

@@ -6,7 +6,7 @@ from time import sleep
 from flask import abort
 from flask_login import current_user
 
-from modules.models import User
+from visualizer.modules.models import User
 
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}

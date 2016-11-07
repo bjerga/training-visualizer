@@ -7,9 +7,9 @@ from flask import Flask, request, redirect, url_for, render_template, flash, sen
 from flask_login import login_required
 from werkzeug.utils import secure_filename
 
-from .forms import *
-from .helpers import *
-from .models import *
+from modules.helpers import *
+from modules.models import *
+from modules.forms import *
 
 # Create application
 app = Flask(__name__)

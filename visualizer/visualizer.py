@@ -1,19 +1,23 @@
-import datetime, os, threading
-from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash, send_from_directory
-from werkzeug.utils import secure_filename
+import os
+from datetime import date
+from multiprocessing import Process, Value
+
 import flask_login as fl
+from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory
 from flask_login import login_required
+from werkzeug.utils import secure_filename
+
+from .forms import *
 from .helpers import *
 from .models import *
-from .forms import *
-
 
 # Create application
 app = Flask(__name__)
 app.config.from_object(__name__)
+app.secret_key = 'thisissupersecretestkeyintheworld'
 
-UPLOAD_FOLDER = 'temp_uploads'
-threads = []
+UPLOAD_FOLDER = 'user_storage'
+processes = []
 
 # app.config['UPLOAD_FOLDER'] = os.path.join('visualizer', UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), UPLOAD_FOLDER)
@@ -33,9 +37,9 @@ def load_user(username):
 	return User.query.filter_by(username=username).first()
 
 # Load default config and override config from an environment variable
-app.config.update(dict(
-	SECRET_KEY='thisissupersecret',
-))
+# app.config.update(dict(
+# 	SECRET_KEY='thisissupersecret',
+# ))
 app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)
 
 
@@ -58,8 +62,24 @@ def create_user():
 		if not valid_password(form.password.data):
 			errors.append('Password does not match requirements')
 		if len(errors) == 0:
+			# add user to database
 			db.session.add(User(form.username.data, form.password.data))
 			db.session.commit()
+			
+			# create folders for user to save data in
+			try:
+				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data)
+			except FileExistsError:
+				pass
+			try:
+				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/programs')
+			except FileExistsError:
+				pass
+			try:
+				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/plots')
+			except FileExistsError:
+				pass
+			
 			flash('User successfully created. Try logging in!')
 			return redirect(url_for('login'))
 	else:
@@ -96,7 +116,7 @@ def login():
 			# permission to access the `next` url
 			if not has_permission(next_access):
 				return abort(400)
-	
+			
 			return redirect(next_access or url_for('show_entries', username=user.username))
 	else:
 		errors = get_form_errors(form)
@@ -146,9 +166,9 @@ def upload_file(username):
 		file = form.file.data
 		if file and allowed_file(file.filename):
 			filename = secure_filename(file.filename)
-			path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+			path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename)
 			file.save(path)
-			db.session.add(FileMeta(filename, datetime.date.today(), path, username))
+			db.session.add(FileMeta(filename, date.today(), path, username))
 			db.session.commit()
 			meta_id = FileMeta.query.filter_by(filename=filename, owner=username).first().id
 			for tag in form.tags.data:
@@ -172,7 +192,7 @@ def show_all_files(username):
 def show_file(username, filename):
 	check_authorization(username)
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	file = send_from_directory(UPLOAD_FOLDER, filename)
+	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs'), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
 	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content)
@@ -183,7 +203,16 @@ def show_file(username, filename):
 def run_upload(username, filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
-	t = threading.Thread(target=run_python_shell, args=(meta.path,))
-	threads.append(t)
-	t.start()
+	
+	# shared boolean denoting if run_python_shell-process is writing
+	shared_bool = Value('i', True)
+	
+	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
+	processes.append(p)
+	p.start()
+
+	p = Process(target=plot_accuracy_error, args=(meta.path, shared_bool))
+	processes.append(p)
+	p.start()
+	
 	return redirect(url_for('show_file', username=username, filename=filename))

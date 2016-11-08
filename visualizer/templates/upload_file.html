@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block body %}
+    <title>Upload new file</title>
+    <h1>Upload new file</h1>
+    {% if errors %}
+        <ul class=error>
+            {% for error in errors %}
+                <dt><strong>Error:</strong> {{ error }}
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <form action="" method=post enctype=multipart/form-data>
+        {{ form.csrf_token }}
+        <dl>
+            <dt>{{ form.file }} {{ form.submit }}
+            <dt>Tags: {{ form.tags }}
+        </dl>
+        {% if content %}
+            <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
+        {% endif %}
+    </form>
+{% endblock %}

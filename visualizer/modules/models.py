@@ -7,16 +7,18 @@ db = SQLAlchemy()
 
 
 class User(db.Model):
+	__tablename__ = 'User'
 	username = Column(String(20), primary_key=True)
 	salted_password = Column(String, nullable=False)
 	authenticated = Column(Boolean, default=False)
-	files = relationship('File', backref='owned_by')
+	files = relationship('FileMeta', backref='owned_by')
 	entries = relationship('Entry', backref='owned_by')
 	
-	def __init__(self, username, password):
+	def __init__(self, username, password, autenticated=False):
 		self.username = username
 		self.set_password(password)
-	
+		self.authenticated = autenticated
+		
 	def __repr__(self):
 		return self.username
 	
@@ -43,10 +45,11 @@ class User(db.Model):
 
 
 class Entry(db.Model):
+	__tablename__ = 'Entry'
 	id = Column(Integer, primary_key=True)
 	title = Column(String(50), nullable=False)
 	text = Column(String(120), nullable=False)
-	owner = Column(Integer, ForeignKey('user.username'), nullable=False)
+	owner = Column(Integer, ForeignKey('User.username'), nullable=False)
 	
 	def __init__(self, title, text, owner):
 		self.title = title
@@ -57,18 +60,34 @@ class Entry(db.Model):
 		return self.title
 
 
-class File(db.Model):
+class FileMeta(db.Model):
+	__tablename__ = 'FileMeta'
 	id = Column(Integer, primary_key=True)
-	name = Column(String(50), nullable=False)
+	filename = Column(String(50), nullable=False)
 	upload_date = Column(String(10), nullable=False)
 	path = Column(String(20), nullable=False)
-	owner = Column(Integer, ForeignKey('user.username'), nullable=False)
+	owner = Column(Integer, ForeignKey('User.username'), nullable=False)
+	tags = relationship('Tag', backref='tag_id')
 	
-	def __init__(self, name, upload_date, path, owner):
-		self.name = name
+	def __init__(self, filename, upload_date, path, owner):
+		self.filename = filename
 		self.upload_date = upload_date
 		self.path = path
 		self.owner = owner
 	
 	def __repr__(self):
-		return self.name
+		return self.filename
+	
+	
+class Tag(db.Model):
+	__tablename__ = 'Tag'
+	id = Column(Integer, primary_key=True)
+	file_id = Column(Integer, ForeignKey('FileMeta.id'))
+	text = Column(String(20), nullable=False)
+	
+	def __init__(self, meta_id, text):
+		self.file_id = meta_id
+		self.text = text
+	
+	def __repr__(self):
+		return self.text

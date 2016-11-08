@@ -1,12 +1,13 @@
 {% extends "layout.html" %}
 {% block body %}
     <form action="{{ url_for('add_entry', username=username) }}" method=post class=add_entry>
+        {{ form.csrf_token }}
         <dl>
-            <dt>Title
-            <dd><input type=text size=30 name=title>
+            <dt>Title:
+            <dd>{{ form.title }}
             <dt>Text:
-            <dd><textarea name=text rows=5 cols=40></textarea>
-            <dd><input type=submit value='Share'>
+            <dd>{{ form.text }}
+            <dd>{{ form.submit }}
         </dl>
     </form>
     <ul class=entries>

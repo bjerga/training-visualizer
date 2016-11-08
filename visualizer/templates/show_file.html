@@ -2,10 +2,19 @@
 {% block body %}
     {% if meta and content %}
         <title>Uploaded file</title>
-        <h1>{{ meta.name }}</h1>
-        <p>Date uploaded: {{ meta.upload_date }}
-        Owner: {{ meta.owner }}
-        Path: {{ meta.path }}</p>
+        <form action="{{ url_for('run_upload', username=username, filename=filename) }}" method=post class=run_upload>
+            <h1>{{ meta.filename }} {{ form.run }}</h1>
+        </form>
+        <dt>Date uploaded: {{ meta.upload_date }}
+        <dt>Owner: {{ meta.owner }}
+        <dt>Path: {{ meta.path }}
         <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
+
+        <dt>Tags:
+            {% for tag in meta.tags %}
+                <li>{{ tag }}
+            {% else %}
+                <dd><em>No tags found</em>
+            {% endfor %}
     {% endif %}
 {% endblock %}

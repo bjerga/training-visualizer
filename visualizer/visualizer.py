@@ -168,11 +168,10 @@ def upload_file(username):
 			filename = secure_filename(file.filename)
 			path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename)
 			file.save(path)
-			db.session.add(FileMeta(filename, date.today(), path, username))
-			db.session.commit()
-			meta_id = FileMeta.query.filter_by(filename=filename, owner=username).first().id
+			file_meta = FileMeta(filename, date.today(), path, username)
 			for tag in form.tags.data:
-				db.session.add(Tag(meta_id, tag))
+				file_meta.tags.append(Tag(tag))
+			db.session.add(file_meta)
 			db.session.commit()
 			flash('File was successfully stored in database')
 			return redirect(url_for('show_file', username=username, filename=filename))

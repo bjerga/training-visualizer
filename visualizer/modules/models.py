@@ -1,9 +1,11 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Table
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
+Base = declarative_base()
 
 
 class User(db.Model):
@@ -60,6 +62,23 @@ class Entry(db.Model):
 		return self.title
 
 
+file_tags = Table('FileTags', db.Model.metadata,
+					Column('tag_id', Integer, ForeignKey('Tag.id')),
+					Column('file_id', Integer, ForeignKey('FileMeta.id')))
+
+
+class Tag(db.Model):
+	__tablename__ = 'Tag'
+	id = Column(Integer, primary_key=True)
+	text = Column(String(20), nullable=False)
+
+	def __init__(self, text):
+		self.text = text
+
+	def __repr__(self):
+		return self.text
+
+
 class FileMeta(db.Model):
 	__tablename__ = 'FileMeta'
 	id = Column(Integer, primary_key=True)
@@ -67,7 +86,7 @@ class FileMeta(db.Model):
 	upload_date = Column(String(10), nullable=False)
 	path = Column(String(20), nullable=False)
 	owner = Column(Integer, ForeignKey('User.username'), nullable=False)
-	tags = relationship('Tag', backref='tag_id')
+	tags = relationship('Tag', secondary=file_tags, backref='files')
 	
 	def __init__(self, filename, upload_date, path, owner):
 		self.filename = filename
@@ -77,17 +96,4 @@ class FileMeta(db.Model):
 	
 	def __repr__(self):
 		return self.filename
-	
-	
-class Tag(db.Model):
-	__tablename__ = 'Tag'
-	id = Column(Integer, primary_key=True)
-	file_id = Column(Integer, ForeignKey('FileMeta.id'))
-	text = Column(String(20), nullable=False)
-	
-	def __init__(self, meta_id, text):
-		self.file_id = meta_id
-		self.text = text
-	
-	def __repr__(self):
-		return self.text
+

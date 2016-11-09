@@ -2,3 +2,5 @@
 .idea/
 visualizer/*.db
 visualizer/user_storage/
+test_code/figures
+test_code/networks

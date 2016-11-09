@@ -95,6 +95,29 @@ textarea {
     background: #aacbe2;
     border-radius: 0.4em;
     padding: 0.1em 0.5em;
+    display: inline
+}
+
+.tag_form {
+    display: inline;
+}
+
+.tag_form input{
+    width: 5em;
+    border: 1px solid #ccc;
+    border-radius: 0.4em;
+    padding: 0.1em 0.5em;
+}
+
+.remove_tag{
+    border: 0;
+    background: #aacbe2;
+    width: 0.5em;
+}
+
+.remove_tag:hover {
+    cursor: pointer;
+    font-weight: bold;
 }
 
 .flash {

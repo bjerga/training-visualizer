@@ -170,6 +170,7 @@ def upload_file(username):
 			file_meta = FileMeta(filename, date.today(), path, username)
 			for tag in form.tags.data:
 				file_meta.tags.append(Tag(tag))
+			file_meta.tags.append(Tag(filename.split('.')[0]))
 			db.session.add(file_meta)
 			db.session.commit()
 			flash('File was successfully stored in database')
@@ -190,14 +191,20 @@ def show_all_files(username):
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>')
+@app.route('/<username>/uploads/<filename>', methods=['GET', 'POST'])
 def show_file(username, filename):
 	check_authorization(username)
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs'), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
-	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content)
+	tag_form = TagForm()
+	if tag_form.validate_on_submit():
+		for tag in tag_form.tags.data:
+				meta.tags.append(Tag(tag))
+		db.session.commit()
+		return redirect(url_for('show_file', username=username, filename=filename))
+	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content, tag_form=TagForm())
 
 
 @login_required
@@ -229,4 +236,14 @@ def search(username, query):
 	for result in results:
 		metas |= set(result.files)
 	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
+
+
+@login_required
+@app.route('/<username>/uploads/<filename>/remove_tag/<tag_id>', methods=['POST'])
+def remove_tag(username, filename, tag_id):
+	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
+	tag = Tag.query.get(tag_id)
+	meta.tags.remove(tag)
+	db.session.commit()
+	return redirect(url_for('show_file', username=username, filename=filename))
 

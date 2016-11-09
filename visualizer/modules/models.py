@@ -1,11 +1,9 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Table
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
-Base = declarative_base()
 
 
 class User(db.Model):

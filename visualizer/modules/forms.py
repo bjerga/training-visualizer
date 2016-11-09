@@ -58,3 +58,7 @@ class FileForm(FlaskForm):
 
 class RunForm(FlaskForm):
 	run = SubmitField('Run')
+
+
+class SearchForm(FlaskForm):
+	search = StringField('Search', validators=[DataRequired()])

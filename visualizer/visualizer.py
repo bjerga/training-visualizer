@@ -19,7 +19,6 @@ app.secret_key = 'thisissupersecretestkeyintheworld'
 UPLOAD_FOLDER = 'user_storage'
 processes = []
 
-# app.config['UPLOAD_FOLDER'] = os.path.join('visualizer', UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), UPLOAD_FOLDER)
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
@@ -179,11 +178,15 @@ def upload_file(username):
 
 
 @login_required
-@app.route('/<username>/uploads')
+@app.route('/<username>/uploads', methods=['GET', 'POST'])
 def show_all_files(username):
 	check_authorization(username)
 	metas = FileMeta.query.filter_by(owner=username).all()
-	return render_template('show_all_files.html', username=username, metas=metas)
+	search_form = SearchForm()
+	if search_form.validate_on_submit():
+		query = search_form.search.data
+		return redirect(url_for('search', username=username, query=query))
+	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
 
 
 @login_required
@@ -215,3 +218,15 @@ def run_upload(username, filename):
 	p.start()
 	
 	return redirect(url_for('show_file', username=username, filename=filename))
+
+
+@login_required
+@app.route('/<username>/search_results/<query>')
+def search(username, query):
+	results = Tag.query.filter_by(text=query).all()
+	search_form = SearchForm()
+	metas = set()
+	for result in results:
+		metas |= set(result.files)
+	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
+

@@ -145,6 +145,15 @@ def plot_accuracy_error(file_path, filename, shared_bool):
 	
 	print('\nPlotting done\n')
 	
+	# make sure process ends (not certain this is needed)
+	return
+	
+	
+def move_to_historical_folder(file_path, filename):
+	
+	results_path = file_path.replace(filename, 'results')
+	plots_path = file_path.replace(filename, 'plots')
+	
 	# move results and plots to old_results and old_plots, respectively
 	old_results_path = file_path.replace(filename, 'old_results')
 	result_num = len(os.listdir(old_results_path))
@@ -157,9 +166,6 @@ def plot_accuracy_error(file_path, filename, shared_bool):
 		move(os.path.join(plots_path, file), os.path.join(old_plots_path, file.replace('_plot', '_result_%d_plot' % result_num)))
 	
 	print('\nFiles moved to historical folders\n')
-	
-	# make sure process ends (not certain this is needed)
-	return
 
 
 def read_error_file(error_file_path):

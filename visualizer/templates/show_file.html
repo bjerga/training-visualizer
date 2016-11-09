@@ -24,5 +24,13 @@
             <dt>Path: {{ meta.path }}
         </dl>
         <textarea class="code" disabled rows=20 cols=90 >{{ content }}</textarea>
+
+        <dt>Visualization of training process:
+            {% if has_plot %}
+                <img src="{{ url_for('get_plot', username=username, filename=filename, time=time) }}">
+                Source: {{ url_for('get_plot', username=username, filename=filename, time=time) }}
+            {% else %}
+                <dd><em>No plots produced yet</em>
+            {% endif %}
     {% endif %}
 {% endblock %}

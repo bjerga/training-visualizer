@@ -1,4 +1,5 @@
 import os
+from time import time
 from datetime import date
 from multiprocessing import Process, Value
 
@@ -243,7 +244,18 @@ def show_file(username, filename):
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
 		return redirect(url_for('show_file', username=username, filename=filename))
-	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content, tag_form=TagForm())
+	has_plot = len(os.listdir(meta.path.replace(filename, 'plots')))
+	return render_template('show_file.html', form=RunForm(), tag_form=TagForm(), username=username,
+						   filename=filename, meta=meta, content=content, has_plot=has_plot, time=int(time()))
+
+@login_required
+@app.route('/<username>/uploads/<filename>/plot/<time>')
+# use time to create unique URL - is needed not to get same plot every call
+def get_plot(username, filename, time):
+	# TODO: make sure this is called periodically, maybe using AJAX? then we don't have to refresh to see plot update
+	image_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')], 'plots')
+	# image_path = path.replace(filename, 'plots')
+	return send_from_directory(image_path, os.listdir(image_path)[-1], as_attachment=False)
 
 
 @login_required
@@ -251,6 +263,9 @@ def show_file(username, filename):
 def run_upload(username, filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
+	
+	if len(os.listdir(meta.path.replace(meta.filename, 'results'))) != 0:
+		move_to_historical_folder(meta.path, meta.filename)
 	
 	# shared boolean denoting if run_python_shell-process is writing
 	shared_bool = Value('i', True)

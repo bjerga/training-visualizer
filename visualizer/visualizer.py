@@ -8,9 +8,9 @@ from flask_login import login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
-from visualizer.modules.helpers import *
-from visualizer.modules.models import *
-from visualizer.modules.forms import *
+from .modules.helpers import *
+from .modules.models import *
+from .modules.forms import *
 
 # Create application
 app = Flask(__name__)
@@ -76,7 +76,7 @@ def create_user():
 			except FileExistsError:
 				pass
 			try:
-				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/plots')
+				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/data')
 			except FileExistsError:
 				pass
 			
@@ -166,18 +166,55 @@ def upload_file(username):
 		file = form.file.data
 		if file and allowed_file(file.filename):
 			filename = secure_filename(file.filename)
-			path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename)
-			file.save(path)
-			file_meta = FileMeta(filename, date.today(), path, username)
-			for text in form.tags.data:
-				file_meta.tags.append(get_existing_tag(text))
-			# add file name as a tag automatically
-			file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
-			db.session.add(file_meta)
-			db.session.commit()
-			flash('File was successfully stored in database')
-			return redirect(url_for('show_file', username=username, filename=filename))
-	return render_template('upload_file.html', form=form, errors=get_form_errors(form))
+			if unique_filename(filename):
+				# create folders for program
+				folder_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')])
+				try:
+					os.mkdir(folder_path)
+				except FileExistsError:
+					pass
+				try:
+					os.mkdir(os.path.join(folder_path, 'results'))
+				except FileExistsError:
+					pass
+				try:
+					os.mkdir(os.path.join(folder_path, 'old_results'))
+				except FileExistsError:
+					pass
+				try:
+					os.mkdir(os.path.join(folder_path, 'plots'))
+				except FileExistsError:
+					pass
+				try:
+					os.mkdir(os.path.join(folder_path, 'old_plots'))
+				except FileExistsError:
+					pass
+				
+				# save program in folder and create file meta
+				file_path = os.path.join(folder_path, filename)
+				file.save(file_path)
+				file_meta = FileMeta(filename, date.today(), file_path, username)
+				
+				# create file tags
+				for text in form.tags.data:
+					file_meta.tags.append(get_existing_tag(text))
+				
+				# add file name as a tag automatically
+				file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
+				
+				# add file meta to database
+				db.session.add(file_meta)
+				db.session.commit()
+				
+				flash('File was successfully stored in database')
+				return redirect(url_for('show_file', username=username, filename=filename))
+			else:
+				errors = ['Filename is not unique']
+		else:
+			errors = ['Filename is not allowed']
+	else:
+		errors = get_form_errors(form)
+	return render_template('upload_file.html', form=form, errors=errors)
 
 
 @login_required
@@ -197,7 +234,7 @@ def show_all_files(username):
 def show_file(username, filename):
 	check_authorization(username)
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs'), filename)
+	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')]), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
 	tag_form = TagForm()
@@ -222,7 +259,7 @@ def run_upload(username, filename):
 	processes.append(p)
 	p.start()
 
-	p = Process(target=plot_accuracy_error, args=(meta.path, shared_bool))
+	p = Process(target=plot_accuracy_error, args=(meta.path, meta.filename, shared_bool))
 	processes.append(p)
 	p.start()
 	

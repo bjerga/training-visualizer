@@ -255,7 +255,7 @@ def get_plot(username, filename, time):
 	# TODO: make sure this is called periodically, maybe using AJAX? then we don't have to refresh to see plot update
 	image_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')], 'plots')
 	# image_path = path.replace(filename, 'plots')
-	return send_from_directory(image_path, os.listdir(image_path)[-1], as_attachment=False)
+	return send_from_directory(image_path, os.listdir(image_path)[-1], as_attachment=True)
 
 
 @login_required

@@ -3,7 +3,7 @@
     {% if meta and content %}
         <title>Uploaded file</title>
         <form action="{{ url_for('run_upload', username=username, filename=filename) }}" method=post class=run_upload>
-            <h1>{{ meta.filename }} {{ form.run }}</h1>
+            <h2>{{ meta.filename }} {{ form.run }}</h2>
         </form>
         <div>Tags:
             {% for tag in meta.tags %}
@@ -15,6 +15,6 @@
             <dt>Owner: {{ meta.owner }}
             <dt>Path: {{ meta.path }}
         </dl>
-        <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
+        <textarea class="code" disabled rows=20 cols=90 >{{ content }}</textarea>
     {% endif %}
 {% endblock %}

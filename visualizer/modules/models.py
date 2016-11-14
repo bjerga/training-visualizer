@@ -68,7 +68,7 @@ file_tags = Table('FileTags', db.Model.metadata,
 class Tag(db.Model):
 	__tablename__ = 'Tag'
 	id = Column(Integer, primary_key=True)
-	text = Column(String(20), nullable=False)
+	text = Column(String(20), nullable=False, unique=True)
 
 	def __init__(self, text):
 		self.text = text

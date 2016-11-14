@@ -169,8 +169,16 @@ def upload_file(username):
 			file.save(path)
 			file_meta = FileMeta(filename, date.today(), path, username)
 			for tag in form.tags.data:
-				file_meta.tags.append(Tag(tag))
-			file_meta.tags.append(Tag(filename.split('.')[0]))
+				existing_tag = Tag.query.filter_by(text=tag).first()
+				if existing_tag:
+					file_meta.tags.append(existing_tag)
+				else:
+					file_meta.tags.append(Tag(tag))
+			name_tag = Tag.query.filter_by(text=filename.split('.')[0]).first()
+			if name_tag:
+				file_meta.tags.append(name_tag)
+			else:
+				file_meta.tags.append(Tag(filename.split('.')[0]))
 			db.session.add(file_meta)
 			db.session.commit()
 			flash('File was successfully stored in database')
@@ -201,7 +209,11 @@ def show_file(username, filename):
 	tag_form = TagForm()
 	if tag_form.validate_on_submit():
 		for tag in tag_form.tags.data:
-				meta.tags.append(Tag(tag))
+				existing_tag = Tag.query.filter_by(text=tag).first()
+				if existing_tag:
+					meta.tags.append(existing_tag)
+				else:
+					meta.tags.append(Tag(tag))
 		db.session.commit()
 		return redirect(url_for('show_file', username=username, filename=filename))
 	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content, tag_form=TagForm())

@@ -242,12 +242,11 @@ def run_upload(username, filename):
 @login_required
 @app.route('/<username>/search_results/<query>')
 def search(username, query):
-	results = Tag.query.filter_by(text=query).all()
-	search_form = SearchForm()
-	metas = set()
-	for result in results:
-		metas |= set(result.files)
-	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
+	from sqlalchemy import func, distinct
+	tags = query.split(" ")
+	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
+		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
+	return render_template('show_all_files.html', search_form=SearchForm(), username=username, metas=results)
 
 
 @login_required

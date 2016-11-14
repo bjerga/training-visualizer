@@ -1,10 +1,9 @@
 import os
-from time import time
 from datetime import date
 from multiprocessing import Process, Value
 
 import flask_login as fl
-from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory
+from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory, jsonify
 from flask_login import login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
@@ -246,16 +245,15 @@ def show_file(username, filename):
 		return redirect(url_for('show_file', username=username, filename=filename))
 	has_plot = len(os.listdir(meta.path.replace(filename, 'plots')))
 	return render_template('show_file.html', form=RunForm(), tag_form=TagForm(), username=username,
-						   filename=filename, meta=meta, content=content, has_plot=has_plot, time=int(time()))
+						   filename=filename, meta=meta, content=content, has_plot=has_plot)
+
 
 @login_required
-@app.route('/<username>/uploads/<filename>/plot/<time>')
-# use time to create unique URL - is needed not to get same plot every call
-def get_plot(username, filename, time):
-	# TODO: make sure this is called periodically, maybe using AJAX? then we don't have to refresh to see plot update
-	image_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')], 'plots')
-	# image_path = path.replace(filename, 'plots')
-	return send_from_directory(image_path, os.listdir(image_path)[-1], as_attachment=True)
+@app.route('/<username>/uploads/<filename>/plot')
+def get_plot(username, filename):
+	image_path = os.path.join(app.config['UPLOAD_FOLDER'].replace('user_storage', 'static'), username, 'programs', filename[:filename.index('.')], 'plots')
+	image_path = '%s/programs/%s/plots/%s' % (username, filename[:filename.index('.')], os.listdir(image_path)[-1])
+	return jsonify(image_path=url_for('static', filename=image_path))
 
 
 @login_required

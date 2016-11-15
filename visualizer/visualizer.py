@@ -6,6 +6,7 @@ import flask_login as fl
 from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory
 from flask_login import login_required
 from werkzeug.utils import secure_filename
+from sqlalchemy import func, distinct
 
 from visualizer.modules.helpers import *
 from visualizer.modules.models import *
@@ -168,17 +169,10 @@ def upload_file(username):
 			path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename)
 			file.save(path)
 			file_meta = FileMeta(filename, date.today(), path, username)
-			for tag in form.tags.data:
-				existing_tag = Tag.query.filter_by(text=tag).first()
-				if existing_tag:
-					file_meta.tags.append(existing_tag)
-				else:
-					file_meta.tags.append(Tag(tag))
-			name_tag = Tag.query.filter_by(text=filename.split('.')[0]).first()
-			if name_tag:
-				file_meta.tags.append(name_tag)
-			else:
-				file_meta.tags.append(Tag(filename.split('.')[0]))
+			for text in form.tags.data:
+				file_meta.tags.append(get_existing_tag(text))
+			# add file name as a tag automatically
+			file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
 			db.session.add(file_meta)
 			db.session.commit()
 			flash('File was successfully stored in database')
@@ -208,12 +202,8 @@ def show_file(username, filename):
 	content = str(file.data, 'utf-8')
 	tag_form = TagForm()
 	if tag_form.validate_on_submit():
-		for tag in tag_form.tags.data:
-				existing_tag = Tag.query.filter_by(text=tag).first()
-				if existing_tag:
-					meta.tags.append(existing_tag)
-				else:
-					meta.tags.append(Tag(tag))
+		for text in tag_form.tags.data:
+			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
 		return redirect(url_for('show_file', username=username, filename=filename))
 	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content, tag_form=TagForm())
@@ -242,7 +232,6 @@ def run_upload(username, filename):
 @login_required
 @app.route('/<username>/search_results/<query>')
 def search(username, query):
-	from sqlalchemy import func, distinct
 	tags = query.split(" ")
 	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))

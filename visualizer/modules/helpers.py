@@ -6,7 +6,7 @@ from time import sleep
 from flask import abort
 from flask_login import current_user
 
-from visualizer.modules.models import User
+from visualizer.modules.models import User, Tag
 
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}
@@ -52,6 +52,14 @@ def allowed_file(filename):
 def check_authorization(username):
 	if username != str(current_user):
 		abort(401)
+
+
+# TODO: might be possible to manage this directly in the query
+def get_existing_tag(text):
+	existing_tag = Tag.query.filter_by(text=text).first()
+	if existing_tag:
+		return existing_tag
+	return Tag(text)
 		
 
 def get_form_errors(form):

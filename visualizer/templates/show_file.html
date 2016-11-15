@@ -3,18 +3,26 @@
     {% if meta and content %}
         <title>Uploaded file</title>
         <form action="{{ url_for('run_upload', username=username, filename=filename) }}" method=post class=run_upload>
-            <h1>{{ meta.filename }} {{ form.run }}</h1>
+            <h2>{{ meta.filename }} {{ form.run }}</h2>
         </form>
-        <dt>Date uploaded: {{ meta.upload_date }}
-        <dt>Owner: {{ meta.owner }}
-        <dt>Path: {{ meta.path }}
-        <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
-
-        <dt>Tags:
+        <div>Tags:
             {% for tag in meta.tags %}
-                <li>{{ tag }}
-            {% else %}
-                <dd><em>No tags found</em>
+                <form method=post style="display:inline"
+                      action="{{ url_for('remove_tag', username=username, filename=filename, tag_id=tag.id) }}">
+                    <span class=tag>{{ tag }} <button class=remove_tag type="submit">x</button></span>
+                </form>
             {% endfor %}
+            <form class=tag_form method=post
+                  action="{{ url_for('show_file', username=username, filename=filename) }}">
+                {{ form.csrf_token }}
+                {{ tag_form.tags(placeholder="Add tag") }}
+            </form>
+        </div>
+        <dl>
+            <dt>Date uploaded: {{ meta.upload_date }}
+            <dt>Owner: {{ meta.owner }}
+            <dt>Path: {{ meta.path }}
+        </dl>
+        <textarea class="code" disabled rows=20 cols=90 >{{ content }}</textarea>
     {% endif %}
 {% endblock %}

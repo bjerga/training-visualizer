@@ -2,7 +2,7 @@
 <title>Visualizer</title>
 <link rel=stylesheet type=text/css href="{{  url_for('static', filename='style.css') }}">
 <div class=page>
-    <h1>Visualizer</h1>
+    <h1><a href="/">Visualizer</a></h1>
     <div class=metanav>
         {% if not current_user.get_id() %}
             <a href="{{ url_for('login') }}">Log in</a>

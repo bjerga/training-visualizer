@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField
-from wtforms.validators import DataRequired, EqualTo, Length, Regexp
+from wtforms.validators import DataRequired, EqualTo, Length
 from wtforms.widgets import TextInput
 
 USERNAME_MINIMUM_LENGTH = 6
@@ -58,3 +58,12 @@ class FileForm(FlaskForm):
 
 class RunForm(FlaskForm):
 	run = SubmitField('Run')
+
+
+class SearchForm(FlaskForm):
+	search = StringField('Search', validators=[DataRequired()])
+	submit = SubmitField('Search')
+
+
+class TagForm(FlaskForm):
+	tags = TagListField('Tags')

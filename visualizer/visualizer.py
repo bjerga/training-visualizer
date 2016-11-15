@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from shutil import rmtree
 from multiprocessing import Process, Value
 
 import flask_login as fl
@@ -20,10 +21,6 @@ app.secret_key = 'thisissupersecretestkeyintheworld'
 processes = []
 
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'user_storage')
-try:
-	os.mkdir(app.config['UPLOAD_FOLDER'])
-except FileExistsError:
-	pass
 
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
@@ -49,8 +46,19 @@ app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)
 
 @app.cli.command('initdb')
 def initdb_command():
+	# remove old database and folders
 	db.drop_all()
+	try:
+		rmtree(app.config['UPLOAD_FOLDER'], ignore_errors=True)
+	except FileNotFoundError:
+		pass
+	
+	# create new database and folders
 	db.create_all()
+	try:
+		os.mkdir(app.config['UPLOAD_FOLDER'])
+	except FileExistsError:
+		pass
 	print('Initialized the database')
 
 

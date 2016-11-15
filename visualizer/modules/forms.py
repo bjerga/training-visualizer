@@ -62,6 +62,7 @@ class RunForm(FlaskForm):
 
 class SearchForm(FlaskForm):
 	search = StringField('Search', validators=[DataRequired()])
+	submit = SubmitField('Search')
 
 
 class TagForm(FlaskForm):

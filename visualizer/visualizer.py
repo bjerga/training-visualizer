@@ -17,10 +17,14 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 app.secret_key = 'thisissupersecretestkeyintheworld'
 
-UPLOAD_FOLDER = 'user_storage'
 processes = []
 
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), UPLOAD_FOLDER)
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'user_storage')
+try:
+	os.mkdir(app.config['UPLOAD_FOLDER'])
+except FileExistsError:
+	pass
+
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
@@ -67,18 +71,7 @@ def create_user():
 			db.session.commit()
 			
 			# create folders for user to save data in
-			try:
-				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data)
-			except FileExistsError:
-				pass
-			try:
-				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/programs')
-			except FileExistsError:
-				pass
-			try:
-				os.mkdir(app.config['UPLOAD_FOLDER'] + '/' + form.username.data + '/data')
-			except FileExistsError:
-				pass
+			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs', form.username.data + '/data'])
 			
 			flash('User successfully created. Try logging in!')
 			return redirect(url_for('login'))
@@ -173,22 +166,7 @@ def upload_file(username):
 					os.mkdir(folder_path)
 				except FileExistsError:
 					pass
-				try:
-					os.mkdir(os.path.join(folder_path, 'results'))
-				except FileExistsError:
-					pass
-				try:
-					os.mkdir(os.path.join(folder_path, 'old_results'))
-				except FileExistsError:
-					pass
-				try:
-					os.mkdir(os.path.join(folder_path, 'plots'))
-				except FileExistsError:
-					pass
-				try:
-					os.mkdir(os.path.join(folder_path, 'old_plots'))
-				except FileExistsError:
-					pass
+				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots'])
 				
 				# save program in folder and create file meta
 				file_path = os.path.join(folder_path, filename)
@@ -237,23 +215,31 @@ def show_file(username, filename):
 	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')]), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
+	
 	tag_form = TagForm()
 	if tag_form.validate_on_submit():
 		for text in tag_form.tags.data:
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
 		return redirect(url_for('show_file', username=username, filename=filename))
-	has_plot = len(os.listdir(meta.path.replace(filename, 'plots')))
 	return render_template('show_file.html', form=RunForm(), tag_form=TagForm(), username=username,
-						   filename=filename, meta=meta, content=content, has_plot=has_plot)
+						   filename=filename, meta=meta, content=content)
 
 
 @login_required
 @app.route('/<username>/uploads/<filename>/plot')
 def get_plot(username, filename):
-	image_path = os.path.join(app.config['UPLOAD_FOLDER'].replace('user_storage', 'static'), username, 'programs', filename[:filename.index('.')], 'plots')
-	image_path = '%s/programs/%s/plots/%s' % (username, filename[:filename.index('.')], os.listdir(image_path)[-1])
-	return jsonify(image_path=url_for('static', filename=image_path))
+	# default values
+	plot_url = ''
+	message = 'No plots produced yet'
+	
+	plots = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')], 'plots'))
+	if plots:
+		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename[:filename.index('.')], plots[-1])
+		plot_url = url_for('static', filename=plot_path)
+		message = 'File source: static/' + plot_path
+		
+	return jsonify(plot_url=plot_url, message=message)
 
 
 @login_required

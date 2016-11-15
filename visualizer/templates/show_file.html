@@ -28,33 +28,27 @@
 
         <h3>Visualization of training process:</h3>
 
-{#            TODO: make if-statement dependent on image-source #}
-            {% if has_plot %}
-                <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-                <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+            <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+            <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
 
-                <script>
-                $(setInterval(
-                        function(){
-                            $.ajax({
-                                type: 'GET',
-                                cache: false,
-                                url: "{{ url_for('get_plot', username=username, filename=filename) }}",
-                                success: function(response){
-                                    $('img').attr('src', response.image_path);
-                                    $('#img_path').html(response.image_path);
-                                }
-                            });
-                        },
-                        1000)
-                );
-                </script>
+            <script>
+            $(setInterval(
+                    function(){
+                        $.ajax({
+                            type: 'GET',
+                            cache: false,
+                            url: "{{ url_for('get_plot', username=username, filename=filename) }}",
+                            success: function(response){
+                                $('img').attr('src', response.plot_url);
+                                $('#message').html(response.message);
+                            }
+                        });
+                    },
+                    5000)
+            );
+            </script>
 
-                <img src="">
-                <dd>File source: <span id=img_path>?</span>
-                <dd>URL source: {{ url_for('get_plot', username=username, filename=filename) }}
-            {% else %}
-                <dd><em>No plots produced yet</em>
-            {% endif %}
+            <img src=''>
+            <dd><em><span id=message></span></em>
     {% endif %}
 {% endblock %}

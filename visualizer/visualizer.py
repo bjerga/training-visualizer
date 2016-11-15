@@ -6,6 +6,7 @@ import flask_login as fl
 from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory
 from flask_login import login_required
 from werkzeug.utils import secure_filename
+from sqlalchemy import func, distinct
 
 from visualizer.modules.helpers import *
 from visualizer.modules.models import *
@@ -19,7 +20,6 @@ app.secret_key = 'thisissupersecretestkeyintheworld'
 UPLOAD_FOLDER = 'user_storage'
 processes = []
 
-# app.config['UPLOAD_FOLDER'] = os.path.join('visualizer', UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), UPLOAD_FOLDER)
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
@@ -168,11 +168,12 @@ def upload_file(username):
 			filename = secure_filename(file.filename)
 			path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename)
 			file.save(path)
-			db.session.add(FileMeta(filename, date.today(), path, username))
-			db.session.commit()
-			meta_id = FileMeta.query.filter_by(filename=filename, owner=username).first().id
-			for tag in form.tags.data:
-				db.session.add(Tag(meta_id, tag))
+			file_meta = FileMeta(filename, date.today(), path, username)
+			for text in form.tags.data:
+				file_meta.tags.append(get_existing_tag(text))
+			# add file name as a tag automatically
+			file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
+			db.session.add(file_meta)
 			db.session.commit()
 			flash('File was successfully stored in database')
 			return redirect(url_for('show_file', username=username, filename=filename))
@@ -180,22 +181,32 @@ def upload_file(username):
 
 
 @login_required
-@app.route('/<username>/uploads')
+@app.route('/<username>/uploads', methods=['GET', 'POST'])
 def show_all_files(username):
 	check_authorization(username)
 	metas = FileMeta.query.filter_by(owner=username).all()
-	return render_template('show_all_files.html', username=username, metas=metas)
+	search_form = SearchForm()
+	if search_form.validate_on_submit():
+		query = search_form.search.data
+		return redirect(url_for('search', username=username, query=query))
+	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>')
+@app.route('/<username>/uploads/<filename>', methods=['GET', 'POST'])
 def show_file(username, filename):
 	check_authorization(username)
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs'), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
-	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content)
+	tag_form = TagForm()
+	if tag_form.validate_on_submit():
+		for text in tag_form.tags.data:
+			meta.tags.append(get_existing_tag(text))
+		db.session.commit()
+		return redirect(url_for('show_file', username=username, filename=filename))
+	return render_template('show_file.html', form=RunForm(), username=username, filename=filename, meta=meta, content=content, tag_form=TagForm())
 
 
 @login_required
@@ -216,3 +227,23 @@ def run_upload(username, filename):
 	p.start()
 	
 	return redirect(url_for('show_file', username=username, filename=filename))
+
+
+@login_required
+@app.route('/<username>/search_results/<query>')
+def search(username, query):
+	tags = query.split(" ")
+	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
+		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
+	return render_template('show_all_files.html', search_form=SearchForm(), username=username, metas=results)
+
+
+@login_required
+@app.route('/<username>/uploads/<filename>/remove_tag/<tag_id>', methods=['POST'])
+def remove_tag(username, filename, tag_id):
+	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
+	tag = Tag.query.get(tag_id)
+	meta.tags.remove(tag)
+	db.session.commit()
+	return redirect(url_for('show_file', username=username, filename=filename))
+

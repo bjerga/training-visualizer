@@ -1,9 +1,17 @@
 {% extends "layout.html" %}
 {% block body %}
     <title>All uploaded files</title>
+    <form action="{{ url_for('show_all_files', username=username) }}" method="post">
+        {{ search_form.csrf_token }}
+        {{ search_form.hidden_tag() }}{{ search_form.search(class="search") }}
+        {{ search_form.submit }}
+    </form>
     <ul class=metas>
         {% for meta in metas %}
             <h2><a href="{{ url_for('show_file', username=username, filename=meta.filename ) }}">{{ meta.filename }}</a></h2>
+            {% for tag in meta.tags %}
+                <span class=tag>{{ tag }}</span>
+            {% endfor %}
             <li>Upload date: {{ meta.upload_date }}
             <li>Owned by: {{ meta.owner }}
             <li>Path: {{ meta.path }}

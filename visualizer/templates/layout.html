@@ -1,33 +1,21 @@
 <!doctype html>
-<html>
-    {% block head %}
-        <title>Visualizer</title>
-        <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-        <link rel=stylesheet href="{{ url_for('static', filename='css/bootstrap-responsive.min.css') }}">
-        <script src="http://code.jquery.com/jquery-latest.js"></script>
-        <script src="{{ url_for('static', filename='css/bootstrap.min.js') }}"></script>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% endblock %}
-    <body>
-        <div class="container">
-            <h1>Visualizer</h1>
-            <div class="navbar navbar-default">
-                <ul class="nav navbar-nav">
-                    {% if not current_user.get_id() %}
-                        <li><a href="{{ url_for('login') }}">Log in</a></li>
-                        <li><a href="{{ url_for('create_user') }}">Create user</a></li>
-                    {% else %}
-                        <li><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
-                        <li><a href="{{ url_for('show_entries', username=current_user) }}">Write text</a></li>
-                        <li><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
-                        <li><a href="{{ url_for('show_all_files', username=current_user) }}">View files</a></li>
-                    {% endif %}
-                </ul>
-            </div>
-            {% for message in get_flashed_messages() %}
-                <div class=flash>{{ message }}</div>
-            {% endfor %}
-            {% block body %}{% endblock %}
-        </div>
-    </body>
-</html>
+<title>Visualizer</title>
+<link rel=stylesheet type=text/css href="{{  url_for('static', filename='style.css') }}">
+<div class=page>
+    <h1><a href="/">Visualizer</a></h1>
+    <div class=metanav>
+        {% if not current_user.get_id() %}
+            <a href="{{ url_for('login') }}">Log in</a>
+            <a href="{{ url_for('create_user') }}">Create user</a>
+        {% else %}
+            <a href="{{ url_for('logout', username=current_user) }}">Log out</a>
+            <a href="{{ url_for('show_entries', username=current_user) }}">Write text</a>
+            <a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a>
+            <a href="{{ url_for('show_all_files', username=current_user) }}">View files</a>
+        {% endif %}
+    </div>
+    {% for message in get_flashed_messages() %}
+        <div class=flash>{{ message }}</div>
+    {% endfor %}
+    {% block body %}{% endblock %}
+</div>

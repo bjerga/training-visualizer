@@ -159,6 +159,7 @@ def upload_file(username):
 		file = form.file.data
 		if file and allowed_file(file.filename):
 			filename = secure_filename(file.filename)
+			# TODO: make database model unique and handle database-errors instead of checking uniqueness
 			if unique_filename(filename):
 				# create folders for program
 				folder_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')])

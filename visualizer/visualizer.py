@@ -243,7 +243,7 @@ def get_plot(username, filename):
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>', methods=['POST'])
+@app.route('/<username>/uploads/<filename>/run', methods=['POST'])
 def run_upload(username, filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)

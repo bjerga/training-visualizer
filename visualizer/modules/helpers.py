@@ -177,3 +177,11 @@ def read_error_file(error_file_path):
 				errors.append(float(line))
 	
 	return errors
+
+
+def create_folders(base_path, new_folders):
+	for new_folder in new_folders:
+		try:
+			os.mkdir(os.path.join(base_path, new_folder))
+		except FileExistsError:
+			pass

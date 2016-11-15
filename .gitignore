@@ -1,6 +1,6 @@
 *.pyc
 .idea/
 visualizer/*.db
-visualizer/user_storage/
+visualizer/static/user_storage/
 test_code/figures
 test_code/networks

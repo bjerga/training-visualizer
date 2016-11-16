@@ -335,7 +335,7 @@ def main():
 		network = NeuralNetwork(784, 100, 10)
 		
 		# select number of desired epochs and commence training
-		epochs = 3
+		epochs = 5
 		train_data = load_data('training')
 		network.train(train_data, epochs)
 		

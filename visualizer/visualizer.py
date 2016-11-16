@@ -120,7 +120,7 @@ def login():
 			if not has_permission(next_access):
 				return abort(400)
 			
-			return redirect(next_access or url_for('show_entries', username=user.username))
+			return redirect(next_access or url_for('upload_file', username=user.username))
 	else:
 		errors = get_form_errors(form)
 	return render_template('login.html', form=form, errors=errors)

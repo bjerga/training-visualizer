@@ -1,7 +1,7 @@
 import re, os
 import subprocess as sub
 import matplotlib.pyplot as plt
-from time import sleep
+from time import time, sleep
 from shutil import move
 
 from flask import abort
@@ -103,7 +103,17 @@ def plot_accuracy_error(file_path, filename, shared_bool):
 	plots_path = file_path.replace(filename, 'plots')
 	print('\nPlot folder path: %s\n' % plots_path)
 	
-	error_file_path = os.path.join(results_path, 'training_error.txt')
+	error_filename = ''
+	while True:
+		sleep(10)
+		try:
+			error_filename = os.listdir(results_path)[-1]
+			break
+		# if file has not been made yet, sleep and try again
+		except IndexError:
+			print('\nPlot file not found, waiting for creation...\n')
+			
+	error_file_path = os.path.join(results_path, error_filename)
 	
 	errors = []
 	plot_num = 0
@@ -114,18 +124,13 @@ def plot_accuracy_error(file_path, filename, shared_bool):
 		# copy old errors
 		old_errors = errors[:]
 		
-		try:
-			errors = read_error_file(error_file_path)
-		# if file has not been made yet, sleep and try again
-		except FileNotFoundError:
-			print('\nFile not found\n')
-			continue
+		errors = read_error_file(error_file_path)
 		
 		print('Errors so far:', errors)
 		# if new errors read, plot and save accuracy error so far
 		if len(errors) != len(old_errors):
 			# plt.figure(figsize=(20, 10))
-			plt.plot(errors, 'r-', label='Error')
+			plt.plot(errors, 'ro-', label='Error')
 			plt.legend(loc='upper right')
 			plt.title('Accuracy Error Over Epochs')
 			plt.xlabel('Epoch')
@@ -135,7 +140,7 @@ def plot_accuracy_error(file_path, filename, shared_bool):
 			plt.xlim([0, 10])
 			plt.ylim([0, 10])
 			
-			plt.savefig(os.path.join(plots_path, 'training_error_plot_%d.png' % plot_num))
+			plt.savefig(os.path.join(plots_path, '%s_plot_%d_%d.png' % (error_filename.rsplit('.', 1)[0], plot_num, time())))
 			# plt.show()
 			plt.clf()
 			plt.close()

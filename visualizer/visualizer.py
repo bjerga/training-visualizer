@@ -231,6 +231,16 @@ def show_file(username, filename, process_id=0):
 	
 	tag_form = TagForm()
 	if tag_form.validate_on_submit():
+
+		# if there is a tag to be deleted
+		text = request.form.get('delete_tag')
+		if text:
+			tag = Tag.query.filter_by(text=text).first()
+			meta.tags.remove(tag)
+			db.session.commit()
+			return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))
+
+		# if not, tags should be added
 		for text in tag_form.tags.data:
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
@@ -308,13 +318,3 @@ def search(username, query):
 	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
 	return render_template('show_all_files.html', search_form=SearchForm(), username=username, metas=results)
-
-
-@login_required
-@app.route('/<username>/uploads/<filename>/remove_tag/<tag_id>/<int:process_id>', methods=['POST'])
-def remove_tag(username, filename, tag_id, process_id):
-	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	tag = Tag.query.get(tag_id)
-	meta.tags.remove(tag)
-	db.session.commit()
-	return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))

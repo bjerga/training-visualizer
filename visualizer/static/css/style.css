@@ -1,0 +1,27 @@
+
+.delete-tag {
+    font-size: larger;
+    color: white;
+    background-color: transparent;
+    border: 0;
+}
+
+.delete-tag:hover {
+    color: #aacbe2;
+}
+
+.delete-tag:focus {
+    outline: none;
+}
+
+.add-tags {
+    font-size: 10px;
+    width: 5em;
+    border: 1px solid #cccccc;
+    border-radius: 0.3em;
+}
+
+.list-inline > li {
+  padding-right: 0px;
+  padding-left: 0px;
+}

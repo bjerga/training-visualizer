@@ -3,6 +3,7 @@
     {% block head %}
         <title>Visualizer</title>
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+        <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
         <script src="http://code.jquery.com/jquery-latest.js"></script>
         <script src="{{ url_for('static', filename='css/bootstrap.min.css') }}"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,5 +31,6 @@
             <div class=flash>{{ message }}</div>
         {% endfor %}
         {% block content %}{% endblock %}
+        <br><br>
     {% endblock %}
 </html>

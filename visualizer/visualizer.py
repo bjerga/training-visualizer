@@ -18,15 +18,17 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 app.secret_key = 'thisissupersecretestkeyintheworld'
 
-processes = []
-
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'user_storage')
+# app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'user_storage')
+
+app.config['processes'] = {}
 
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
 # set to disable notifications of overhead when running
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db.init_app(app)
 
 login_manager = fl.LoginManager()
@@ -170,7 +172,7 @@ def upload_file(username):
 			# TODO: make database model unique and handle database-errors instead of checking uniqueness
 			if unique_filename(filename):
 				# create folders for program
-				folder_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')])
+				folder_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0])
 				try:
 					os.mkdir(folder_path)
 				except FileExistsError:
@@ -218,10 +220,11 @@ def show_all_files(username):
 
 @login_required
 @app.route('/<username>/uploads/<filename>', methods=['GET', 'POST'])
-def show_file(username, filename):
+@app.route('/<username>/uploads/<filename>/<int:process_id>', methods=['GET', 'POST'])
+def show_file(username, filename, process_id=0):
 	check_authorization(username)
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')]), filename)
+	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0]), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
 	
@@ -230,26 +233,41 @@ def show_file(username, filename):
 		for text in tag_form.tags.data:
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
-		return redirect(url_for('show_file', username=username, filename=filename))
+		return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))
 	return render_template('show_file.html', form=RunForm(), tag_form=TagForm(), username=username,
-						   filename=filename, meta=meta, content=content)
+						   filename=filename, meta=meta, content=content, process_id=process_id)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/plot')
-def get_plot(username, filename):
+@app.route('/<username>/uploads/<filename>/plot/<int:process_id>')
+def get_plot(username, filename, process_id):
 	# default values
 	plot_url = ''
 	message = 'No plots produced yet'
 	
-	plots = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename[:filename.index('.')], 'plots'))
+	plots = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots'))
 	if plots:
-		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename[:filename.index('.')], plots[-1])
+		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename.rsplit('.', 1)[0], plots[-1])
 		plot_url = url_for('static', filename=plot_path)
+		print('\nStatic URL: %s\n' % plot_url)
 		message = 'File source: static/' + plot_path
+	
+	print('\nProcess ID: %d\n' % process_id)
+	should_plot = -1
+	try:
+		if app.config['processes'][process_id].is_alive():
+			should_plot = 1
+	except KeyError:
+		pass
 		
-	return jsonify(plot_url=plot_url, message=message)
+	return jsonify(plot_url=plot_url, message=message, should_plot=should_plot)
 
+# @login_required
+# @app.route('/<username>/uploads/<filename>/get')
+# def get_file(username, filename):
+# 	print('\n\nDANG SON!\n\n')
+# 	dir_name = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots')
+# 	return send_from_directory(dir_name, os.listdir(dir_name)[-1], as_attachment=True)
 
 @login_required
 @app.route('/<username>/uploads/<filename>/run', methods=['POST'])
@@ -257,22 +275,30 @@ def run_upload(username, filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
 	
+	# move results and plots if any exist
 	if len(os.listdir(meta.path.replace(meta.filename, 'results'))) != 0:
 		move_to_historical_folder(meta.path, meta.filename)
+		
+	# clear content on static URLs
+	# clear the automatically added route for static
+	# app.url_map._rules.clear()
+	# app.url_map._rules_by_endpoint.clear()
+	# # enable host matching and re-add the static route with the desired host
+	# app.url_map.host_matching = True
+	# app.add_url_rule(app.static_url_path + '/<path:filename>', endpoint='static', view_func=app.send_static_file)
 	
 	# shared boolean denoting if run_python_shell-process is writing
 	shared_bool = Value('i', True)
 	
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
-	processes.append(p)
 	p.start()
+	app.config['processes'][p.pid] = p
 
 	p = Process(target=plot_accuracy_error, args=(meta.path, meta.filename, shared_bool))
-	processes.append(p)
 	p.start()
+	app.config['processes'][p.pid] = p
 	
-	return redirect(url_for('show_file', username=username, filename=filename))
-
+	return redirect(url_for('show_file', username=username, filename=filename, process_id=p.pid))
 
 @login_required
 @app.route('/<username>/search_results/<query>')
@@ -284,11 +310,10 @@ def search(username, query):
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/remove_tag/<tag_id>', methods=['POST'])
-def remove_tag(username, filename, tag_id):
+@app.route('/<username>/uploads/<filename>/remove_tag/<tag_id>/<int:process_id>', methods=['POST'])
+def remove_tag(username, filename, tag_id, process_id):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	tag = Tag.query.get(tag_id)
 	meta.tags.remove(tag)
 	db.session.commit()
-	return redirect(url_for('show_file', username=username, filename=filename))
-
+	return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))

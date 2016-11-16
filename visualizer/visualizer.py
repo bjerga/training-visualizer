@@ -214,7 +214,8 @@ def show_all_files(username):
 	search_form = SearchForm()
 	if search_form.validate_on_submit():
 		query = search_form.search.data
-		return redirect(url_for('search', username=username, query=query))
+		if query:
+			return redirect(url_for('search', username=username, query=query))
 	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
 
 

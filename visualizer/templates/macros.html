@@ -16,8 +16,15 @@
     </div>
 {%- endmacro %}
 
+{% macro render_search_field(search_field) -%}
+    <div class="input-group">
+        <span class="input-group-addon"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></span>
+        {{ search_field(class_='form-control', **kwargs) }}
+    </div>
+{%- endmacro %}
 
-{% macro render_form(form, action_url='', action_text='Submit', class_='', btn_class='btn btn-default', enctype_='') -%}
+
+{% macro render_form(form, action_url='', action_text='Submit', class_='', btn_class='btn btn-default', button=true, enctype_='') -%}
 
     <form method="POST" action="{{ action_url }}" role="form" class="{{ class_ }}" enctype={{ enctype_ }}>
         {{ form.hidden_tag() if form.hidden_tag }}
@@ -34,7 +41,9 @@
                 {% endif %}
             {% endfor %}
         {% endif %}
-        <button type="submit" class="{{ btn_class }}">{{ action_text }} </button>
+        {% if button %}
+            <button type="submit" class="{{ btn_class }}">{{ action_text }} </button>
+        {% endif %}
     </form>
 {%- endmacro %}
 

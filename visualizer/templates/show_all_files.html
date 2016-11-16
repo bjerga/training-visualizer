@@ -1,22 +1,32 @@
 {% extends "layout.html" %}
-{% block body %}
-    <title>All uploaded files</title>
-    <form action="{{ url_for('show_all_files', username=username) }}" method="post">
-        {{ search_form.csrf_token }}
-        {{ search_form.hidden_tag() }}{{ search_form.search(class="search") }}
-        {{ search_form.submit }}
-    </form>
-    <ul class=metas>
-        {% for meta in metas %}
-            <h2><a href="{{ url_for('show_file', username=username, filename=meta.filename ) }}">{{ meta.filename }}</a></h2>
-            {% for tag in meta.tags %}
-                <span class=tag>{{ tag }}</span>
+{% import 'macros.html' as macros %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h2>Uploaded files</h2>
+        </div>
+
+        {% call macros.render_form(search_form, action_url=url_for("show_all_files", username=username), button=false) %}
+            {{ search_form.csrf_token }}
+            {{ macros.render_search_field(search_form.search) }}
+        {% endcall %}
+        <br>
+        <div class="list-group">
+            {% for meta in metas %}
+                     <a class="list-group-item" href="{{ url_for('show_file', username=username, filename=meta.filename ) }}">
+                        <div class="row">
+                            <div class="col-md-9"><h4 class="list-group-item-heading">{{ meta.filename }}</h4></div>
+                            <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>
+                        </div>
+                         <p class="list-group-item-text">
+                             {% for tag in meta.tags %}
+                                 <span class="label label-primary">{{ tag }}</span>
+                             {% endfor %}
+                         </p>
+                    </a>
+            {% else %}
+                <em>No files available</em>
             {% endfor %}
-            <li>Upload date: {{ meta.upload_date }}
-            <li>Owned by: {{ meta.owner }}
-            <li>Path: {{ meta.path }}
-        {% else %}
-            <em>No files here so far</em>
-        {% endfor %}
-    </ul>
+        </div>
+    </div>
 {% endblock %}

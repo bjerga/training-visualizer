@@ -1,12 +1,13 @@
-import re
+import re, os
 import subprocess as sub
 import matplotlib.pyplot as plt
-from time import sleep
+from time import time, sleep
+from shutil import move
 
 from flask import abort
 from flask_login import current_user
 
-from visualizer.modules.models import User, Tag
+from visualizer.modules.models import User, Tag, FileMeta
 
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}
@@ -41,6 +42,12 @@ def unique_username(username):
 
 def has_permission(next_access):
 	# TODO: implement
+	return True
+
+
+def unique_filename(filename):
+	if FileMeta.query.filter_by(filename=filename).first():
+		return False
 	return True
 
 
@@ -89,33 +96,41 @@ def run_python_shell(file_path, shared_bool):
 	return
 
 
-def plot_accuracy_error(file_path, shared_bool):
-
-	# create file path for plots
-	plot_file_path = file_path.replace('programs', 'plots').replace('.py', '_result.txt')
-	print('\nPlot file path: %s\n' % plot_file_path)
+def plot_accuracy_error(file_path, filename, shared_bool):
 	
-	accuracy_errors = []
-	num = 0
+	# create file path for plots
+	results_path = file_path.replace(filename, 'results')
+	plots_path = file_path.replace(filename, 'plots')
+	print('\nPlot folder path: %s\n' % plots_path)
+	
+	error_filename = ''
+	while True:
+		sleep(10)
+		try:
+			error_filename = os.listdir(results_path)[-1]
+			break
+		# if file has not been made yet, sleep and try again
+		except IndexError:
+			print('\nPlot file not found, waiting for creation...\n')
+			
+	error_file_path = os.path.join(results_path, error_filename)
+	
+	errors = []
+	plot_num = 0
 	# if other process is writing
 	while shared_bool.value:
-		sleep(6)
+		sleep(10)
 		
 		# copy old errors
-		old_accuracy_errors = accuracy_errors[:]
+		old_errors = errors[:]
 		
-		try:
-			accuracy_errors = read_plot_file(plot_file_path)
-		# if file has not been made yet, sleep and try again
-		except FileNotFoundError:
-			print('\nFile not found\n')
-			continue
-			
-		print('Errors so far:', accuracy_errors)
+		errors = read_error_file(error_file_path)
+		
+		print('Errors so far:', errors)
 		# if new errors read, plot and save accuracy error so far
-		if len(accuracy_errors) != len(old_accuracy_errors):
+		if len(errors) != len(old_errors):
 			# plt.figure(figsize=(20, 10))
-			plt.plot(accuracy_errors, 'r-', label='Error')
+			plt.plot(errors, 'ro-', label='Error')
 			plt.legend(loc='upper right')
 			plt.title('Accuracy Error Over Epochs')
 			plt.xlabel('Epoch')
@@ -125,26 +140,53 @@ def plot_accuracy_error(file_path, shared_bool):
 			plt.xlim([0, 10])
 			plt.ylim([0, 10])
 			
-			plt.savefig(plot_file_path.replace('.txt', '_%d.png' % num))
+			plt.savefig(os.path.join(plots_path, '%s_plot_%d_%d.png' % (error_filename.rsplit('.', 1)[0], plot_num, time())))
 			# plt.show()
 			plt.clf()
 			plt.close()
 			
-			print('\nSaved accuracy error plot as no. %d\n' % num)
-			num += 1
-			
+			print('\nSaved accuracy error plot as no. %d\n' % plot_num)
+			plot_num += 1
+	
 	print('\nPlotting done\n')
-		
+	
 	# make sure process ends (not certain this is needed)
 	return
-
-
-def read_plot_file(plot_file_path):
 	
-	accuracy_errors = []
-	with open(plot_file_path, 'r') as f:
+	
+def move_to_historical_folder(file_path, filename):
+	
+	results_path = file_path.replace(filename, 'results')
+	plots_path = file_path.replace(filename, 'plots')
+	
+	# move results and plots to old_results and old_plots, respectively
+	old_results_path = file_path.replace(filename, 'old_results')
+	result_num = len(os.listdir(old_results_path))
+	# result_num = int(np.sum([1 for file in os.listdir(base_write_path) if file.startswith('mnist_nn_' + error_type)]))
+	for file in os.listdir(results_path):
+		move(os.path.join(results_path, file), os.path.join(old_results_path, file.replace('.', '_result_%d.' % result_num)))
+		
+	old_plots_path = file_path.replace(filename, 'old_plots')
+	for file in os.listdir(plots_path):
+		move(os.path.join(plots_path, file), os.path.join(old_plots_path, file.replace('_plot', '_result_%d_plot' % result_num)))
+	
+	print('\nFiles moved to historical folders\n')
+
+
+def read_error_file(error_file_path):
+	
+	errors = []
+	with open(error_file_path, 'r') as f:
 		for line in f:
 			if line != '':
-				accuracy_errors.append(float(line))
+				errors.append(float(line))
 	
-	return accuracy_errors
+	return errors
+
+
+def create_folders(base_path, new_folders):
+	for new_folder in new_folders:
+		try:
+			os.mkdir(os.path.join(base_path, new_folder))
+		except FileExistsError:
+			pass

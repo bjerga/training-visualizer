@@ -9,19 +9,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
     {% block body %}
+        {% set active_page = active_page|default("log_in") %}
+        {{ active_page }}
         <nav class="navbar navbar-default">
             <div class="navbar-header">
-                <a class="navbar-brand" href="{{ url_for('login') }}">Visualizer</a>
+                <a id="home" class="navbar-brand"{% if current_user.get_id() %}
+                   href="{{ url_for('upload_file', username=current_user) }}"{% else %}
+                   href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
             </div>
             <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
                 <ul class="nav navbar-nav">
                     {% if not current_user.get_id() %}
-                        <li><a href="{{ url_for('login') }}">Log in</a></li>
-                        <li><a href="{{ url_for('create_user') }}">Create user</a></li>
+                        <li id="log_in" {% if id == active_page %}class="active"{% endif %}>
+                            <a href="{{ url_for('login') }}">Log in</a>
+                        </li>
+                        <li id="create_user" {% if id == active_page %}class="active"{% endif %}>
+                            <a href="{{ url_for('create_user') }}">Create user</a>
+                        </li>
                     {% else %}
-                        <li><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
-                        <li><a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a></li>
-                        <li><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
+                        <li id="upload_file" {% if id == active_page %} class="active"{% endif %}>
+                            <a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a>
+                        </li>
+                        <li id="view_files" {% if id == active_page %} class="active"{% endif %}>
+                            <a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a>
+                        </li>
+                        <li id="log_out" {% if id == active_page %} class="active"{% endif %}>
+                            <a href="{{ url_for('logout', username=current_user) }}">Log out</a>
+                        </li>
                     {% endif %}
                 </ul>
             </div>

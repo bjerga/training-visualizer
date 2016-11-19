@@ -1,5 +1,9 @@
 {% extends "layout.html" %}
 {% import 'macros.html' as macros %}
+{% block body %}
+    {{ super() }}
+    {% set active_page = "upload_file" %}
+{% endblock %}
 {% block content %}
     <div class="container">
         <div class="page-header">

@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
-    {% block head %}
+    <head>
+        {% block head %}
         <title>Visualizer</title>
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
@@ -8,9 +9,9 @@
         <script src="{{ url_for('static', filename='css/bootstrap.min.css') }}"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
-    {% block body %}
-        {% set active_page = active_page|default("log_in") %}
-        {{ active_page }}
+    </head>
+    <body>
+        {% block body %}
         <nav class="navbar navbar-default">
             <div class="navbar-header">
                 <a id="home" class="navbar-brand"{% if current_user.get_id() %}
@@ -20,22 +21,12 @@
             <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
                 <ul id="main-menu1" class="nav navbar-nav">
                     {% if not current_user.get_id() %}
-                        <li id="log_in" {% if id == active_page %}class="active"{% endif %}>
-                            <a href="{{ url_for('login') }}">Log in</a>
-                        </li>
-                        <li id="create_user" {% if id == active_page %}class="active"{% endif %}>
-                            <a href="{{ url_for('create_user') }}">Create user</a>
-                        </li>
+                        <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
+                        <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
                     {% else %}
-                        <li id="upload_file" {% if id == active_page %} class="active"{% endif %}>
-                            <a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a>
-                        </li>
-                        <li id="view_files" {% if id == active_page %} class="active"{% endif %}>
-                            <a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a>
-                        </li>
-                        <li id="log_out" {% if id == active_page %} class="active"{% endif %}>
-                            <a href="{{ url_for('logout', username=current_user) }}">Log out</a>
-                        </li>
+                        <li id="upload_file"><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
+                        <li id="view_files"><a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a></li>
+                        <li id="log_out"><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
                     {% endif %}
                 </ul>
             </div>
@@ -48,6 +39,7 @@
         <br><br>
 
     {% endblock %}
+    </body>
     <script type="text/javascript">
         (function() {
             var nav = document.getElementById('main-menu1'),
@@ -60,5 +52,5 @@
                 }
             }
         })();
-        </script>
+    </script>
 </html>

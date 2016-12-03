@@ -241,33 +241,35 @@ def show_file(username, filename, process_id=0):
 @login_required
 @app.route('/<username>/uploads/<filename>/plot/<int:process_id>')
 def get_plot(username, filename, process_id):
-	# default values
-	plot_url = ''
-	message = 'No plots produced yet'
-	
-	plots = os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots'))
+
+	plot_urls = []
+	message = 'File sources: '
+
+	plots = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots')))
+	for plot in plots:
+		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename.rsplit('.', 1)[0], plot)
+		plot_urls.append(url_for('static', filename=plot_path))
+		message += 'static/%s, ' % plot_path
+
 	if plots:
-		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename.rsplit('.', 1)[0], plots[-1])
-		plot_url = url_for('static', filename=plot_path)
-		print('\nStatic URL: %s\n' % plot_url)
-		message = 'File source: static/' + plot_path
-	
-	print('\nProcess ID: %d\n' % process_id)
+		# remove last comma
+		message = message[:-2]
+	else:
+		# if not plots, relay in message
+		message = 'No plots produced yet'
+
+	# if writing process is alive, return 1
+	# print('\nProcess ID: %d\n' % process_id)
 	should_plot = -1
 	try:
 		if app.config['processes'][process_id].is_alive():
 			should_plot = 1
 	except KeyError:
+		# process not found, consider it killed
 		pass
-		
-	return jsonify(plot_url=plot_url, message=message, should_plot=should_plot)
 
-# @login_required
-# @app.route('/<username>/uploads/<filename>/get')
-# def get_file(username, filename):
-# 	print('\n\nDANG SON!\n\n')
-# 	dir_name = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots')
-# 	return send_from_directory(dir_name, os.listdir(dir_name)[-1], as_attachment=True)
+	return jsonify(plot_urls=plot_urls, message=message, should_plot=should_plot)
+
 
 @login_required
 @app.route('/<username>/uploads/<filename>/run', methods=['POST'])
@@ -294,7 +296,7 @@ def run_upload(username, filename):
 	p.start()
 	app.config['processes'][p.pid] = p
 
-	p = Process(target=plot_accuracy_error, args=(meta.path, meta.filename, shared_bool))
+	p = Process(target=plot_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
 	app.config['processes'][p.pid] = p
 	

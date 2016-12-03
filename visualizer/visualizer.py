@@ -83,7 +83,7 @@ def create_user():
 			# create folders for user to save data in
 			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs', form.username.data + '/data'])
 			
-			flash('User successfully created. Try logging in!')
+			flash('User successfully created. Try logging in!', 'success')
 			return redirect(url_for('login'))
 	else:
 		errors = get_form_errors(form)
@@ -110,7 +110,7 @@ def login():
 			
 			# set remember=True to enable cookies to remember user
 			fl.login_user(user, remember=True)
-			flash('You were logged in')
+			flash('You were logged in', 'info')
 			# return redirect(url_for('show_entries', username=user.username))
 			
 			# TODO: find out how to utilize this
@@ -135,7 +135,7 @@ def logout(username):
 	db.session.add(user)
 	db.session.commit()
 	fl.logout_user()
-	flash('You were logged out')
+	flash('You were logged out.', 'info')
 	return redirect(url_for('login'))
 
 
@@ -156,7 +156,7 @@ def add_entry(username):
 		db.session.add(Entry(form.title.data, form.text.data, username))
 		db.session.commit()
 	else:
-		flash('Message was invalid')
+		flash('Message was invalid', 'error')
 	return redirect(url_for('show_entries', form=form, username=username))
 
 
@@ -195,7 +195,7 @@ def upload_file(username):
 				db.session.add(file_meta)
 				db.session.commit()
 				
-				flash('File was successfully stored in database')
+				flash('File was successfully stored in database', 'success')
 				return redirect(url_for('show_file', username=username, filename=filename))
 			else:
 				errors = ['Filename is not unique']

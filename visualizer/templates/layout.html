@@ -6,35 +6,41 @@
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
         <script src="http://code.jquery.com/jquery-latest.js"></script>
-        <script src="{{ url_for('static', filename='css/bootstrap.min.css') }}"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
     </head>
     <body>
         {% block body %}
-        <nav class="navbar navbar-default">
-            <div class="navbar-header">
-                <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                   href="{{ url_for('upload_file', username=current_user) }}"{% else %}
-                   href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
-            </div>
-            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-                <ul id="main-menu1" class="nav navbar-nav">
-                    {% if not current_user.get_id() %}
-                        <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
-                        <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
-                    {% else %}
-                        <li id="upload_file"><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
-                        <li id="view_files"><a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a></li>
-                        <li id="log_out"><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
-                    {% endif %}
-                </ul>
-            </div>
-        </nav>
+            <nav class="navbar navbar-default">
+                <div class="navbar-header">
+                    <a id="home" class="navbar-brand"{% if current_user.get_id() %}
+                       href="{{ url_for('upload_file', username=current_user) }}"{% else %}
+                       href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
+                </div>
+                <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                    <ul id="main-menu1" class="nav navbar-nav">
+                        {% if not current_user.get_id() %}
+                            <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
+                            <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
+                        {% else %}
+                            <li id="upload_file"><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
+                            <li id="view_files"><a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a></li>
+                            <li id="log_out"><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </nav>
 
-        {% for message in get_flashed_messages() %}
-            <div class=flash>{{ message }}</div>
-        {% endfor %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                <!-- Categories: success (green), info (blue), warning (yellow), danger (red) -->
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible" role="alert">
+                          <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <!-- <strong>Title</strong> --> {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
         {% block content %}{% endblock %}
         <br><br>
 

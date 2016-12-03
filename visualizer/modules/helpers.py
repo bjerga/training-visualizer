@@ -75,60 +75,75 @@ def run_python_shell(file_path, shared_bool):
 	return
 
 
-def plot_accuracy_error(file_path, filename, shared_bool):
-	
+def plot_callback_output(file_path, filename, shared_bool):
+
+	plot_colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w']
+
 	# create file path for plots
 	results_path = file_path.replace(filename, 'results')
 	plots_path = file_path.replace(filename, 'plots')
 	print('\nPlot folder path: %s\n' % plots_path)
-	
-	error_filename = ''
-	while True:
-		sleep(10)
-		try:
-			error_filename = os.listdir(results_path)[-1]
-			break
-		# if file has not been made yet, sleep and try again
-		except IndexError:
-			print('\nPlot file not found, waiting for creation...\n')
-			
-	error_file_path = os.path.join(results_path, error_filename)
-	
-	errors = []
-	plot_num = 0
+
+	output_files = []
+	while not output_files:
+		print('\nResults file not found, waiting for creation...\n')
+		sleep(3)
+		output_files = os.listdir(results_path)
+
+	output_file_paths = {output_file.rsplit('.', 1)[0]: os.path.join(results_path, output_file) for output_file in output_files}
+
+	outputs = {}
+
 	# if other process is writing
 	while shared_bool.value:
-		sleep(10)
-		
-		# copy old errors
-		old_errors = errors[:]
-		
-		errors = read_error_file(error_file_path)
-		
-		print('Errors so far:', errors)
-		# if new errors read, plot and save accuracy error so far
-		if len(errors) != len(old_errors):
-			# plt.figure(figsize=(20, 10))
-			plt.plot(errors, 'ro-', label='Error')
-			plt.legend(loc='upper right')
-			plt.title('Accuracy Error Over Epochs')
-			plt.xlabel('Epoch')
-			plt.ylabel('Accuracy Error')
-			
-			# hard-coded
-			plt.xlim([0, 10])
-			plt.ylim([0, 10])
-			
-			plt.savefig(os.path.join(plots_path, '%s_plot_%d_%d.png' % (error_filename.rsplit('.', 1)[0], plot_num, time())))
-			# plt.show()
-			plt.clf()
+
+		# get length of old error values
+		old_length = sum([len(values) for values in outputs.values()])
+
+		# read outputs
+		for output_name in output_file_paths.keys():
+			with open(output_file_paths[output_name], 'r') as f:
+				outputs[output_name] = [float(line) for line in f]
+
+		# if new output values read, plot and save accuracy error so far
+		new_length = sum([len(values) for values in outputs.values()])
+		if new_length != old_length:
+
+			# remove old plots
+			for file in os.listdir(plots_path):
+				os.remove(os.path.join(plots_path, file))
+
+			# create new plots
+			plot_num = 0
+			for output_name in outputs.keys():
+
+				x_label, y_label, model_no = output_name.split('_')
+
+				# plt.figure(figsize=(20, 10))
+				plt.plot(outputs[output_name], plot_colors[plot_num] + '-')
+				plt.title(('%s Over %s For Model No. %s' % (y_label, x_label, model_no)).title())
+				plt.xlabel(x_label.title())
+				plt.ylabel(y_label.title())
+
+				# set limits of x to be outermost points
+				plt.xlim([0, len(outputs[output_name])-1])
+
+				# save new plots
+				plt.savefig(os.path.join(plots_path, '%s_plot_%d.png' % (output_name, time())))
+
+				# clear figure for next plot
+				plt.clf()
+
+				plot_num += 1
+
+			# close plots
 			plt.close()
-			
-			print('\nSaved accuracy error plot as no. %d\n' % plot_num)
-			plot_num += 1
-	
+
+		# sleep to keep from constantly plotting
+		sleep(3)
+
 	print('\nPlotting done\n')
-	
+
 	# make sure process ends (not certain this is needed)
 	return
 	
@@ -150,17 +165,6 @@ def move_to_historical_folder(file_path, filename):
 		move(os.path.join(plots_path, file), os.path.join(old_plots_path, file.replace('_plot', '_result_%d_plot' % result_num)))
 	
 	print('\nFiles moved to historical folders\n')
-
-
-def read_error_file(error_file_path):
-	
-	errors = []
-	with open(error_file_path, 'r') as f:
-		for line in f:
-			if line != '':
-				errors.append(float(line))
-	
-	return errors
 
 
 def create_folders(base_path, new_folders):

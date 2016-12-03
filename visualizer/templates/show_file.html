@@ -6,6 +6,7 @@
             <div class="col-md-9"><div class="page-header"><h2>{{ meta.filename }}</h2></div></div>
             <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>
         </div>
+
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
                 <li id="code" role="presentation"><a href="{{ url_for('show_file_code', username=username, filename=meta.filename) }}">Code</a></li>
@@ -15,6 +16,7 @@
         </nav>
         <br><br>
         {% block subpage %}{% endblock %}
+
     </div>
     <script type="text/javascript">
         (function() {

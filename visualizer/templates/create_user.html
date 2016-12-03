@@ -1,32 +1,15 @@
 {% extends "layout.html" %}
-{% block body %}
-    <h2>Create user</h2>
-    {% if errors %}
-        <ul class=error>
-            {% for error in errors %}
-                <dt><strong>Error:</strong> {{ error }}
-            {% endfor %}
-        </ul>
-    {% endif %}
-    <form action="{{ url_for('create_user') }}" method=post>
-        {{ form.csrf_token }}
-        <dl>
-            <dt>Username:
-            <dd>{{ form.username }}
-            <dt>Password:
-            <dd>{{ form.password }}
-            <dt>Confirm password:
-            <dd>{{ form.confirm }}
-            <dd>{{ form.submit }}
-        </dl>
-    </form>
-    <h2>Username requirements:</h2>
-    <li>Can only contain letters (capitalized or not), numbers and underscores</li>
-    <li>Must be between {{ username_min_length }} and {{ username_max_length }} characters long</li>
-    <h2>Password requirements:</h2>
-    <li>Can only contain letters (capitalized or not) and numbers</li>
-    <li>Must be {{ password_min_length }} characters or longer</li>
-    <li>Must contain at least 1 capitalized letter</li>
-    <li>Must contain at least 1 non-capitalized letter</li>
-    <li>Must contain at least 2 numbers</li>
+{% import 'macros.html' as macros %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h2>Create User</h2>
+        </div>
+        {% call macros.render_form(form, action_url=url_for("create_user"), action_text="Create User") %}
+            {{ form.csrf_token }}
+            {{ macros.render_field(form.username, label_visible=false, placeholder="Username") }}
+            {{ macros.render_field(form.password, label_visible=false, placeholder="Password") }}
+            {{ macros.render_field(form.confirm, label_visible=false, placeholder="Confirm Password") }}
+        {% endcall %}
+    </div>
 {% endblock %}

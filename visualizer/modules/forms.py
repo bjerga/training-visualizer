@@ -3,7 +3,7 @@ from wtforms import Field, StringField, PasswordField, TextAreaField, FileField,
 from wtforms.validators import DataRequired, EqualTo, Length
 from wtforms.widgets import TextInput
 
-USERNAME_MINIMUM_LENGTH = 6
+USERNAME_MINIMUM_LENGTH = 5
 USERNAME_MAXIMUM_LENGTH = 20
 PASSWORD_MINIMUM_LENGTH = 8
 	
@@ -38,9 +38,9 @@ class CreateUserForm(FlaskForm):
 	# password must be at least as long the predetermined minimum length,
 	# and it must match the confirmation field
 	password = PasswordField('Password', validators=[DataRequired(),
-													 Length(PASSWORD_MINIMUM_LENGTH),
-													 EqualTo('confirm', u'Passwords must match')])
-	confirm = PasswordField('Confirm password', validators=[DataRequired()])
+													 Length(PASSWORD_MINIMUM_LENGTH)])
+	confirm = PasswordField('Confirm password', validators=[DataRequired(),
+															EqualTo('password', u'Password does not match.')])
 	submit = SubmitField('Create')
 
 	

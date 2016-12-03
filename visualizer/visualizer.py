@@ -262,7 +262,6 @@ def get_plot(username, filename, process_id):
 	return jsonify(plot_urls=plot_urls, message=message, should_plot=should_plot)
 
 
-
 @login_required
 @app.route('/<username>/uploads/<filename>/run', methods=['POST'])
 def run_upload(username, filename):
@@ -271,7 +270,7 @@ def run_upload(username, filename):
 	
 	# move results and plots if any exist
 	if len(os.listdir(meta.path.replace(meta.filename, 'results'))) != 0:
-		move_to_historical_folder(meta.path, meta.filename)
+		move_to_historical_folder(meta.path)
 		
 	# clear content on static URLs
 	# clear the automatically added route for static

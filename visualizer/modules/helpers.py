@@ -206,7 +206,7 @@ def visualize_activations(pickle_file, results_path, activations_path):
 
 
 # for all folders with 'old' counterpart, move to old
-def move_to_historical_folder(file_path, filename):
+def move_to_historical_folder(file_path):
 
 	# find path to main folder
 	main_folder = file_path.rsplit('/', 1)[0]
@@ -219,8 +219,8 @@ def move_to_historical_folder(file_path, filename):
 		# if there exists an 'old' folder
 		if folder.startswith('old_'):
 			# move all files in the corresponding 'new' folder to 'old' folder (rename to avoid overwrite)
-			for file in listdir(join(main_folder, folder[4:])):
-				move(join(main_folder, folder[4:], file), join(main_folder, folder, file.replace('.', '_%s_%d.' % (folder[4:-1], result_num))))
+			for old_file in listdir(join(main_folder, folder[4:])):
+				move(join(main_folder, folder[4:], old_file), join(main_folder, folder, old_file.replace('.', '_%s_%d.' % (folder[4:-1], result_num))))
 	
 	print('\nFiles moved to historical folders\n')
 

@@ -50,8 +50,8 @@
                             cache: false,
                             url: "{{ url_for('get_plot', username=username, filename=filename, process_id=process_id) }}",
                             success: function(response){
-                                $('img').attr('src', response.plot_url);
-{#                                $('img').attr('src', {{ url_for('get_file', username=username, filename=filename) }});#}
+                                $('#accuracy').attr('src', response.plot_urls[0]);
+                                $('#loss').attr('src', response.plot_urls[1]);
                                 $('#message').html(response.message);
                                 should_plot = response.should_plot;
                             }
@@ -63,10 +63,11 @@
                 }
 
                 get_plot();
-                interval = setInterval(get_plot, 10000);
+                interval = setInterval(get_plot, 3000);
             </script>
 
-            <img src=''>
+            <img id=accuracy src=''>
+            <img id=loss src=''>
             <dd><em><span id=message>No plots produced yet</span></em>
 
     </div>

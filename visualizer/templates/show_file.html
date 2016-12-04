@@ -8,9 +8,9 @@
         </div>
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
-                <li id="code" role="presentation"><a href="{{ url_for('show_file', username=username, filename=meta.filename) }}">Code</a></li>
-                <li id="visualization" role="presentation"><a href="#">Visualization</a></li>
-                <li id="history" role="presentation"><a href="#">History</a></li>
+                <li id="code" role="presentation"><a href="{{ url_for('show_file_code', username=username, filename=meta.filename) }}">Code</a></li>
+                <li id="visualization" role="presentation"><a href="{{ url_for('show_file_visualization', username=username, filename=meta.filename) }}">Visualization</a></li>
+                <li id="history" role="presentation"><a href="{{ url_for('show_file_history', username=username, filename=meta.filename) }}">History</a></li>
             </ul>
         </nav>
         <br><br>

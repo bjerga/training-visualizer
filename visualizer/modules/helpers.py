@@ -92,6 +92,7 @@ def visualize_callback_output(file_path, filename, shared_bool):
 	# for activation visualization
 	activations_path = file_path.replace(filename, 'activations')
 
+	# initialize modification time dict, holds time of last modification for each file
 	modification_times = {}
 
 	# if other process is writing

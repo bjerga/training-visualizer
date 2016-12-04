@@ -1,0 +1,35 @@
+{% extends "show_file.html" %}
+{% block subpage %}
+    <h3>Visualization of training process:</h3>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+
+    <script>
+        var interval;
+        var should_plot = 1;
+        function get_plot(){
+            if (should_plot > 0){
+                $.ajax({
+                    type: 'GET',
+                    cache: false,
+                    url: "{{ url_for('get_plot', username=username, filename=filename, process_id=process_id) }}",
+                    success: function(response){
+                        $('img').attr('src', response.plot_url);
+                        {#                                $('img').attr('src', {{ url_for('get_file', username=username, filename=filename) }});#}
+                        $('#message').html(response.message);
+                        should_plot = response.should_plot;
+                    }
+                })
+            }
+            else {
+                clearInterval(interval)
+            }
+        }
+
+        get_plot();
+        interval = setInterval(get_plot, 10000);
+    </script>
+
+    <img src=''>
+    <dd><em><span id=message>No plots produced yet</span></em>
+{% endblock %}

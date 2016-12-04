@@ -6,68 +6,27 @@
             <div class="col-md-9"><div class="page-header"><h2>{{ meta.filename }}</h2></div></div>
             <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>
         </div>
-        <ul class="list-inline">
-            {% for tag in meta.tags %}
-                <li>
-                    {% call macros.render_form(tag_form, url_for("show_file", username=username, filename=filename, process_id=process_id), button=false) %}
-                        <span class="label label-primary">
-                            {{ tag }}
-                            <button type="submit" class="delete-tag" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                            <input type="hidden" name="delete_tag" value="{{ tag }}"/>
-                        </span>
-                    {% endcall %}
-                </li>
-            {% else %}
-                <em>The program has no tags.</em>
-            {% endfor %}
-            <li>
-                {% call macros.render_form(tag_form, url_for("show_file", username=username, filename=filename), button=false) %}
-                    {{ tag_form.csrf_token }}
-                    {{ macros.render_field(tag_form.tags, label_visible=false, class="add-tags", placeholder="Add tag") }}
-                {% endcall %}
-            </li>
-        </ul>
-        Date uploaded: {{ meta.upload_date }}
-        <pre class="pre-scrollable">{{ content }}</pre><br>
-        {% call macros.render_form(form, url_for("run_upload", username=username, filename=filename), button=false) %}
-            {{ macros.render_submit_field(form.run, {'run':'danger btn-lg btn-block'}) }}
-        {% endcall %}
-
-        <h3>Visualization of training process:</h3>
-
-            <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-            <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
-
-            <script>
-                var interval;
-                var should_plot = 1;
-                function get_plot(){
-                    if (should_plot > 0){
-                        $.ajax({
-                            type: 'GET',
-                            cache: false,
-                            url: "{{ url_for('get_plot', username=username, filename=filename, process_id=process_id) }}",
-                            success: function(response){
-                                $('img').attr('src', response.plot_url);
-{#                                $('img').attr('src', {{ url_for('get_file', username=username, filename=filename) }});#}
-                                $('#message').html(response.message);
-                                should_plot = response.should_plot;
-                            }
-                        })
-                    }
-                    else {
-                        clearInterval(interval)
-                    }
-                }
-
-                get_plot();
-                interval = setInterval(get_plot, 10000);
-            </script>
-
-            <img src=''>
-            <dd><em><span id=message>No plots produced yet</span></em>
-
+        <nav>
+            <ul id="submenu1" class="nav nav-tabs">
+                <li id="code" role="presentation"><a href="{{ url_for('show_file', username=username, filename=meta.filename) }}">Code</a></li>
+                <li id="visualization" role="presentation"><a href="#">Visualization</a></li>
+                <li id="history" role="presentation"><a href="#">History</a></li>
+            </ul>
+        </nav>
+        <br><br>
+        {% block subpage %}{% endblock %}
     </div>
+    <script type="text/javascript">
+        (function() {
+            var nav = document.getElementById('submenu1'),
+                anchor = nav.getElementsByTagName('a'),
+                menu = nav.getElementsByTagName('li'),
+                current = window.location.pathname.split('/')[4];
+            for (var i = 0; i < menu.length; i++) {
+                if (current.length > 0 && anchor[i].href.split('/')[6] == current) {
+                    menu[i].className = "active";
+                }
+            }
+        })();
+    </script>
 {% endblock %}

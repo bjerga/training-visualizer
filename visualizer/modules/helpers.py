@@ -10,28 +10,7 @@ from flask_login import current_user
 from visualizer.modules.models import User, Tag, FileMeta
 
 
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}
-
-
-def valid_username(username):
-	# checks if password only contains letters (capitalized or not), numbers and underscores
-	if re.match('^[\w]*$', username):
-		return True
-	return False
-
-
-def valid_password(password):
-	# checks if password only contains letters (capitalized or not) and numbers,
-	# and that it contains at least 1 capitalized letter,
-	# and that it contains at least 1 non-capitalized letter,
-	# and that it contains at least 2 numbers
-	# if re.match('^[\w]*$', password) and \
-	# 				len(re.findall('[A-Z]', password)) > 0 and \
-	# 				len(re.findall('[a-z]', password)) > 0 and \
-	# 				len(re.findall('[0-9]', password)) > 1:
-	if True:
-			return True
-	return False
+ALLOWED_EXTENSIONS = {'py'}
 
 
 def unique_username(username):

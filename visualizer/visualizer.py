@@ -68,29 +68,20 @@ def initdb_command():
 def create_user():
 	form = CreateUserForm()
 	if form.validate_on_submit():
-		errors = []
-		if not valid_username(form.username.data):
-			errors.append('Username does not match requirements')
-		elif not unique_username(form.username.data):
-			errors.append('Username is already taken')
-		if not valid_password(form.password.data):
-			errors.append('Password does not match requirements')
-		if len(errors) == 0:
+		if not unique_username(form.username.data):
+			flash('Username is already taken', 'danger')
+		else:
 			# add user to database
 			db.session.add(User(form.username.data, form.password.data))
 			db.session.commit()
 			
 			# create folders for user to save data in
-			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs', form.username.data + '/data'])
+			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs',
+														 form.username.data + '/data'])
 			
-			flash('User successfully created. Try logging in!', 'success')
+			flash('User successfully created', 'success')
 			return redirect(url_for('login'))
-	else:
-		errors = get_form_errors(form)
-	return render_template('create_user.html', form=form, errors=errors,
-						   username_min_length=USERNAME_MINIMUM_LENGTH,
-						   username_max_length=USERNAME_MAXIMUM_LENGTH,
-						   password_min_length=PASSWORD_MINIMUM_LENGTH)
+	return render_template('create_user.html', form=form)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -100,9 +91,9 @@ def login():
 		user = User.query.filter_by(username=form.username.data).first()
 		# user = load_user(form.username.data)
 		if not user:
-			errors = ['Invalid username']
+			flash('Invalid username', 'danger')
 		elif not user.check_password(form.password.data):
-			errors = ['Invalid password']
+			flash('Invalid password', 'danger')
 		else:
 			user.authenticated = True
 			db.session.add(user)
@@ -110,7 +101,7 @@ def login():
 			
 			# set remember=True to enable cookies to remember user
 			fl.login_user(user, remember=True)
-			flash('You were logged in', 'info')
+			flash('You were logged in', 'success')
 			# return redirect(url_for('show_entries', username=user.username))
 			
 			# TODO: find out how to utilize this
@@ -121,9 +112,7 @@ def login():
 				return abort(400)
 			
 			return redirect(next_access or url_for('upload_file', username=user.username))
-	else:
-		errors = get_form_errors(form)
-	return render_template('login.html', form=form, errors=errors)
+	return render_template('login.html', form=form)
 
 
 @login_required
@@ -135,29 +124,8 @@ def logout(username):
 	db.session.add(user)
 	db.session.commit()
 	fl.logout_user()
-	flash('You were logged out.', 'info')
+	flash('You were logged out', 'success')
 	return redirect(url_for('login'))
-
-
-@login_required
-@app.route('/<username>/entries')
-def show_entries(username):
-	check_authorization(username)
-	entries = Entry.query.filter_by(owner=username).all()
-	return render_template('show_entries.html', form=EntryForm(), username=username, entries=entries)
-
-
-@login_required
-@app.route('/<username>/entries', methods=['POST'])
-def add_entry(username):
-	check_authorization(username)
-	form = EntryForm()
-	if form.validate_on_submit():
-		db.session.add(Entry(form.title.data, form.text.data, username))
-		db.session.commit()
-	else:
-		flash('Message was invalid', 'error')
-	return redirect(url_for('show_entries', form=form, username=username))
 
 
 @login_required
@@ -195,15 +163,13 @@ def upload_file(username):
 				db.session.add(file_meta)
 				db.session.commit()
 				
-				flash('File was successfully stored in database', 'success')
+				flash('File was successfully uploaded', 'success')
 				return redirect(url_for('show_file', username=username, filename=filename))
 			else:
-				errors = ['Filename is not unique']
+				flash('Filename already exists', 'danger')
 		else:
-			errors = ['Filename is not allowed']
-	else:
-		errors = get_form_errors(form)
-	return render_template('upload_file.html', form=form, errors=errors)
+			flash('File type is not allowed', 'danger')
+	return render_template('upload_file.html', form=form)
 
 
 @login_required
@@ -280,6 +246,7 @@ def get_plot(username, filename, process_id):
 # 	dir_name = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots')
 # 	return send_from_directory(dir_name, os.listdir(dir_name)[-1], as_attachment=True)
 
+
 @login_required
 @app.route('/<username>/uploads/<filename>/run', methods=['POST'])
 def run_upload(username, filename):
@@ -310,6 +277,7 @@ def run_upload(username, filename):
 	app.config['processes'][p.pid] = p
 	
 	return redirect(url_for('show_file', username=username, filename=filename, process_id=p.pid))
+
 
 @login_required
 @app.route('/<username>/search_results/<query>')

@@ -1,12 +1,12 @@
 from flask_wtf import FlaskForm
 from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField
-from wtforms.validators import DataRequired, EqualTo, Length
+from wtforms.validators import DataRequired, EqualTo, Length, Regexp
 from wtforms.widgets import TextInput
 
 USERNAME_MINIMUM_LENGTH = 5
 USERNAME_MAXIMUM_LENGTH = 20
 PASSWORD_MINIMUM_LENGTH = 8
-	
+
 
 class TagListField(Field):
 	widget = TextInput()
@@ -34,21 +34,25 @@ class LoginForm(FlaskForm):
 class CreateUserForm(FlaskForm):
 	# username must have length in between the predetermined minimum and maximum length
 	username = StringField('Username', validators=[DataRequired(),
+												   Regexp('^\w+$', message=u'Username must only contain letters, '
+																		   u'numbers and underscores'),
 												   Length(USERNAME_MINIMUM_LENGTH, USERNAME_MAXIMUM_LENGTH)])
 	# password must be at least as long the predetermined minimum length,
 	# and it must match the confirmation field
 	password = PasswordField('Password', validators=[DataRequired(),
+													 Regexp('^[a-zA-Z0-9]+$', message=u'Passord must only contain letters '
+																			 u'and numbers'),
 													 Length(PASSWORD_MINIMUM_LENGTH)])
 	confirm = PasswordField('Confirm password', validators=[DataRequired(),
 															EqualTo('password', u'Password does not match.')])
 	submit = SubmitField('Create')
 
-	
+
 class EntryForm(FlaskForm):
 	title = StringField('Title', validators=[DataRequired()])
 	text = TextAreaField('Text', validators=[DataRequired()])
 	submit = SubmitField('Share')
-	
+
 
 class FileForm(FlaskForm):
 	file = FileField('Upload file', validators=[DataRequired('No selected file')])

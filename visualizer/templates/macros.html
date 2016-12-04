@@ -1,0 +1,55 @@
+{% macro render_field(field, label_visible=true) -%}
+    <div class="form-group {% if field.errors %}has-error{% endif %} {{ kwargs.pop('class_', '') }}">
+        {% if (field.type != 'HiddenField' and field.type !='CSRFTokenField') and label_visible %}
+            <label for="{{ field.id }}" class="control-label">{{ field.label }}</label>
+        {% endif %}
+        {% if field.type == 'FileField' %}
+            {{ field(class_='input-file', **kwargs) }}
+        {% else %}
+            {{ field(class_='form-control', **kwargs) }}
+        {% endif %}
+        {% if field.errors %}
+            {% for e in field.errors %}
+                <p class="help-block">{{ e }}</p>
+            {% endfor %}
+        {% endif %}
+    </div>
+{%- endmacro %}
+
+
+{% macro render_search_field(search_field) -%}
+    <div class="input-group">
+        <span class="input-group-addon"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></span>
+        {{ search_field(class_='form-control', **kwargs) }}
+    </div>
+{%- endmacro %}
+
+
+{% macro render_submit_field(submit_field, button_map={}) -%}
+    {{submit_field(class='btn btn-%s' % button_map.get(submit_field.name, 'default'), **kwargs)}}
+{%- endmacro %}
+
+
+{% macro render_form(form, action_url='', action_text='Submit', class_='', btn_class='btn btn-default', button=true, enctype_='') -%}
+
+    <form method="POST" action="{{ action_url }}" role="form" class="{{ class_ }}" enctype={{ enctype_ }}>
+        {{ form.hidden_tag() if form.hidden_tag }}
+        {% if caller %}
+            {{ caller() }}
+        {% else %}
+            {% for f in form %}
+                {% if f.type == 'BooleanField' %}
+                    {{ render_checkbox_field(f) }}
+                {% elif f.type == 'RadioField' %}
+                    {{ render_radio_field(f) }}
+                {% else %}
+                    {{ render_field(f) }}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        {% if button %}
+            <button type="submit" class="{{ btn_class }}">{{ action_text }} </button>
+        {% endif %}
+    </form>
+{%- endmacro %}
+

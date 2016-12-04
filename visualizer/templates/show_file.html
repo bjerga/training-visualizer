@@ -1,30 +1,39 @@
 {% extends "layout.html" %}
-{% block body %}
-    {% if meta and content %}
-        <title>Uploaded file</title>
-        <form action="{{ url_for('run_upload', username=username, filename=filename) }}" method=post class=run_upload>
-            <h2>{{ meta.filename }} {{ form.run }}</h2>
-        </form>
-        <div>Tags:
-            {% for tag in meta.tags %}
-                <form method=post style="display:inline"
-                      action="{{ url_for('remove_tag', username=username, filename=filename, tag_id=tag.id, process_id=process_id) }}">
-                    <span class=tag>{{ tag }} <button class=remove_tag type="submit">x</button></span>
-                </form>
-            {% endfor %}
-
-            <form class=tag_form method=post
-                  action="{{ url_for('show_file', username=username, filename=filename, process_id=process_id) }}">
-                {{ form.csrf_token }}
-                {{ tag_form.tags(placeholder="Add tag") }}
-            </form>
+{% import 'macros.html' as macros %}
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col-md-9"><div class="page-header"><h2>{{ meta.filename }}</h2></div></div>
+            <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>
         </div>
-        <dl>
-            <dt>Date uploaded: {{ meta.upload_date }}
-            <dt>Owner: {{ meta.owner }}
-            <dt>Path: {{ meta.path }}
-        </dl>
-        <textarea class="code" disabled rows=20 cols=90 >{{ content }}</textarea>
+        <ul class="list-inline">
+            {% for tag in meta.tags %}
+                <li>
+                    {% call macros.render_form(tag_form, url_for("show_file", username=username, filename=filename, process_id=process_id), button=false) %}
+                        <span class="label label-primary">
+                            {{ tag }}
+                            <button type="submit" class="delete-tag" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <input type="hidden" name="delete_tag" value="{{ tag }}"/>
+                        </span>
+                    {% endcall %}
+                </li>
+            {% else %}
+                <em>The program has no tags.</em>
+            {% endfor %}
+            <li>
+                {% call macros.render_form(tag_form, url_for("show_file", username=username, filename=filename), button=false) %}
+                    {{ tag_form.csrf_token }}
+                    {{ macros.render_field(tag_form.tags, label_visible=false, class="add-tags", placeholder="Add tag") }}
+                {% endcall %}
+            </li>
+        </ul>
+        Date uploaded: {{ meta.upload_date }}
+        <pre class="pre-scrollable">{{ content }}</pre><br>
+        {% call macros.render_form(form, url_for("run_upload", username=username, filename=filename), button=false) %}
+            {{ macros.render_submit_field(form.run, {'run':'danger btn-lg btn-block'}) }}
+        {% endcall %}
 
         <h3>Visualization of training process:</h3>
 
@@ -59,5 +68,6 @@
 
             <img src=''>
             <dd><em><span id=message>No plots produced yet</span></em>
-    {% endif %}
+
+    </div>
 {% endblock %}

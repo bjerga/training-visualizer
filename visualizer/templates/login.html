@@ -1,21 +1,21 @@
 {% extends "layout.html" %}
-{% block body %}
-    <h2>Login</h2>
-    {% if errors %}
-        <ul class=error>
-            {% for error in errors %}
-                <dt><strong>Error:</strong> {{ error }}
-            {% endfor %}
-        </ul>
-    {% endif %}
-    <form action="{{ url_for('login') }}" method=post>
-        {{ form.csrf_token }}
-        <dl>
-            <dt>Username:
-            <dd>{{ form.username }}
-            <dt>Password:
-            <dd>{{ form.password }}
-            <dd>{{ form.submit }}
-        </dl>
-    </form>
+{% import 'macros.html' as macros %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h2>Login</h2>
+        </div>
+        {% if errors %}
+            <ul class=error>
+                {% for error in errors %}
+                    <dt><strong>Error:</strong> {{ error }}
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% call macros.render_form(form, class_="form-signin", action_url=url_for("login"), action_text="Login") %}
+            {{ form.csrf_token }}
+            {{ macros.render_field(form.username, label_visible=false, placeholder="Username") }}
+            {{ macros.render_field(form.password, label_visible=false, placeholder="Password") }}
+        {% endcall %}
+    </div>
 {% endblock %}

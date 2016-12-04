@@ -1,22 +1,27 @@
 {% extends "layout.html" %}
+{% import 'macros.html' as macros %}
 {% block body %}
-    <title>Upload new file</title>
-    <h1>Upload new file</h1>
-    {% if errors %}
-        <ul class=error>
-            {% for error in errors %}
-                <dt><strong>Error:</strong> {{ error }}
-            {% endfor %}
-        </ul>
-    {% endif %}
-    <form action="" method=post enctype=multipart/form-data>
-        {{ form.csrf_token }}
-        <dl>
-            <dt>{{ form.file }} {{ form.submit }}
-            <dt>Tags: {{ form.tags }}
-        </dl>
-        {% if content %}
-            <textarea disabled rows=10 cols=90 >{{ content }}</textarea>
+    {{ super() }}
+    {% set active_page = "upload_file" %}
+{% endblock %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h2>Upload new file</h2>
+        </div>
+        {% if errors %}
+            <ul class=error>
+                {% for error in errors %}
+                    <dt><strong>Error:</strong> {{ error }}
+                {% endfor %}
+            </ul>
         {% endif %}
-    </form>
+
+        {% call macros.render_form(form, class_="form-control-file", action_text="Upload", enctype_="multipart/form-data") %}
+            {{ form.csrf_token }}
+            {{ macros.render_field(form.file) }}
+            {{ macros.render_field(form.tags) }}
+            <p class="help-block">Separate multiple tags by comma.</p>
+        {% endcall %}
+    </div>
 {% endblock %}

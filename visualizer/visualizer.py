@@ -177,7 +177,7 @@ def upload_file(username):
 					os.mkdir(folder_path)
 				except FileExistsError:
 					pass
-				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots'])
+				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
 				
 				# save program in folder and create file meta
 				file_path = os.path.join(folder_path, filename)
@@ -296,7 +296,7 @@ def run_upload(username, filename):
 	p.start()
 	app.config['processes'][p.pid] = p
 
-	p = Process(target=plot_callback_output, args=(meta.path, meta.filename, shared_bool))
+	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
 	app.config['processes'][p.pid] = p
 	

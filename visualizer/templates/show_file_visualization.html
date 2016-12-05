@@ -1,23 +1,88 @@
 {% extends "show_file.html" %}
 {% block subpage %}
-    <h3>Visualization of training process:</h3>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
 
     <script>
-        var interval;
-        var should_plot = 1;
+        var interval, htmlArray;
+        var shown_plots = 0;
+        var shown_activations = 0;
+        var stored_activations = 0;
+        var should_visualize = 1;
         function get_plot(){
-            if (should_plot > 0){
+            if (should_visualize > 0){
                 $.ajax({
                     type: 'GET',
                     cache: false,
-                    url: "{{ url_for('get_plot', username=username, filename=filename, process_id=process_id) }}",
+                    url: "{{ url_for('get_visualization_sources', username=username, filename=filename, process_id=process_id) }}",
                     success: function(response){
-                        $('img').attr('src', response.plot_url);
-                        {#                                $('img').attr('src', {{ url_for('get_file', username=username, filename=filename) }});#}
-                        $('#message').html(response.message);
-                        should_plot = response.should_plot;
+
+                        if (!shown_plots || shown_plots < response.plot_sources.length) {
+                            htmlArray = [];
+                            shown_plots = 0;
+                            for (var i=0; i < response.plot_sources.length; i++) {
+                                htmlArray.push('<img id=plot_' + i + ' src=' + response.plot_sources[i] + '>');
+                                shown_plots++;
+                            }
+                            htmlArray.push('<dd><em><span id=plot_message>' + response.plot_message + '</span></em></dd>');
+                            $('#plots').html(htmlArray.join(''));
+                        }
+                        else {
+                            for (var j=0; j < response.plot_sources.length; j++) {
+                                $('#plot_' + j).attr('src', response.plot_sources[j]);
+                            }
+                            $('#plot_message').html(response.plot_message);
+                        }
+
+
+                        for (var k=0; k < response.activation_tuples.length; k++) {
+                            stored_activations += response.activation_tuples[k][1].length;
+                        }
+
+                        if (!shown_activations || shown_activations < stored_activations) {
+                            htmlArray = [];
+                            shown_activations = 0;
+                            for (var l=0; l < response.activation_tuples.length; l++) {
+                                htmlArray.push('<div>' + response.activation_tuples[l][0] + '</div>');
+                                var image_row = '';
+                                for (var m=0; m < response.activation_tuples[l][1].length; m++) {
+                                    image_row += '<img id=lay_' + l + '_act_' + m + ' src=' + response.activation_tuples[l][1][m] + '>';
+                                    shown_activations++;
+                                    if (!((m+1) % 4)) {
+                                        htmlArray.push(image_row);
+                                        image_row = '';
+                                    }
+                                }
+                                if ((response.activation_tuples[l][1].length) % 4) {
+                                    htmlArray.push(image_row);
+                                }
+                            }
+                            $('#activations').html(htmlArray.join(''));
+                        }
+                        else {
+                            for (var n=0; n < response.activation_tuples.length; n++) {
+                                for (var o=0; o < response.activation_tuples[n][1].length; o++) {
+                                    $('#lay_' + n + '_act_' + o).attr('src', response.activation_tuples[n][1][o]);
+                                }
+                            }
+                        }
+
+{#                        htmlArray = [];#}
+{#                        for (var i=0; i < response.plot_sources.length; i++) {#}
+{#                            htmlArray.push('<img src=' + response.plot_sources[i] + '>');#}
+{#                        }#}
+{#                        htmlArray.push('<dd><em><span>' + response.plot_message + '</span></em></dd>');#}
+{#                        var plotHtmlOut = htmlArray.join('');#}
+{#                        $('#plots').html(plotHtmlOut);#}
+
+{#                        for plots #}
+{#                        $('#accuracy').attr('src', response.plot_urls[0]);#}
+{#                        $('#loss').attr('src', response.plot_urls[1]);#}
+{#                        $('#message').html(response.plot_message);#}
+
+{#                        for activations#}
+
+                        should_visualize = response.should_visualize;
                     }
                 })
             }
@@ -27,9 +92,19 @@
         }
 
         get_plot();
-        interval = setInterval(get_plot, 10000);
+        interval = setInterval(get_plot, 3000);
     </script>
 
-    <img src=''>
-    <dd><em><span id=message>No plots produced yet</span></em>
+    <h3>Visualization of training progress:</h3>
+
+{#    <img id=accuracy src=''>#}
+{#    <img id=loss src=''>#}
+{#    <dd><em><span id=message>No plots produced yet</span></em></dd>#}
+
+    <div id=plots></div>
+
+    <h3>Visualization of layer activations:</h3>
+
+    <div id=activations></div>
+
 {% endblock %}

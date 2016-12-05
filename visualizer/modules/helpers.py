@@ -137,10 +137,6 @@ def plot_content(text_file, plot_color, results_path, plots_path):
 	# read content of text file
 	with open(join(results_path, text_file), 'r') as f:
 		content_list = [float(line) for line in f]
-
-	# remove old plot of file before creating new one
-	[remove(join(plots_path, plot_file)) for plot_file in listdir(plots_path) if plot_file.startswith(filename)]
-
 	# create new plot
 	# plt.figure(figsize=(20, 10))
 	plt.plot(content_list, plot_color + '-')
@@ -153,6 +149,9 @@ def plot_content(text_file, plot_color, results_path, plots_path):
 
 	# set limits of x to be outermost points
 	plt.xlim([0, len(content_list) - 1])
+
+	# remove old plot of file before saving new one
+	[remove(join(plots_path, plot_file)) for plot_file in listdir(plots_path) if plot_file.startswith(filename)]
 
 	# save new plot
 	plt.savefig(join(plots_path, '%s_plot_%d.png' % (filename, time())))

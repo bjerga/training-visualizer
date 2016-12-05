@@ -222,6 +222,7 @@ def show_file_visualization(username, filename, process_id=0):
 	return render_template('show_file_visualization.html', username=username, filename=filename, meta=meta,
 						   process_id=process_id)
 
+
 @login_required
 @app.route('/<username>/uploads/<filename>/history')
 def show_file_history(username, filename):
@@ -231,35 +232,61 @@ def show_file_history(username, filename):
 
 @login_required
 @app.route('/<username>/uploads/<filename>/visualization/plot/<int:process_id>')
-def get_plot(username, filename, process_id):
+def get_visualization_sources(username, filename, process_id):
 
-	plot_urls = []
-	message = 'File sources: '
+	# get folder name from filename
+	folder_name = filename.rsplit('.', 1)[0]
 
-	plots = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0], 'plots')))
+	# for plots
+	plot_sources = []
+	plot_message = 'File sources: '
+
+	# get all static plot URLs
+	plots = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', folder_name, 'plots')))
 	for plot in plots:
-		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, filename.rsplit('.', 1)[0], plot)
-		plot_urls.append(url_for('static', filename=plot_path))
-		message += 'static/%s, ' % plot_path
+		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, folder_name, plot)
+		plot_sources.append(url_for('static', filename=plot_path))
+		plot_message += 'static/%s, ' % plot_path
 
 	if plots:
 		# remove last comma
-		message = message[:-2]
+		plot_message = plot_message[:-2]
 	else:
 		# if not plots, relay in message
-		message = 'No plots produced yet'
+		plot_message = 'No plots produced yet'
+
+	# for activations
+	# each tuple contain sources for all activation images for one layer
+	activation_tuples = []
+
+	# get all static activation URLs
+	activations = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', folder_name, 'activations')))
+	prev_activation_layer = ''
+	for activation in activations:
+
+		activation_path = 'user_storage/%s/programs/%s/activations/%s' % (username, folder_name, activation)
+
+		# every activation starts with ln and then a number, denoting layer number
+		# if activation belongs to new layer, add new (layer title, act. path list)-tuple
+		if activation[2] != prev_activation_layer:
+			layer_title = 'Layer %s - %s' % (activation[2], activation.split('_', 2)[1].title())
+			activation_tuples.append((layer_title, [url_for('static', filename=activation_path)]))
+			prev_activation_layer = activation[2]
+		# if not, append to act. path list for latest layer number
+		else:
+			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
 	# if writing process is alive, return 1
 	# print('\nProcess ID: %d\n' % process_id)
-	should_plot = -1
+	should_visualize = -1
 	try:
 		if app.config['processes'][process_id].is_alive():
-			should_plot = 1
+			should_visualize = 1
 	except KeyError:
 		# process not found, consider it killed
 		pass
 
-	return jsonify(plot_urls=plot_urls, message=message, should_plot=should_plot)
+	return jsonify(plot_sources=plot_sources, plot_message=plot_message, activation_tuples=activation_tuples, should_visualize=should_visualize)
 
 
 @login_required

@@ -5,13 +5,6 @@
         <div class="page-header">
             <h2>Login</h2>
         </div>
-        {% if errors %}
-            <ul class=error>
-                {% for error in errors %}
-                    <dt><strong>Error:</strong> {{ error }}
-                {% endfor %}
-            </ul>
-        {% endif %}
         {% call macros.render_form(form, class_="form-signin", action_url=url_for("login"), action_text="Login") %}
             {{ form.csrf_token }}
             {{ macros.render_field(form.username, label_visible=false, placeholder="Username") }}

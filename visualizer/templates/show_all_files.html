@@ -5,7 +5,6 @@
         <div class="page-header">
             <h2>Uploaded files</h2>
         </div>
-
         {% call macros.render_form(search_form, action_url=url_for("show_all_files", username=username), button=false) %}
             {{ search_form.csrf_token }}
             {{ macros.render_search_field(search_form.search) }}

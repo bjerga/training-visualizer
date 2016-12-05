@@ -137,6 +137,7 @@ def plot_content(text_file, plot_color, results_path, plots_path):
 	# read content of text file
 	with open(join(results_path, text_file), 'r') as f:
 		content_list = [float(line) for line in f]
+
 	# create new plot
 	# plt.figure(figsize=(20, 10))
 	plt.plot(content_list, plot_color + '-')

@@ -162,9 +162,10 @@ def upload_file(username):
 				# add file meta to database
 				db.session.add(file_meta)
 				db.session.commit()
-				
+
 				flash('File was successfully uploaded', 'success')
 				return redirect(url_for('show_file', username=username, filename=filename))
+
 			else:
 				flash('Filename already exists', 'danger')
 		else:
@@ -186,15 +187,13 @@ def show_all_files(username):
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>', methods=['GET', 'POST'])
-@app.route('/<username>/uploads/<filename>/<int:process_id>', methods=['GET', 'POST'])
-def show_file(username, filename, process_id=0):
-	check_authorization(username)
+@app.route('/<username>/uploads/<filename>/code', methods=['GET', 'POST'])
+def show_file_code(username, filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
 	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0]), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
-	
+
 	tag_form = TagForm()
 	if tag_form.validate_on_submit():
 
@@ -204,19 +203,34 @@ def show_file(username, filename, process_id=0):
 			tag = Tag.query.filter_by(text=text).first()
 			meta.tags.remove(tag)
 			db.session.commit()
-			return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))
+			return redirect(url_for('show_file_code', username=username, filename=filename))
 
 		# if not, tags should be added
 		for text in tag_form.tags.data:
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
-		return redirect(url_for('show_file', username=username, filename=filename, process_id=process_id))
-	return render_template('show_file.html', form=RunForm(), tag_form=TagForm(), username=username,
-						   filename=filename, meta=meta, content=content, process_id=process_id)
+		return redirect(url_for('show_file_code', username=username, filename=filename))
+	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(), username=username,
+						   filename=filename, meta=meta, content=content)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/plot/<int:process_id>')
+@app.route('/<username>/uploads/<filename>/visualization')
+@app.route('/<username>/uploads/<filename>/visualization/<int:process_id>', methods=['GET', 'POST'])
+def show_file_visualization(username, filename, process_id=0):
+	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
+	return render_template('show_file_visualization.html', username=username, filename=filename, meta=meta,
+						   process_id=process_id)
+
+@login_required
+@app.route('/<username>/uploads/<filename>/history')
+def show_file_history(username, filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
+	return render_template('show_file_history.html', username=username, filename=filename, meta=meta)
+
+
+@login_required
+@app.route('/<username>/uploads/<filename>/visualization/plot/<int:process_id>')
 def get_plot(username, filename, process_id):
 	# default values
 	plot_url = ''
@@ -276,7 +290,8 @@ def run_upload(username, filename):
 	p.start()
 	app.config['processes'][p.pid] = p
 	
-	return redirect(url_for('show_file', username=username, filename=filename, process_id=p.pid))
+	return redirect(url_for('show_file_visualization', username=username, filename=filename, process_id=p.pid))
+
 
 
 @login_required

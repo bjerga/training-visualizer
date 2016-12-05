@@ -62,7 +62,7 @@ def run_python_shell(file_path, shared_bool):
 		print('\nSubprocess started\n')
 		
 		# run program via command line
-		sub.run('python ' + file_path)
+		sub.run('python3 ' + file_path, shell=True)
 		
 		print('\nSubprocess finished\n')
 	else:

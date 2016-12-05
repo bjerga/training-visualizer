@@ -1,0 +1,31 @@
+{% extends "show_file.html" %}
+{% import 'macros.html' as macros %}
+{% block subpage %}
+    <ul class="list-inline">
+        {% for tag in meta.tags %}
+            <li>
+                {% call macros.render_form(tag_form, url_for("show_file_code", username=username, filename=filename, process_id=process_id), button=false) %}
+                    <span class="label label-primary">
+                            {{ tag }}
+                            <button type="submit" class="delete-tag" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <input type="hidden" name="delete_tag" value="{{ tag }}"/>
+                        </span>
+                {% endcall %}
+            </li>
+        {% else %}
+            <em>The program has no tags.</em>
+        {% endfor %}
+        <li>
+            {% call macros.render_form(tag_form, url_for("show_file_code", username=username, filename=filename), button=false) %}
+                {{ tag_form.csrf_token }}
+                {{ macros.render_field(tag_form.tags, label_visible=false, class="add-tags", placeholder="Add tag") }}
+            {% endcall %}
+        </li>
+    </ul>
+    <pre class="pre-scrollable">{{ content }}</pre><br>
+    {% call macros.render_form(form, url_for("run_upload", username=username, filename=filename), button=false) %}
+        {{ macros.render_submit_field(form.run, {'run':'danger btn-lg btn-block'}) }}
+    {% endcall %}
+{% endblock %}

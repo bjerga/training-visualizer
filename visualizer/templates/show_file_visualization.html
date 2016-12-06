@@ -1,65 +1,108 @@
 {% extends "show_file.html" %}
+
 {% block subpage %}
+
+    <h3>Visualization of training progress:</h3>
+
+    <div id=plots></div>
+
+    <h3>Visualization of layer activations:</h3>
+
+    <div id=activations></div>
+
     <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
 
     <script>
-        var interval, htmlArray;
+        // declare needed variables
+        var interval, htmlArray, image_row;
         var shown_plots = 0;
         var shown_activations = 0;
         var stored_activations = 0;
         var should_visualize = 1;
-        function get_plot(){
+
+        // uses image sources to create HTML to display visualization
+        function create_visualization_html(){
+
+            // as long as process that produces images is alive, should_visualize is 1, else -1
             if (should_visualize > 0){
+
+                // use AJAX to get image/visualization sources
                 $.ajax({
                     type: 'GET',
                     cache: false,
                     url: "{{ url_for('get_visualization_sources', username=username, filename=filename, process_id=process_id) }}",
                     success: function(response){
+                        // when response is received
 
+                        // if no plots are shown or there exists more plots than those shown, create HTML to show plots
                         if (!shown_plots || shown_plots < response.plot_sources.length) {
                             htmlArray = [];
                             shown_plots = 0;
+
+                            // for every plot source, create HTML to display and count plot as shown
                             for (var i=0; i < response.plot_sources.length; i++) {
                                 htmlArray.push('<img id=plot_' + i + ' src=' + response.plot_sources[i] + '>');
                                 shown_plots++;
                             }
+
+                            // create HTML for message and add all created HTML to div with id 'plots'
                             htmlArray.push('<dd><em><span id=plot_message>' + response.plot_message + '</span></em></dd>');
                             $('#plots').html(htmlArray.join(''));
                         }
+                        // if plots are shown and there are no new ones, update shown plots
                         else {
+                            // alter source of existing HTML images using id's given in creation
                             for (var j=0; j < response.plot_sources.length; j++) {
                                 $('#plot_' + j).attr('src', response.plot_sources[j]);
                             }
+                            // update message
                             $('#plot_message').html(response.plot_message);
                         }
 
-
+                        // count amount of stored activation images
                         for (var k=0; k < response.activation_tuples.length; k++) {
                             stored_activations += response.activation_tuples[k][1].length;
                         }
 
+                        // if no activations are shown or there exists more activations than
+                        // those shown, create HTML to show activations
                         if (!shown_activations || shown_activations < stored_activations) {
                             htmlArray = [];
                             shown_activations = 0;
+
+                            // for every activation tuple
                             for (var l=0; l < response.activation_tuples.length; l++) {
+
+                                // add headline displaying layer title (number and type)
                                 htmlArray.push('<div>' + response.activation_tuples[l][0] + '</div>');
-                                var image_row = '';
+
+                                // add layer's activations in rows of four (is currently overridden by auto-adjustments from
+                                // bootstrap, which show as many images as possible in one line), and count activations as shown
+                                image_row = '';
                                 for (var m=0; m < response.activation_tuples[l][1].length; m++) {
                                     image_row += '<img id=lay_' + l + '_act_' + m + ' src=' + response.activation_tuples[l][1][m] + '>';
                                     shown_activations++;
+
+                                    // if 4 images added to row, add to HTML
                                     if (!((m+1) % 4)) {
                                         htmlArray.push(image_row);
                                         image_row = '';
                                     }
                                 }
+
+                                // if length is not multiple of four, last image row has not been added to HTML
                                 if ((response.activation_tuples[l][1].length) % 4) {
                                     htmlArray.push(image_row);
                                 }
                             }
+
+                            // add created HTML to div with id 'activations'
                             $('#activations').html(htmlArray.join(''));
                         }
+                        // if activations are shown and there are no new ones, update shown activations
                         else {
+                            // alter source of existing HTML images using id's given in creation
                             for (var n=0; n < response.activation_tuples.length; n++) {
                                 for (var o=0; o < response.activation_tuples[n][1].length; o++) {
                                     $('#lay_' + n + '_act_' + o).attr('src', response.activation_tuples[n][1][o]);
@@ -67,44 +110,20 @@
                             }
                         }
 
-{#                        htmlArray = [];#}
-{#                        for (var i=0; i < response.plot_sources.length; i++) {#}
-{#                            htmlArray.push('<img src=' + response.plot_sources[i] + '>');#}
-{#                        }#}
-{#                        htmlArray.push('<dd><em><span>' + response.plot_message + '</span></em></dd>');#}
-{#                        var plotHtmlOut = htmlArray.join('');#}
-{#                        $('#plots').html(plotHtmlOut);#}
-
-{#                        for plots #}
-{#                        $('#accuracy').attr('src', response.plot_urls[0]);#}
-{#                        $('#loss').attr('src', response.plot_urls[1]);#}
-{#                        $('#message').html(response.plot_message);#}
-
-{#                        for activations#}
-
+                        // update should_visualize to determine if another AJAX request should be sent
                         should_visualize = response.should_visualize;
                     }
                 })
             }
+            // if image producing process is finished (killed), clear interval to stop repeating calls to function
             else {
                 clearInterval(interval)
             }
         }
 
-        get_plot();
-        interval = setInterval(get_plot, 3000);
+        // do initial call to function and set call to repeat every 3 seconds
+        create_visualization_html();
+        interval = setInterval(create_visualization_html, 3000);
     </script>
-
-    <h3>Visualization of training progress:</h3>
-
-{#    <img id=accuracy src=''>#}
-{#    <img id=loss src=''>#}
-{#    <dd><em><span id=message>No plots produced yet</span></em></dd>#}
-
-    <div id=plots></div>
-
-    <h3>Visualization of layer activations:</h3>
-
-    <div id=activations></div>
 
 {% endblock %}

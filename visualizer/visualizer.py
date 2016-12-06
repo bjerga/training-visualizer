@@ -259,14 +259,14 @@ def get_visualization_sources(username, filename, process_id):
 	# each tuple contain sources for all activation images for one layer
 	activation_tuples = []
 
-	# get all static activation URLs
+	# get all static activation URLs and add to correct tuple
 	activations = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', folder_name, 'activations')))
 	prev_activation_layer = ''
 	for activation in activations:
 
 		activation_path = 'user_storage/%s/programs/%s/activations/%s' % (username, folder_name, activation)
 
-		# every activation starts with ln and then a number, denoting layer number
+		# every activation starts with 'ln' and then a number, denoting layer number
 		# if activation belongs to new layer, add new (layer title, act. path list)-tuple
 		if activation[2] != prev_activation_layer:
 			layer_title = 'Layer %s - %s' % (activation[2], activation.split('_', 2)[1].title())

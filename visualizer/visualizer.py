@@ -1,11 +1,11 @@
-import os
 from datetime import date
 from shutil import rmtree
+from os import mkdir, listdir
+from os.path import join, dirname
 from multiprocessing import Process, Value
 
-import flask_login as fl
 from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory, jsonify
-from flask_login import login_required
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user, abort
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
@@ -18,8 +18,8 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 app.secret_key = 'thisissupersecretestkeyintheworld'
 
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'user_storage')
-# app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'user_storage')
+app.config['UPLOAD_FOLDER'] = join(dirname(__file__), 'static', 'user_storage')
+# app.config['UPLOAD_FOLDER'] = join(os.path.dirname(__file__), 'user_storage')
 
 app.config['processes'] = {}
 
@@ -31,7 +31,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-login_manager = fl.LoginManager()
+login_manager = LoginManager()
 login_manager.init_app(app)
 
 
@@ -58,7 +58,7 @@ def initdb_command():
 	# create new database and folders
 	db.create_all()
 	try:
-		os.mkdir(app.config['UPLOAD_FOLDER'])
+		mkdir(app.config['UPLOAD_FOLDER'])
 	except FileExistsError:
 		pass
 	print('Initialized the database')
@@ -100,7 +100,7 @@ def login():
 			db.session.commit()
 			
 			# set remember=True to enable cookies to remember user
-			fl.login_user(user, remember=True)
+			login_user(user, remember=True)
 			flash('You were logged in', 'success')
 			# return redirect(url_for('show_entries', username=user.username))
 			
@@ -111,27 +111,25 @@ def login():
 			if not has_permission(next_access):
 				return abort(400)
 			
-			return redirect(next_access or url_for('upload_file', username=user.username))
+			return redirect(next_access or url_for('upload_file'))
 	return render_template('login.html', form=form)
 
 
 @login_required
-@app.route('/<username>/logout')
-def logout(username):
-	check_authorization(username)
+@app.route('/logout')
+def logout():
 	user = current_user
 	user.authenticated = False
 	db.session.add(user)
 	db.session.commit()
-	fl.logout_user()
+	logout_user()
 	flash('You were logged out', 'success')
 	return redirect(url_for('login'))
 
 
 @login_required
-@app.route('/<username>/upload', methods=['GET', 'POST'])
-def upload_file(username):
-	check_authorization(username)
+@app.route('/upload', methods=['GET', 'POST'])
+def upload_file():
 	form = FileForm()
 	if form.validate_on_submit():
 		file = form.file.data
@@ -140,17 +138,17 @@ def upload_file(username):
 			# TODO: make database model unique and handle database-errors instead of checking uniqueness
 			if unique_filename(filename):
 				# create folders for program
-				folder_path = os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0])
+				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
 				try:
-					os.mkdir(folder_path)
+					mkdir(folder_path)
 				except FileExistsError:
 					pass
 				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
 				
 				# save program in folder and create file meta
-				file_path = os.path.join(folder_path, filename)
+				file_path = join(folder_path, filename)
 				file.save(file_path)
-				file_meta = FileMeta(filename, date.today(), file_path, username)
+				file_meta = FileMeta(filename, date.today(), file_path, get_current_user())
 				
 				# create file tags
 				for text in form.tags.data:
@@ -164,7 +162,7 @@ def upload_file(username):
 				db.session.commit()
 
 				flash('File was successfully uploaded', 'success')
-				return redirect(url_for('show_file', username=username, filename=filename))
+				return redirect(url_for('show_file_code', filename=filename))
 
 			else:
 				flash('Filename already exists', 'danger')
@@ -174,23 +172,22 @@ def upload_file(username):
 
 
 @login_required
-@app.route('/<username>/uploads', methods=['GET', 'POST'])
-def show_all_files(username):
-	check_authorization(username)
-	metas = FileMeta.query.filter_by(owner=username).all()
+@app.route('/uploads', methods=['GET', 'POST'])
+def show_all_files():
+	metas = FileMeta.query.filter_by(owner=get_current_user()).all()
 	search_form = SearchForm()
 	if search_form.validate_on_submit():
 		query = search_form.search.data
 		if query:
-			return redirect(url_for('search', username=username, query=query))
-	return render_template('show_all_files.html', search_form=search_form, username=username, metas=metas)
+			return redirect(url_for('search', query=query))
+	return render_template('show_all_files.html', search_form=search_form, metas=metas)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/code', methods=['GET', 'POST'])
-def show_file_code(username, filename):
-	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	file = send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', filename.rsplit('.', 1)[0]), filename)
+@app.route('/uploads/<filename>/code', methods=['GET', 'POST'])
+def show_file_code(filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	file = send_from_directory(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]), filename)
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
 
@@ -203,36 +200,34 @@ def show_file_code(username, filename):
 			tag = Tag.query.filter_by(text=text).first()
 			meta.tags.remove(tag)
 			db.session.commit()
-			return redirect(url_for('show_file_code', username=username, filename=filename))
+			return redirect(url_for('show_file_code', filename=filename))
 
 		# if not, tags should be added
 		for text in tag_form.tags.data:
 			meta.tags.append(get_existing_tag(text))
 		db.session.commit()
-		return redirect(url_for('show_file_code', username=username, filename=filename))
-	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(), username=username,
-						   filename=filename, meta=meta, content=content)
+		return redirect(url_for('show_file_code', filename=filename))
+	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(), filename=filename, meta=meta, content=content)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/visualization')
-@app.route('/<username>/uploads/<filename>/visualization/<int:process_id>', methods=['GET', 'POST'])
-def show_file_visualization(username, filename, process_id=0):
-	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	return render_template('show_file_visualization.html', username=username, filename=filename, meta=meta,
-						   process_id=process_id)
+@app.route('/uploads/<filename>/visualization')
+@app.route('/uploads/<filename>/visualization/<int:process_id>', methods=['GET', 'POST'])
+def show_file_visualization(filename, process_id=0):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	return render_template('show_file_visualization.html', filename=filename, meta=meta, process_id=process_id)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/history')
-def show_file_history(username, filename):
-	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
-	return render_template('show_file_history.html', username=username, filename=filename, meta=meta)
+@app.route('/uploads/<filename>/history')
+def show_file_history(filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	return render_template('show_file_history.html', filename=filename, meta=meta)
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/visualization/plot/<int:process_id>')
-def get_visualization_sources(username, filename, process_id):
+@app.route('/uploads/<filename>/visualization/plot/<int:process_id>')
+def get_visualization_sources(filename, process_id):
 
 	# get folder name from filename
 	folder_name = filename.rsplit('.', 1)[0]
@@ -242,9 +237,9 @@ def get_visualization_sources(username, filename, process_id):
 	plot_message = 'File sources: '
 
 	# get all static plot URLs
-	plots = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', folder_name, 'plots')))
+	plots = sorted(listdir(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', folder_name, 'plots')))
 	for plot in plots:
-		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (username, folder_name, plot)
+		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (get_current_user(), folder_name, plot)
 		plot_sources.append(url_for('static', filename=plot_path))
 		plot_message += 'static/%s, ' % plot_path
 
@@ -260,11 +255,11 @@ def get_visualization_sources(username, filename, process_id):
 	activation_tuples = []
 
 	# get all static activation URLs and add to correct tuple
-	activations = sorted(os.listdir(os.path.join(app.config['UPLOAD_FOLDER'], username, 'programs', folder_name, 'activations')))
+	activations = sorted(listdir(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', folder_name, 'activations')))
 	prev_activation_layer = ''
 	for activation in activations:
 
-		activation_path = 'user_storage/%s/programs/%s/activations/%s' % (username, folder_name, activation)
+		activation_path = 'user_storage/%s/programs/%s/activations/%s' % (get_current_user(), folder_name, activation)
 
 		# every activation starts with 'ln' and then a number, denoting layer number
 		# if activation belongs to new layer, add new (layer title, act. path list)-tuple
@@ -290,13 +285,13 @@ def get_visualization_sources(username, filename, process_id):
 
 
 @login_required
-@app.route('/<username>/uploads/<filename>/run', methods=['POST'])
-def run_upload(username, filename):
-	meta = FileMeta.query.filter_by(filename=filename, owner=username).first()
+@app.route('/uploads/<filename>/run', methods=['POST'])
+def run_upload(filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
 	
 	# move results and plots if any exist
-	if len(os.listdir(meta.path.replace(meta.filename, 'results'))) != 0:
+	if len(listdir(meta.path.replace(meta.filename, 'results'))) != 0:
 		move_to_historical_folder(meta.path)
 		
 	# clear content on static URLs
@@ -318,14 +313,13 @@ def run_upload(username, filename):
 	p.start()
 	app.config['processes'][p.pid] = p
 	
-	return redirect(url_for('show_file_visualization', username=username, filename=filename, process_id=p.pid))
-
+	return redirect(url_for('show_file_visualization', filename=filename, process_id=p.pid))
 
 
 @login_required
-@app.route('/<username>/search_results/<query>')
-def search(username, query):
+@app.route('/search_results/<query>')
+def search(query):
 	tags = query.split(" ")
 	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
-	return render_template('show_all_files.html', search_form=SearchForm(), username=username, metas=results)
+	return render_template('show_all_files.html', search_form=SearchForm(), metas=results)

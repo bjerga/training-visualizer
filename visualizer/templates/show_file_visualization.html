@@ -31,7 +31,7 @@
                 $.ajax({
                     type: 'GET',
                     cache: false,
-                    url: "{{ url_for('get_visualization_sources', username=username, filename=filename, process_id=process_id) }}",
+                    url: "{{ url_for('get_visualization_sources', filename=filename, process_id=process_id) }}",
                     success: function(response){
                         // when response is received
 

@@ -5,14 +5,14 @@
         <div class="page-header">
             <h2>Uploaded files</h2>
         </div>
-        {% call macros.render_form(search_form, action_url=url_for("show_all_files", username=username), button=false) %}
+        {% call macros.render_form(search_form, action_url=url_for("show_all_files"), button=false) %}
             {{ search_form.csrf_token }}
             {{ macros.render_search_field(search_form.search) }}
         {% endcall %}
         <br>
         <div class="list-group">
             {% for meta in metas %}
-                     <a class="list-group-item" href="{{ url_for('show_file_code', username=username, filename=meta.filename ) }}">
+                     <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
                         <div class="row">
                             <div class="col-md-9"><h4 class="list-group-item-heading">{{ meta.filename }}</h4></div>
                             <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>

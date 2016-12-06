@@ -1,4 +1,3 @@
-import re
 import pickle
 import subprocess as sub
 import matplotlib.pyplot as plt
@@ -7,15 +6,19 @@ from os import listdir, mkdir, remove
 from os.path import join, getmtime
 from shutil import move
 
-import numpy as np
-from flask import abort
 from flask_login import current_user
+
+import numpy as np
 from PIL import Image
 
 from visualizer.modules.models import User, Tag, FileMeta
 
 
 ALLOWED_EXTENSIONS = {'py'}
+
+
+def get_current_user():
+	return str(current_user)
 
 
 def unique_username(username):
@@ -30,19 +33,13 @@ def has_permission(next_access):
 
 
 def unique_filename(filename):
-	if FileMeta.query.filter_by(filename=filename).first():
+	if FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first():
 		return False
 	return True
 
 
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
-
-
-# TODO: authorization could be improved
-def check_authorization(username):
-	if username != str(current_user):
-		abort(401)
 
 
 # TODO: might be possible to manage this directly in the query

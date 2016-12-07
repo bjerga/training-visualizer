@@ -1,16 +1,24 @@
-import re, os
+import pickle
 import subprocess as sub
 import matplotlib.pyplot as plt
 from time import time, sleep
+from os import listdir, mkdir, remove
+from os.path import join, getmtime
 from shutil import move
 
-from flask import abort
 from flask_login import current_user
+
+import numpy as np
+from PIL import Image
 
 from visualizer.modules.models import User, Tag, FileMeta
 
 
 ALLOWED_EXTENSIONS = {'py'}
+
+
+def get_current_user():
+	return str(current_user)
 
 
 def unique_username(username):
@@ -25,19 +33,13 @@ def has_permission(next_access):
 
 
 def unique_filename(filename):
-	if FileMeta.query.filter_by(filename=filename).first():
+	if FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first():
 		return False
 	return True
 
 
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
-
-
-# TODO: authorization could be improved
-def check_authorization(username):
-	if username != str(current_user):
-		abort(401)
 
 
 # TODO: might be possible to manage this directly in the query
@@ -75,97 +77,155 @@ def run_python_shell(file_path, shared_bool):
 	return
 
 
-def plot_accuracy_error(file_path, filename, shared_bool):
-	
-	# create file path for plots
+def visualize_callback_output(file_path, filename, shared_bool):
+
+	# create file path for results
 	results_path = file_path.replace(filename, 'results')
+
+	# for visualization plot
 	plots_path = file_path.replace(filename, 'plots')
-	print('\nPlot folder path: %s\n' % plots_path)
-	
-	error_filename = ''
-	while True:
-		sleep(10)
-		try:
-			error_filename = os.listdir(results_path)[-1]
-			break
-		# if file has not been made yet, sleep and try again
-		except IndexError:
-			print('\nPlot file not found, waiting for creation...\n')
-			
-	error_file_path = os.path.join(results_path, error_filename)
-	
-	errors = []
-	plot_num = 0
+	plot_colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w']
+
+	# for activation visualization
+	activations_path = file_path.replace(filename, 'activations')
+
+	# initialize modification time dict, holds time of last modification for each file
+	modification_times = {}
+
 	# if other process is writing
 	while shared_bool.value:
-		sleep(10)
-		
-		# copy old errors
-		old_errors = errors[:]
-		
-		errors = read_error_file(error_file_path)
-		
-		print('Errors so far:', errors)
-		# if new errors read, plot and save accuracy error so far
-		if len(errors) != len(old_errors):
-			# plt.figure(figsize=(20, 10))
-			plt.plot(errors, 'ro-', label='Error')
-			plt.legend(loc='upper right')
-			plt.title('Accuracy Error Over Epochs')
-			plt.xlabel('Epoch')
-			plt.ylabel('Accuracy Error')
-			
-			# hard-coded
-			plt.xlim([0, 10])
-			plt.ylim([0, 10])
-			
-			plt.savefig(os.path.join(plots_path, '%s_plot_%d_%d.png' % (error_filename.rsplit('.', 1)[0], plot_num, time())))
-			# plt.show()
-			plt.clf()
-			plt.close()
-			
-			print('\nSaved accuracy error plot as no. %d\n' % plot_num)
-			plot_num += 1
-	
-	print('\nPlotting done\n')
-	
+
+		# for all visualization files in results folder
+		plot_num = 0
+		for vis_file in listdir(results_path):
+
+			if vis_file not in modification_times.keys():
+				modification_times[vis_file] = 0
+
+			# check if visualization file has changed from last time
+			if modification_times[vis_file] < getmtime(join(results_path, vis_file)):
+
+				# update modification time for visualization file
+				modification_times[vis_file] = getmtime(join(results_path, vis_file))
+
+				if vis_file.endswith('.txt'):
+					plot_content(vis_file, plot_colors[plot_num], results_path, plots_path)
+					plot_num += 1
+				elif vis_file.endswith('.pickle'):
+					visualize_activations(vis_file, results_path, activations_path)
+				else:
+					# unknown file format, cannot visualize
+					print('\nUnknown file format, no visualization for file')
+
+		# sleep to keep from constantly visualizing
+		sleep(3)
+
+	print('\nVisualization ended\n')
+
 	# make sure process ends (not certain this is needed)
 	return
+
+
+def plot_content(text_file, plot_color, results_path, plots_path):
+
+	# get filename without '.txt'
+	filename = text_file[:-4]
+
+	# read content of text file
+	with open(join(results_path, text_file), 'r') as f:
+		content_list = [float(line) for line in f]
+
+	# create new plot
+	# plt.figure(figsize=(20, 10))
+	plt.plot(content_list, plot_color + '-')
+
+	# set plot title and labels
+	x_label, y_label, model_no = filename.split('_')
+	plt.title(('%s Over %s For Model No. %s' % (y_label, x_label, model_no)).title())
+	plt.xlabel(x_label.title())
+	plt.ylabel(y_label.title())
+
+	# set limits of x to be outermost points
+	plt.xlim([0, len(content_list) - 1])
+
+	# remove old plot of file before saving new one
+	[remove(join(plots_path, plot_file)) for plot_file in listdir(plots_path) if plot_file.startswith(filename)]
+
+	# save new plot
+	plt.savefig(join(plots_path, '%s_plot_%d.png' % (filename, time())))
+
+	# clear and close plot
+	plt.clf()
+	plt.close()
+
+
+# TODO: currently only works for black and white images, must also work for RGB
+def visualize_activations(pickle_file, results_path, activations_path):
+
+	# remove old visualization files before creating new ones
+	for old_file in listdir(activations_path):
+		remove(join(activations_path, old_file))
+
+	# need time of creation to ensure unique filename
+	creation_time = time()
+
+	# read content of pickle file
+	with open(join(results_path, pickle_file), 'rb') as f:
+		content_list = pickle.load(f)
+
+	for layer_no in range(len(content_list)):
+		layer_name, layer_activation = content_list[layer_no]
+
+		# print('\nLength of activation shape', layer_activation.shape, 'is', len(layer_activation.shape), '\n')
+
+		# scale to fit between [0.0, 255.0] (image was scaled down to [0.0, 1.0] for network)
+		layer_activation += max(-np.min(layer_activation), 0.0)
+		la_max = np.max(layer_activation)
+		if la_max != 0.0:
+			layer_activation /= la_max
+		layer_activation *= 255.0
+
+		# remove unnecessary outer list for everything but one-dimensional arrays
+		# 1D arrays needs the extra dimension to be accepted by Image.fromarray(...)
+		if len(layer_activation[0].shape) != 1:
+			layer_activation = layer_activation[0]
+
+		# if activation has no channels
+		if len(layer_activation.shape) < 3:
+			img = Image.fromarray(layer_activation.astype('uint8'), 'L')
+			img.save(join(activations_path, 'ln%d_%s_%d.png' % (layer_no, layer_name, creation_time)))
+		# if activation has channels (typically activations from convolution layers)
+		else:
+			for channel in range(layer_activation.shape[2]):
+				img = Image.fromarray(layer_activation[:, :, channel].astype('uint8'), 'L')
+				img.save(join(activations_path, 'ln%d_%s_ch%d_%d.png' % (layer_no, layer_name, channel, creation_time)))
+
+		# print('\n\n\n', layer_name, 'has shape', layer_activation.shape, '\n\n\n')
+
+
+# for all folders with 'old' counterpart, move to old
+def move_to_historical_folder(file_path):
+
+	# find path to main folder
+	main_folder = file_path.rsplit('/', 1)[0]
+
+	# calculate correct result number
+	result_num = int(len(listdir(join(main_folder, 'old_results'))) / len(listdir(join(main_folder, 'results'))))
 	
-	
-def move_to_historical_folder(file_path, filename):
-	
-	results_path = file_path.replace(filename, 'results')
-	plots_path = file_path.replace(filename, 'plots')
-	
-	# move results and plots to old_results and old_plots, respectively
-	old_results_path = file_path.replace(filename, 'old_results')
-	result_num = len(os.listdir(old_results_path))
-	# result_num = int(np.sum([1 for file in os.listdir(base_write_path) if file.startswith('mnist_nn_' + error_type)]))
-	for file in os.listdir(results_path):
-		move(os.path.join(results_path, file), os.path.join(old_results_path, file.replace('.', '_result_%d.' % result_num)))
-		
-	old_plots_path = file_path.replace(filename, 'old_plots')
-	for file in os.listdir(plots_path):
-		move(os.path.join(plots_path, file), os.path.join(old_plots_path, file.replace('_plot', '_result_%d_plot' % result_num)))
+	# for all folders in same folder as program
+	for folder in listdir(main_folder):
+		# if there exists an 'old' folder
+		if folder.startswith('old_'):
+			# move all files in the corresponding 'new' folder to 'old' folder (rename to avoid overwrite)
+			for old_file in listdir(join(main_folder, folder[4:])):
+				move(join(main_folder, folder[4:], old_file), join(main_folder, folder, old_file.replace('.', '_%s_%d.' % (folder[4:-1], result_num))))
 	
 	print('\nFiles moved to historical folders\n')
-
-
-def read_error_file(error_file_path):
-	
-	errors = []
-	with open(error_file_path, 'r') as f:
-		for line in f:
-			if line != '':
-				errors.append(float(line))
-	
-	return errors
 
 
 def create_folders(base_path, new_folders):
 	for new_folder in new_folders:
 		try:
-			os.mkdir(os.path.join(base_path, new_folder))
+			mkdir(join(base_path, new_folder))
 		except FileExistsError:
 			pass

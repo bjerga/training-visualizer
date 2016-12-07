@@ -15,7 +15,7 @@
             <nav class="navbar navbar-default">
                 <div class="navbar-header">
                     <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                       href="{{ url_for('upload_file', username=current_user) }}"{% else %}
+                       href="{{ url_for('upload_file') }}"{% else %}
                        href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
                 </div>
                 <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
@@ -24,9 +24,9 @@
                             <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
                             <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
                         {% else %}
-                            <li id="upload_file"><a href="{{ url_for('upload_file', username=current_user) }}">Upload file</a></li>
-                            <li id="view_files"><a href="{{ url_for('show_all_files', username=current_user) }}">View all files</a></li>
-                            <li id="log_out"><a href="{{ url_for('logout', username=current_user) }}">Log out</a></li>
+                            <li id="upload_file"><a href="{{ url_for('upload_file') }}">Upload file</a></li>
+                            <li id="view_files"><a href="{{ url_for('show_all_files') }}">View all files</a></li>
+                            <li id="log_out"><a href="{{ url_for('logout') }}">Log out</a></li>
                         {% endif %}
                     </ul>
                 </div>
@@ -51,9 +51,9 @@
             var nav = document.getElementById('main-menu1'),
                 anchor = nav.getElementsByTagName('a'),
                 menu = nav.getElementsByTagName('li'),
-                current = window.location.pathname.split('/')[2];
+                current = window.location.pathname.split('/')[1];
             for (var i = 0; i < menu.length; i++) {
-                if (current.length > 0 && anchor[i].href.split('/')[4] == current) {
+                if (current.length > 0 && anchor[i].href.split('/')[3] == current) {
                     menu[i].className = "active";
                 }
             }

@@ -21,6 +21,7 @@ app.secret_key = 'thisissupersecretestkeyintheworld'
 app.config['UPLOAD_FOLDER'] = join(dirname(__file__), 'static', 'user_storage')
 # app.config['UPLOAD_FOLDER'] = join(os.path.dirname(__file__), 'user_storage')
 
+# dict with usernames as keys and user-process dicts as values
 app.config['processes'] = {}
 
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
@@ -78,7 +79,10 @@ def create_user():
 			# create folders for user to save data in
 			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs',
 														 form.username.data + '/data'])
-			
+
+			# create user entry for storing processes that user spawns
+			app.config['processes'][get_current_user()] = {}
+
 			flash('User successfully created', 'success')
 			return redirect(url_for('login'))
 	return render_template('create_user.html', form=form)
@@ -275,7 +279,7 @@ def get_visualization_sources(filename, process_id):
 	# print('\nProcess ID: %d\n' % process_id)
 	should_visualize = -1
 	try:
-		if app.config['processes'][process_id].is_alive():
+		if app.config['processes'][get_current_user()][process_id].is_alive():
 			should_visualize = 1
 	except KeyError:
 		# process not found, consider it killed
@@ -307,11 +311,11 @@ def run_upload(filename):
 	
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
 	p.start()
-	app.config['processes'][p.pid] = p
+	app.config['processes'][get_current_user()][p.pid] = p
 
 	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
-	app.config['processes'][p.pid] = p
+	app.config['processes'][get_current_user()][p.pid] = p
 	
 	return redirect(url_for('show_file_visualization', filename=filename, process_id=p.pid))
 

@@ -10,9 +10,6 @@
 
     <div id=activations></div>
 
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
-
     <script>
         // declare needed variables
         var interval, htmlArray, image_row;
@@ -31,7 +28,7 @@
                 $.ajax({
                     type: 'GET',
                     cache: false,
-                    url: "{{ url_for('get_visualization_sources', filename=filename, process_id=process_id) }}",
+                    url: "{{ url_for('get_visualization_sources', filename=filename) }}",
                     success: function(response){
                         // when response is received
 

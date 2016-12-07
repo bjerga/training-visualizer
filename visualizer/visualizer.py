@@ -21,7 +21,7 @@ app.secret_key = 'thisissupersecretestkeyintheworld'
 app.config['UPLOAD_FOLDER'] = join(dirname(__file__), 'static', 'user_storage')
 # app.config['UPLOAD_FOLDER'] = join(os.path.dirname(__file__), 'user_storage')
 
-# dict with usernames as keys and user-process dicts as values
+# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
 app.config['processes'] = {}
 
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
@@ -80,9 +80,6 @@ def create_user():
 			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs',
 														 form.username.data + '/data'])
 
-			# create user entry for storing processes that user spawns
-			app.config['processes'][get_current_user()] = {}
-
 			flash('User successfully created', 'success')
 			return redirect(url_for('login'))
 	return render_template('create_user.html', form=form)
@@ -93,7 +90,6 @@ def login():
 	form = LoginForm()
 	if form.validate_on_submit():
 		user = User.query.filter_by(username=form.username.data).first()
-		# user = load_user(form.username.data)
 		if not user:
 			flash('Invalid username', 'danger')
 		elif not user.check_password(form.password.data):
@@ -102,7 +98,7 @@ def login():
 			user.authenticated = True
 			db.session.add(user)
 			db.session.commit()
-			
+
 			# set remember=True to enable cookies to remember user
 			login_user(user, remember=True)
 			flash('You were logged in', 'success')
@@ -215,11 +211,10 @@ def show_file_code(filename):
 
 
 @login_required
-@app.route('/uploads/<filename>/visualization')
-@app.route('/uploads/<filename>/visualization/<int:process_id>', methods=['GET', 'POST'])
-def show_file_visualization(filename, process_id=0):
+@app.route('/uploads/<filename>/visualization', methods=['GET', 'POST'])
+def show_file_visualization(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	return render_template('show_file_visualization.html', filename=filename, meta=meta, process_id=process_id)
+	return render_template('show_file_visualization.html', filename=filename, meta=meta)
 
 
 @login_required
@@ -230,8 +225,8 @@ def show_file_history(filename):
 
 
 @login_required
-@app.route('/uploads/<filename>/visualization/plot/<int:process_id>')
-def get_visualization_sources(filename, process_id):
+@app.route('/uploads/<filename>/visualization_sources')
+def get_visualization_sources(filename,):
 
 	# get folder name from filename
 	folder_name = filename.rsplit('.', 1)[0]
@@ -275,17 +270,9 @@ def get_visualization_sources(filename, process_id):
 		else:
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
-	# if writing process is alive, return 1
-	# print('\nProcess ID: %d\n' % process_id)
-	should_visualize = -1
-	try:
-		if app.config['processes'][get_current_user()][process_id].is_alive():
-			should_visualize = 1
-	except KeyError:
-		# process not found, consider it killed
-		pass
-
-	return jsonify(plot_sources=plot_sources, plot_message=plot_message, activation_tuples=activation_tuples, should_visualize=should_visualize)
+	# use check_running to investigate if visualization producing process is still running
+	return jsonify(plot_sources=plot_sources, plot_message=plot_message,
+				   activation_tuples=activation_tuples, should_visualize=check_running(filename))
 
 
 @login_required
@@ -297,27 +284,23 @@ def run_upload(filename):
 	# move results and plots if any exist
 	if len(listdir(meta.path.replace(meta.filename, 'results'))) != 0:
 		move_to_historical_folder(meta.path)
-		
-	# clear content on static URLs
-	# clear the automatically added route for static
-	# app.url_map._rules.clear()
-	# app.url_map._rules_by_endpoint.clear()
-	# # enable host matching and re-add the static route with the desired host
-	# app.url_map.host_matching = True
-	# app.add_url_rule(app.static_url_path + '/<path:filename>', endpoint='static', view_func=app.send_static_file)
+
+	# clear process-list for filename
+	prevent_process_key_error(filename)
+	app.config['processes'][get_current_user()][filename] = []
 	
 	# shared boolean denoting if run_python_shell-process is writing
 	shared_bool = Value('i', True)
 	
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
 	p.start()
-	app.config['processes'][get_current_user()][p.pid] = p
+	app.config['processes'][get_current_user()][filename].append(p)
 
 	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
-	app.config['processes'][get_current_user()][p.pid] = p
+	app.config['processes'][get_current_user()][filename].append(p)
 	
-	return redirect(url_for('show_file_visualization', filename=filename, process_id=p.pid))
+	return redirect(url_for('show_file_visualization', filename=filename))
 
 
 @login_required
@@ -327,3 +310,38 @@ def search(query):
 	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
 	return render_template('show_all_files.html', search_form=SearchForm(), metas=results)
+
+
+@login_required
+@app.route('/check_running/<filename>')
+# check if file is running
+# if file is running, return 1, else -1
+def check_running(filename):
+	prevent_process_key_error(filename)
+
+	is_running = -1
+
+	# if any process for the file is still alive, return 1
+	for process in app.config['processes'][get_current_user()][filename]:
+		if process.is_alive():
+			is_running = 1
+			break
+
+	return is_running
+
+
+# used to prevent key errors for process dict
+def prevent_process_key_error(filename):
+	try:
+		# test if username is in process dict
+		app.config['processes'][get_current_user()]
+	except KeyError:
+		# if not, add it
+		app.config['processes'][get_current_user()] = {}
+
+	try:
+		# test if filename in user-process dict
+		app.config['processes'][get_current_user()][filename]
+	except KeyError:
+		# if not, add it
+		app.config['processes'][get_current_user()][filename] = []

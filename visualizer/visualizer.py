@@ -233,21 +233,12 @@ def get_visualization_sources(filename,):
 
 	# for plots
 	plot_sources = []
-	plot_message = 'File sources: '
 
 	# get all static plot URLs
 	plots = sorted(listdir(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', folder_name, 'plots')))
 	for plot in plots:
 		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (get_current_user(), folder_name, plot)
 		plot_sources.append(url_for('static', filename=plot_path))
-		plot_message += 'static/%s, ' % plot_path
-
-	if plots:
-		# remove last comma
-		plot_message = plot_message[:-2]
-	else:
-		# if not plots, relay in message
-		plot_message = 'No plots produced yet'
 
 	# for activations
 	# each tuple contain sources for all activation images for one layer
@@ -271,8 +262,7 @@ def get_visualization_sources(filename,):
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
 	# use check_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, plot_message=plot_message,
-				   activation_tuples=activation_tuples, should_visualize=check_running(filename))
+	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=check_running(filename))
 
 
 @login_required

@@ -29,12 +29,12 @@
                     <li id="upload_file"><a href="{{ url_for('upload_file') }}">Upload file</a></li>
                     <li id="view_files"><a href="{{ url_for('show_all_files') }}">View all files</a></li>
                 </ul>
-                <ul id="main-menu1" class="nav navbar-nav navbar-right">
-                    <form class="navbar-form">
-                        <li id="log_out"><a class="btn btn-default" href="{{ url_for('logout') }}">Log out</a></li>
-                        <span></span>
-                    </form>
-                </ul>
+                <form class="navbar-right navbar-form">
+                    <a class="btn btn-default" href="{{ url_for('logout') }}">Log out</a>
+                </form>
+                <div class="navbar-right">
+                    <p class="navbar-text">Logged in as {{ current_user.get_id() }}</p>
+                </div>
             {% endif %}
         </div>
     </nav>

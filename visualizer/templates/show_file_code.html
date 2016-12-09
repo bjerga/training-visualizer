@@ -43,6 +43,13 @@
                 url: "{{ url_for('check_running', filename=filename) }}",
                 success: function (response) {
                     $('#test123').attr('disabled', response.running);
+                    if (response.running) {
+                        $('#test123').attr('value', 'Running');
+                    }
+                    else {
+                        $('#test123').attr('value', 'Run')
+                    }
+
                 }
             })
         }

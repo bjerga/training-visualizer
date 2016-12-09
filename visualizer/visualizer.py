@@ -301,7 +301,7 @@ def run_upload(filename):
 @app.route('/search_results/<query>')
 def search(query):
 	tags = query.split(" ")
-	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
+	results = FileMeta.query.join(FileMeta.tags).filter(FileMeta.owner == get_current_user()).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
 	return render_template('show_all_files.html', search_form=SearchForm(), metas=results)
 

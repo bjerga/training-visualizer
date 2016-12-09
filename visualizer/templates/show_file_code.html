@@ -27,6 +27,6 @@
     <p><b>Uploaded:</b> {{ meta.upload_date }}</p>
     <pre class="pre-scrollable">{{ content }}</pre><br>
     {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
-        {{ macros.render_submit_field(form.run, {'run':'danger btn-lg btn-block'}) }}
+        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}) }}
     {% endcall %}
 {% endblock %}

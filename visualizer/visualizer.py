@@ -298,6 +298,16 @@ def run_upload(filename):
 
 
 @login_required
+@app.route('/uploads/<filename>/delete')
+def delete_file(filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	db.session.delete(meta)
+	db.session.commit()
+	flash(filename + ' was deleted', 'danger')
+	return redirect(url_for('show_all_files'))
+
+
+@login_required
 @app.route('/search_results/<query>')
 def search(query):
 	tags = query.split(" ")

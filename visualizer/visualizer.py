@@ -65,6 +65,10 @@ def initdb_command():
 	print('Initialized the database')
 
 
+@app.route('/')
+def home():
+	return redirect(url_for('login'))
+
 @app.route('/create_user', methods=['GET', 'POST'])
 def create_user():
 	form = CreateUserForm()
@@ -85,7 +89,7 @@ def create_user():
 	return render_template('create_user.html', form=form)
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
 	form = LoginForm()
 	if form.validate_on_submit():

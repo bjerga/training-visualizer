@@ -300,9 +300,16 @@ def run_upload(filename):
 @login_required
 @app.route('/uploads/<filename>/delete')
 def delete_file(filename):
+
+	# delete file information from database
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 	db.session.delete(meta)
 	db.session.commit()
+
+	# delete the folder of the file to be deleted
+	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]),
+		   ignore_errors=True)
+
 	flash(filename + ' was deleted', 'danger')
 	return redirect(url_for('show_all_files'))
 

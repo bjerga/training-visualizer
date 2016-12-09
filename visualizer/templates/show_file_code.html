@@ -18,15 +18,37 @@
             <em>The program has no tags.</em>
         {% endfor %}
         <li>
-            {% call macros.render_form(tag_form, url_for("show_file_code", filename=filename), button=false) %}
-                {{ tag_form.csrf_token }}
-                {{ macros.render_field(tag_form.tags, label_visible=false, class="add-tags", placeholder="Add tag") }}
-            {% endcall %}
+            <div id="run-script">
+                {% call macros.render_form(tag_form, url_for("show_file_code", filename=filename), button=false) %}
+                    {{ tag_form.csrf_token }}
+                    {{ macros.render_field(tag_form.tags, label_visible=false, class="add-tags", placeholder="Add tag") }}
+                {% endcall %}
+            </div>
         </li>
     </ul>
     <p><b>Uploaded:</b> {{ meta.upload_date }}</p>
     <pre class="pre-scrollable">{{ content }}</pre><br>
     {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
-        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}) }}
+        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="test123") }}
     {% endcall %}
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+
+    <script>
+        function update_values(){
+            $.ajax({
+                type: 'GET',
+                cache: false,
+                url: "{{ url_for('check_running', filename=filename) }}",
+                success: function (response) {
+                    $('#test123').attr('disabled', response.running);
+                }
+            })
+        }
+        // do initial call to function and set call to repeat every 3 seconds
+        update_values();
+        interval = setInterval(update_values, 3000);
+    </script>
+
 {% endblock %}

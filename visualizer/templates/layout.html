@@ -16,7 +16,7 @@
         <div class="container-fluid">
             <div class="navbar-header">
                 <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                   href="{{ url_for('upload_file') }}"{% else %}
+                   href="{{ url_for('show_all_files') }}"{% else %}
                    href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
             </div>
             {% if not current_user.get_id() %}

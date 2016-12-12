@@ -67,7 +67,10 @@ def initdb_command():
 
 @app.route('/')
 def home():
+	if get_current_user():
+		return redirect(url_for('show_all_files'))
 	return redirect(url_for('login'))
+
 
 @app.route('/create_user', methods=['GET', 'POST'])
 def create_user():
@@ -320,7 +323,7 @@ def search(query):
 	tags = query.split(" ")
 	results = FileMeta.query.join(FileMeta.tags).filter(FileMeta.owner == get_current_user()).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
-	return render_template('show_all_files.html', search_form=SearchForm(), metas=results)
+	return render_template('show_all_files.html', search_form=SearchForm(), metas=results, search_text=query)
 
 
 @login_required

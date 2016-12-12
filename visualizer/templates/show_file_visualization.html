@@ -3,15 +3,10 @@
 {% block subpage %}
 
     <h3>Visualization of training progress:</h3>
-
-    <div id=plots></div>
+    <div id=plots><em>No plots have been produced yet</em></div>
 
     <h3>Visualization of layer activations:</h3>
-
-    <div id=activations></div>
-
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+    <div id=activations><em>No activation output have been produced yet</em></div>
 
     <script>
         // declare needed variables
@@ -31,12 +26,12 @@
                 $.ajax({
                     type: 'GET',
                     cache: false,
-                    url: "{{ url_for('get_visualization_sources', filename=filename, process_id=process_id) }}",
+                    url: "{{ url_for('get_visualization_sources', filename=filename) }}",
                     success: function(response){
                         // when response is received
 
-                        // if no plots are shown or there exists more plots than those shown, create HTML to show plots
-                        if (!shown_plots || shown_plots < response.plot_sources.length) {
+                        // if there exists more plots than those shown, create HTML to show plots
+                        if (shown_plots < response.plot_sources.length) {
                             htmlArray = [];
                             shown_plots = 0;
 
@@ -46,18 +41,15 @@
                                 shown_plots++;
                             }
 
-                            // create HTML for message and add all created HTML to div with id 'plots'
-                            htmlArray.push('<dd><em><span id=plot_message>' + response.plot_message + '</span></em></dd>');
+                            // add created HTML to div with id 'plots'
                             $('#plots').html(htmlArray.join(''));
                         }
-                        // if plots are shown and there are no new ones, update shown plots
+                        // if there are no new plots, update shown ones
                         else {
                             // alter source of existing HTML images using id's given in creation
                             for (var j=0; j < response.plot_sources.length; j++) {
                                 $('#plot_' + j).attr('src', response.plot_sources[j]);
                             }
-                            // update message
-                            $('#plot_message').html(response.plot_message);
                         }
 
                         // count amount of stored activation images
@@ -65,9 +57,8 @@
                             stored_activations += response.activation_tuples[k][1].length;
                         }
 
-                        // if no activations are shown or there exists more activations than
-                        // those shown, create HTML to show activations
-                        if (!shown_activations || shown_activations < stored_activations) {
+                        // if there exists more activations than those shown, create HTML to show activations
+                        if (shown_activations < stored_activations) {
                             htmlArray = [];
                             shown_activations = 0;
 
@@ -100,7 +91,7 @@
                             // add created HTML to div with id 'activations'
                             $('#activations').html(htmlArray.join(''));
                         }
-                        // if activations are shown and there are no new ones, update shown activations
+                        // if there are no new activations, update shown ones
                         else {
                             // alter source of existing HTML images using id's given in creation
                             for (var n=0; n < response.activation_tuples.length; n++) {

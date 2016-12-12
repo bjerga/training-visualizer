@@ -268,6 +268,9 @@ def get_visualization_sources(filename,):
 		else:
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
+	is_running = check_running(filename)
+	print(is_running)
+
 	# use check_running to investigate if visualization producing process is still running
 	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=check_running(filename))
 
@@ -341,7 +344,7 @@ def check_running(filename):
 			is_running = 1
 			break
 
-	return is_running
+	return jsonify(is_running=is_running)
 
 
 # used to prevent key errors for process dict

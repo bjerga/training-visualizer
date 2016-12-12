@@ -1,73 +1,89 @@
-import pickle
+
 from time import time
 from os import mkdir, listdir
 from os.path import join, dirname
 
 import numpy as np
 
-from keras import backend as K
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, Dropout, Flatten
 from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
+
+# needed to create custom callbacks
 from keras.callbacks import Callback
-from keras.preprocessing import image
+
+# find path to save models
+save_path = join(dirname(__file__), 'models')
 
 
-file_path = dirname(__file__)
-save_path = join(file_path, 'model_weights')
-result_path = join(file_path, 'results')
-
-
-# TODO: maybe save acc and loss as pickle-files instead of text?
-
-
+# saves accuracy at each finished training batch
 class AccuracyListSaver(Callback):
+
+    # NOTE: all imports in class could be performed globally
+
+    # find results path
+    from os.path import dirname, join
+    results_path = join(dirname(__file__), 'results')
 
     model_no = None
 
     def __init__(self, model_no):
         super(AccuracyListSaver, self).__init__()
         self.model_no = model_no
-        create_result_folder()
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(result_path + '/batch_accuracy_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new accuracy line
-        with open(result_path + '/batch_accuracy_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'a') as f:
             f.write(str(logs['acc']) + '\n')
 
 
+# saves loss at each finished training batch
 class LossListSaver(Callback):
+
+    # NOTE: all imports in class could be performed globally
+
+    # find results path
+    from os.path import dirname, join
+    results_path = join(dirname(__file__), 'results')
 
     model_no = None
 
     def __init__(self, model_no):
         super(LossListSaver, self).__init__()
         self.model_no = model_no
-        create_result_folder()
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(result_path + '/batch_loss_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new loss line
-        with open(result_path + '/batch_loss_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'a') as f:
             f.write(str(logs['loss']) + '\n')
 
 
+# saves activation arrays for each layer as tuples: (layer-name, array)
 class ActivationTupleListSaver(Callback):
+
+    # NOTE: all imports in class could be performed globally
+
+    # find results path
+    from os.path import dirname, join
+    results_path = join(dirname(__file__), 'results')
 
     model_no = None
     input_tensor = None
 
     def __init__(self, model_no):
+        import numpy as np
+
         super(ActivationTupleListSaver, self).__init__()
         self.model_no = model_no
 
@@ -75,9 +91,9 @@ class ActivationTupleListSaver(Callback):
         training_data, _, _, _ = load_data()
         self.input_tensor = training_data[np.random.randint(len(training_data))].reshape(1, 28, 28, 1)
 
-        create_result_folder()
-
     def on_epoch_end(self, batch, logs={}):
+        import keras.backend as K
+        import pickle
 
         # initialize layer tuple list with image
         layer_tuples = []
@@ -91,7 +107,7 @@ class ActivationTupleListSaver(Callback):
             # NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
             layer_tuples.append((layer.name, get_activation_tensor([self.input_tensor, 0])[0]))
 
-        with open(result_path + '/layer_dict_%d.pickle' % self.model_no, 'wb') as f:
+        with open(self.results_path + '/layer_dict_%d.pickle' % self.model_no, 'wb') as f:
             pickle.dump(layer_tuples, f)
 
 
@@ -126,12 +142,10 @@ def train(model, model_no, no_of_epochs=10):
     # train top layers of model (self-defined layers)
     print('\n\nCommence MNIST model training\n')
 
-    acc_saver = AccuracyListSaver(model_no)
-    loss_saver = LossListSaver(model_no)
-    layer_saver = ActivationTupleListSaver(model_no)
+    custom_callbacks = [AccuracyListSaver(model_no), LossListSaver(model_no), ActivationTupleListSaver(model_no)]
     training_data, training_targets, test_data, test_targets = load_data()
     model.fit(training_data, training_targets, nb_epoch=no_of_epochs, batch_size=128, shuffle=True,
-              verbose=1, callbacks=[acc_saver, loss_saver, layer_saver], validation_data=(test_data, test_targets))
+              verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
 
     save_to_disk(model, model_no)
 
@@ -187,7 +201,7 @@ def save_to_disk(model, model_no=None):
 
     try:
         mkdir(save_path)
-        print('model_weights folder created')
+        print('models-folder created')
     except FileExistsError:
         # file exists, which is want we want
         pass
@@ -195,33 +209,25 @@ def save_to_disk(model, model_no=None):
     if model_no is None:
         model_no = len(listdir(save_path))
 
-    model.save_weights(save_path + '/mnist_weights_%d.h5' % model_no)
+    model.save('%s/mnist_model_%d.h5' % (save_path, model_no))
 
-    print('\nModel weights saved as mnist_weights_%d.h5' % model_no)
+    print('\nModel saved as mnist_model_%d.h5' % model_no)
 
     return model_no
 
 
 def load_from_disk(model_no):
 
-    model, _ = create_model(with_save=False)
+    model = load_model('%s/mnist_model_%d.h5' % (save_path, model_no))
 
-    model.load_weights('./model_weights/mnist_weights_%d.h5' % model_no)
-
-    print('\nModel created with loaded weigths from mnist_weights_%d.h5' % model_no)
+    print('\nModel loaded from mnist_model_%d.h5' % model_no)
 
     return model
 
 
-def create_result_folder():
-        try:
-            mkdir(result_path)
-        except FileExistsError:
-            # file exists, which we wanted
-            pass
-
-
 def main():
+
+    # create a model, then train and test it.
 
     start_time = time()
 
@@ -229,7 +235,7 @@ def main():
 
     model = train(model, model_no)
 
-    # test(model, 1000, True)
+    test(model, 1000, True)
 
     print('This took %.2f seconds' % (time() - start_time))
 

@@ -118,7 +118,7 @@ def login():
 			if not has_permission(next_access):
 				return abort(400)
 			
-			return redirect(next_access or url_for('upload_file'))
+			return redirect(next_access or url_for('show_all_files'))
 	return render_template('login.html', form=form)
 
 

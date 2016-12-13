@@ -233,6 +233,7 @@ def show_file_history(filename):
 
 @login_required
 @app.route('/uploads/<filename>/visualization_sources')
+# get visualization sources, return json-object
 def get_visualization_sources(filename,):
 
 	# get folder name from filename
@@ -268,11 +269,8 @@ def get_visualization_sources(filename,):
 		else:
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
-	is_running = check_running(filename)
-	print(is_running)
-
 	# use check_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=check_running(filename))
+	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=is_running(filename))
 
 
 @login_required
@@ -331,20 +329,24 @@ def search(query):
 
 @login_required
 @app.route('/check_running/<filename>')
-# check if file is running
-# if file is running, return 1, else -1
+# check if file is running, return json-object
 def check_running(filename):
+	return jsonify(is_running=is_running(filename))
+
+
+# if file is running, return 1, else -1
+def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_running = -1
+	is_file_running = -1
 
 	# if any process for the file is still alive, return 1
 	for process in app.config['processes'][get_current_user()][filename]:
 		if process.is_alive():
-			is_running = 1
+			is_file_running = 1
 			break
 
-	return jsonify(is_running=is_running)
+	return is_file_running
 
 
 # used to prevent key errors for process dict

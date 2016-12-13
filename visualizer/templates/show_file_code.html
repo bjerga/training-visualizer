@@ -29,40 +29,43 @@
     <p><b>Uploaded:</b> {{ meta.upload_date }}</p>
     <pre class="pre-scrollable">{{ content }}</pre><br>
     {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
-        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'},
-        id="run-button", onClick="disableRunButton()") }}
+        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
     {% endcall %}
 
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
-
     <script>
-        function disableRunButton() {
-            $('#run-button').attr({
-                disabled: true,
-                value: 'Running...'
-            });
-            update_values();
-        }
-
-        interval = setInterval(update_values, 3000);
+        var check_running = true;
 
         function update_values() {
-            $.ajax({
-                type: 'GET',
-                cache: false,
-                url: "{{ url_for('check_running', filename=filename) }}",
-                success: function (response) {
-                    if (response < 0) {
-                        $('#run-button').attr({
-                            disabled: false,
-                            value: 'Run'
-                        });
-                        clearInterval(interval)
+            if (check_running) {
+
+                $.ajax({
+                    type: 'GET',
+                    cache: false,
+                    url: "{{ url_for('check_running', filename=filename) }}",
+                    success: function(response) {
+                        if (response.is_running < 0) {
+                            $('#run-button').attr({
+                                disabled: false,
+                                value: 'Run'
+                            });
+                            check_running = false;
+                        }
+                        else {
+                            $('#run-button').attr({
+                                disabled: true,
+                                value: 'Running...'
+                            });
+                        }
                     }
-                }
-            })
+                })
+            }
+            else {
+                clearInterval(interval)
+            }
         }
+
+        update_values();
+        interval = setInterval(update_values, 3000);
     </script>
 
 {% endblock %}

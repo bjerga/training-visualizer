@@ -14,35 +14,44 @@ from PIL import Image
 from visualizer.modules.models import User, Tag, FileMeta
 
 
+# allowed extension for upload files
 ALLOWED_EXTENSIONS = {'py'}
 
 
+# get current user in form of string
 def get_current_user():
 	return str(current_user)
 
 
+# check is username is unique in database
 def unique_username(username):
 	if User.query.filter_by(username=username).first():
 		return False
 	return True
 
 
+# to be implemented
 def has_permission(next_access):
 	# TODO: implement
 	return True
 
 
+# check if filename is unique for current user in database
 def unique_filename(filename):
 	if FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first():
 		return False
 	return True
 
 
+# check if file extension is allowed
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
 
 
 # TODO: might be possible to manage this directly in the query
+# check if tag already exists
+# if yes, return existing tag
+# if no, return new tag
 def get_existing_tag(text):
 	existing_tag = Tag.query.filter_by(text=text).first()
 	if existing_tag:
@@ -50,6 +59,7 @@ def get_existing_tag(text):
 	return Tag(text)
 		
 
+# get all errors detected in the form, and return in readable format
 def get_form_errors(form):
 	form_errors = []
 	for field, errors in form.errors.items():
@@ -58,6 +68,7 @@ def get_form_errors(form):
 	return form_errors
 
 
+# run a python program via command line
 def run_python_shell(file_path, shared_bool):
 	if file_path:
 		
@@ -77,6 +88,7 @@ def run_python_shell(file_path, shared_bool):
 	return
 
 
+# create visualization data from callback output
 def visualize_callback_output(file_path, filename, shared_bool):
 
 	# create file path for results
@@ -98,7 +110,8 @@ def visualize_callback_output(file_path, filename, shared_bool):
 		# for all visualization files in results folder
 		plot_num = 0
 		for vis_file in listdir(results_path):
-
+			
+			# create dictionary entry if not exist
 			if vis_file not in modification_times.keys():
 				modification_times[vis_file] = 0
 
@@ -108,11 +121,16 @@ def visualize_callback_output(file_path, filename, shared_bool):
 				# update modification time for visualization file
 				modification_times[vis_file] = getmtime(join(results_path, vis_file))
 
+				# if text file, plot content
 				if vis_file.endswith('.txt'):
 					plot_content(vis_file, plot_colors[plot_num], results_path, plots_path)
 					plot_num += 1
+					
+				# if pickle file, create activation image
 				elif vis_file.endswith('.pickle'):
 					visualize_activations(vis_file, results_path, activations_path)
+				
+				# if neither, do nothing
 				else:
 					# unknown file format, cannot visualize
 					print('\nUnknown file format, no visualization for file')
@@ -126,6 +144,7 @@ def visualize_callback_output(file_path, filename, shared_bool):
 	return
 
 
+# plot text file content
 def plot_content(text_file, plot_color, results_path, plots_path):
 
 	# get filename without '.txt'
@@ -160,6 +179,7 @@ def plot_content(text_file, plot_color, results_path, plots_path):
 
 
 # TODO: currently only works for black and white images, must also work for RGB
+# create activation images for all layers
 def visualize_activations(pickle_file, results_path, activations_path):
 
 	# remove old visualization files before creating new ones
@@ -173,12 +193,13 @@ def visualize_activations(pickle_file, results_path, activations_path):
 	with open(join(results_path, pickle_file), 'rb') as f:
 		content_list = pickle.load(f)
 
+	# for all layers
 	for layer_no in range(len(content_list)):
 		layer_name, layer_activation = content_list[layer_no]
 
 		# print('\nLength of activation shape', layer_activation.shape, 'is', len(layer_activation.shape), '\n')
 
-		# scale to fit between [0.0, 255.0] (image was scaled down to [0.0, 1.0] for network)
+		# scale to fit between [0.0, 255.0]
 		layer_activation += max(-np.min(layer_activation), 0.0)
 		la_max = np.max(layer_activation)
 		if la_max != 0.0:
@@ -203,7 +224,7 @@ def visualize_activations(pickle_file, results_path, activations_path):
 		# print('\n\n\n', layer_name, 'has shape', layer_activation.shape, '\n\n\n')
 
 
-# for all folders with 'old' counterpart, move to old
+# for all folders with 'old' counterpart, move to historical folders
 def move_to_historical_folder(file_path):
 
 	# find path to main folder
@@ -223,6 +244,7 @@ def move_to_historical_folder(file_path):
 	print('\nFiles moved to historical folders\n')
 
 
+# create all folders in list at the specified base path
 def create_folders(base_path, new_folders):
 	for new_folder in new_folders:
 		try:

@@ -67,7 +67,7 @@ def initdb_command():
 
 @app.route('/')
 def home():
-	if get_current_user():
+	if current_user.is_authenticated:
 		return redirect(url_for('show_all_files'))
 	return redirect(url_for('login'))
 

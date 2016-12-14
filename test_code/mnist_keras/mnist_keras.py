@@ -125,9 +125,11 @@ def create_model(with_save=True):
     x = Dense(64, activation='relu')(x)
     predictions = Dense(10, activation='softmax')(x)
 
+    # create and compile model with chosen hyperparameters
     model = Model(input=inputs, output=predictions)
     model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
+    # save model
     model_no = None
     if with_save:
         model_no = save_to_disk(model)
@@ -142,11 +144,17 @@ def train(model, model_no, no_of_epochs=10):
     # train top layers of model (self-defined layers)
     print('\n\nCommence MNIST model training\n')
 
+    # initialize custom callbacks
     custom_callbacks = [AccuracyListSaver(model_no), LossListSaver(model_no), ActivationTupleListSaver(model_no)]
+    
+    # get data
     training_data, training_targets, test_data, test_targets = load_data()
+    
+    # train with chosen hyperparameters
     model.fit(training_data, training_targets, nb_epoch=no_of_epochs, batch_size=128, shuffle=True,
               verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
 
+    # save after training
     save_to_disk(model, model_no)
 
     print('\nCompleted MNIST model training\n')
@@ -156,17 +164,23 @@ def train(model, model_no, no_of_epochs=10):
 
 def test(model, no_of_tests=1, verbose=True):
 
+    # get validation data
     _, _, test_data, test_targets = load_data()
 
+    # find indices of random images to test on
     random_indices = np.random.randint(len(test_data), size=no_of_tests)
 
+    # test for all indices and count correctly classified
     correctly_classified = 0
     for i in random_indices:
 
+        # get model classification
         classification = model.predict(test_data[i].reshape(1, 28, 28, 1))
 
+        # find correct classification
         correct = test_targets[i]
 
+        # count correctly classified, and print if incorrect
         if np.argmax(classification) == np.argmax(correct):
             correctly_classified += 1
         elif verbose:
@@ -199,6 +213,7 @@ def load_data():
 
 def save_to_disk(model, model_no=None):
 
+    # make path, if not exists
     try:
         mkdir(save_path)
         print('models-folder created')
@@ -206,6 +221,7 @@ def save_to_disk(model, model_no=None):
         # file exists, which is want we want
         pass
 
+    # find model number, if not specified
     if model_no is None:
         model_no = len(listdir(save_path))
 
@@ -217,7 +233,8 @@ def save_to_disk(model, model_no=None):
 
 
 def load_from_disk(model_no):
-
+    
+    # load chosen model number
     model = load_model('%s/mnist_model_%d.h5' % (save_path, model_no))
 
     print('\nModel loaded from mnist_model_%d.h5' % model_no)

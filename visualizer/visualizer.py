@@ -65,6 +65,13 @@ def initdb_command():
 	print('Initialized the database')
 
 
+@app.route('/')
+def home():
+	if get_current_user():
+		return redirect(url_for('show_all_files'))
+	return redirect(url_for('login'))
+
+
 @app.route('/create_user', methods=['GET', 'POST'])
 def create_user():
 	form = CreateUserForm()
@@ -85,7 +92,7 @@ def create_user():
 	return render_template('create_user.html', form=form)
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
 	form = LoginForm()
 	if form.validate_on_submit():
@@ -111,7 +118,7 @@ def login():
 			if not has_permission(next_access):
 				return abort(400)
 			
-			return redirect(next_access or url_for('upload_file'))
+			return redirect(next_access or url_for('show_all_files'))
 	return render_template('login.html', form=form)
 
 
@@ -226,6 +233,7 @@ def show_file_history(filename):
 
 @login_required
 @app.route('/uploads/<filename>/visualization_sources')
+# get visualization sources, return json-object
 def get_visualization_sources(filename,):
 
 	# get folder name from filename
@@ -262,7 +270,7 @@ def get_visualization_sources(filename,):
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
 
 	# use check_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=check_running(filename))
+	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=is_running(filename))
 
 
 @login_required
@@ -294,30 +302,51 @@ def run_upload(filename):
 
 
 @login_required
+@app.route('/uploads/<filename>/delete')
+def delete_file(filename):
+
+	# delete file information from database
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	db.session.delete(meta)
+	db.session.commit()
+
+	# delete the folder of the file to be deleted
+	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]),
+		   ignore_errors=True)
+
+	flash(filename + ' was deleted', 'danger')
+	return redirect(url_for('show_all_files'))
+
+
+@login_required
 @app.route('/search_results/<query>')
 def search(query):
 	tags = query.split(" ")
-	results = FileMeta.query.join(FileMeta.tags).filter(Tag.text.in_(tags))\
+	results = FileMeta.query.join(FileMeta.tags).filter(FileMeta.owner == get_current_user()).filter(Tag.text.in_(tags))\
 		.group_by(FileMeta).having(func.count(distinct(Tag.id)) == len(tags))
-	return render_template('show_all_files.html', search_form=SearchForm(), metas=results)
+	return render_template('show_all_files.html', search_form=SearchForm(), metas=results, search_text=query)
 
 
 @login_required
 @app.route('/check_running/<filename>')
-# check if file is running
-# if file is running, return 1, else -1
+# check if file is running, return json-object
 def check_running(filename):
+	return jsonify(is_running=is_running(filename))
+
+
+# if file is running, return 1, else -1
+def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_running = -1
+	is_file_running = -1
 
 	# if any process for the file is still alive, return 1
 	for process in app.config['processes'][get_current_user()][filename]:
 		if process.is_alive():
-			is_running = 1
+			is_file_running = 1
 			break
 
-	return is_running
+	return is_file_running
 
 
 # used to prevent key errors for process dict

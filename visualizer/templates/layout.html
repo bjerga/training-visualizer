@@ -1,62 +1,71 @@
 <!doctype html>
 <html>
-    <head>
-        {% block head %}
-            <title>Visualizer</title>
-            <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-            <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
-            <script src="http://code.jquery.com/jquery-latest.js"></script>
-            <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        {% endblock %}
-    </head>
-    <body>
-        {% block body %}
-            <nav class="navbar navbar-default">
-                <div class="navbar-header">
-                    <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                       href="{{ url_for('upload_file') }}"{% else %}
-                       href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
-                </div>
-                <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-                    <ul id="main-menu1" class="nav navbar-nav">
-                        {% if not current_user.get_id() %}
-                            <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
-                            <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
-                        {% else %}
-                            <li id="upload_file"><a href="{{ url_for('upload_file') }}">Upload file</a></li>
-                            <li id="view_files"><a href="{{ url_for('show_all_files') }}">View all files</a></li>
-                            <li id="log_out"><a href="{{ url_for('logout') }}">Log out</a></li>
-                        {% endif %}
-                    </ul>
-                </div>
-            </nav>
-
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                <!-- Categories: success (green), info (blue), warning (yellow), danger (red) -->
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible" role="alert">
-                          <button type="button" class="close" data-dismiss="alert">&times;</button>
-                        <!-- <strong>Title</strong> --> {{ message }}
-                    </div>
-                {% endfor %}
-            {% endwith %}
-        {% block content %}{% endblock %}
-        <br><br>
-
+<head>
+    {% block head %}
+        <title>Visualizer</title>
+        <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+        <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
+        <script src="http://code.jquery.com/jquery-latest.js"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
-    </body>
-    <script type="text/javascript">
-        (function() {
-            var nav = document.getElementById('main-menu1'),
+</head>
+<body>
+{% block body %}
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <a id="home" class="navbar-brand"{% if current_user.get_id() %}
+                   href="{{ url_for('show_all_files') }}"{% else %}
+                   href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
+            </div>
+            {% if not current_user.get_id() %}
+                <ul id="main-menu1" class="nav navbar-nav">
+                    <li id="log_in"><a href="{{ url_for('login') }}">Log in</a></li>
+                    <li id="create_user"><a href="{{ url_for('create_user') }}">Create user</a></li>
+                </ul>
+            {% else %}
+                <ul id="main-menu1" class="nav navbar-nav">
+                    <li id="upload_file"><a href="{{ url_for('upload_file') }}">Upload file</a></li>
+                    <li id="view_files"><a href="{{ url_for('show_all_files') }}">View all files</a></li>
+                </ul>
+                <form class="navbar-right navbar-form">
+                    <a class="btn btn-default" href="{{ url_for('logout') }}">Log out</a>
+                </form>
+                <div class="navbar-right">
+                    <p class="navbar-text">Logged in as {{ current_user.get_id() }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        <!-- Categories: success (green), info (blue), warning (yellow), danger (red) -->
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible" role="alert">
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                <!-- <strong>Title</strong> --> {{ message }}
+            </div>
+        {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+    <br><br>
+
+{% endblock %}
+</body>
+<script type="text/javascript">
+    (function() {
+        var nav = document.getElementById('main-menu1'),
                 anchor = nav.getElementsByTagName('a'),
                 menu = nav.getElementsByTagName('li'),
-                current = window.location.pathname.split('/')[1];
-            for (var i = 0; i < menu.length; i++) {
-                if (current.length > 0 && anchor[i].href.split('/')[3] == current) {
-                    menu[i].className = "active";
-                }
+                path = window.location.pathname.split('/'),
+                current = path[path.length - 1];
+        for (var i = 0; i < menu.length; i++) {
+            var anchor_list = anchor[i].href.split('/');
+            if (current.length > 0 && anchor_list[anchor_list.length - 1] == current) {
+                menu[i].className = "active";
             }
-        })();
-    </script>
+        }
+    })();
+</script>
 </html>

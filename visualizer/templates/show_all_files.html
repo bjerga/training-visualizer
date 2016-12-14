@@ -7,16 +7,16 @@
         </div>
         {% call macros.render_form(search_form, action_url=url_for("show_all_files"), button=false) %}
             {{ search_form.csrf_token }}
-            {{ macros.render_search_field(search_form.search) }}
+            {{ macros.render_search_field(search_form.search, placeholder=search_text) }}
         {% endcall %}
         <br>
         <div class="list-group">
             {% for meta in metas %}
                      <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
-                        <div class="row">
-                            <div class="col-md-9"><h4 class="list-group-item-heading">{{ meta.filename }}</h4></div>
-                            <div class="col-md-3 text-right"><small>Uploaded {{ meta.upload_date }}</small></div>
-                        </div>
+                         <h4 class="list-group-item-heading">
+                             {{ meta.filename }}
+                             <small class="pull-right"><em>Uploaded {{ meta.upload_date }}</em></small>
+                         </h4>
                          <p class="list-group-item-text">
                              {% for tag in meta.tags %}
                                  <span class="label label-primary">{{ tag }}</span>

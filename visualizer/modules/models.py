@@ -20,7 +20,6 @@ class User(db.Model):
 	
 	# connections to other models
 	files = relationship('FileMeta', backref='owned_by')
-	entries = relationship('Entry', backref='owned_by')
 	
 	def __init__(self, username, password, authenticated=False):
 		self.username = username

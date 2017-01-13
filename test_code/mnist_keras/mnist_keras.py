@@ -14,7 +14,7 @@ from keras.utils.np_utils import to_categorical
 from keras.callbacks import Callback
 
 # find path to save models
-save_path = join(dirname(__file__), 'models')
+save_path = join(dirname(__file__), 'networks')
 
 
 # saves accuracy at each finished training batch
@@ -216,7 +216,7 @@ def save_to_disk(model, model_no=None):
     # make path, if not exists
     try:
         mkdir(save_path)
-        print('models-folder created')
+        print('networks-folder created')
     except FileExistsError:
         # file exists, which is want we want
         pass

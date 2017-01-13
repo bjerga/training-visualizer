@@ -192,7 +192,7 @@ def upload_file():
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
+				create_folders(folder_path, ['results', 'networks', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -377,6 +377,18 @@ def run_upload(filename):
 	return redirect(url_for('show_file_visualization', filename=filename))
 
 
+# define how to download a trained network
+@login_required
+@app.route('/uploads/<filename>/download')
+def download_network(filename):
+
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+
+	network_name = listdir(network_folder)[-1]
+
+	return send_from_directory(network_folder, network_name, as_attachment=True)
+
+
 # define how to delete file
 @login_required
 @app.route('/uploads/<filename>/delete')
@@ -409,9 +421,23 @@ def search(query):
 	return render_template('show_all_files.html', search_form=SearchForm(), metas=results, search_text=query)
 
 
+# helper method dependent on app
+# check if there exists at least one network for selected file
+@login_required
+@app.route('/uploads/<filename>/check_networks_exist')
+def check_networks_exist(filename):
+	networks_exist = False
+
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+	if listdir(network_folder):
+		networks_exist = True
+
+	return jsonify(networks_exist=networks_exist)
+
+
 # define how to check if file is running
 @login_required
-@app.route('/check_running/<filename>')
+@app.route('/uploads/<filename>/check_running')
 # check if file is running, return json-object
 def check_running(filename):
 	return jsonify(is_running=is_running(filename))

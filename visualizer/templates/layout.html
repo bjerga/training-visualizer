@@ -15,9 +15,7 @@
     <nav class="navbar navbar-default">
         <div class="container-fluid">
             <div class="navbar-header">
-                <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                   href="{{ url_for('show_all_files') }}"{% else %}
-                   href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
+                <a id="home" class="navbar-brand" href="{{ url_for('home') }}">Visualizer</a>
             </div>
             {% if not current_user.get_id() %}
                 <ul id="main-menu1" class="nav navbar-nav">

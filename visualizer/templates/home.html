@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% import 'macros.html' as macros %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h2>Running files</h2>
+        </div>
+        <div class="list-group">
+            {% for meta in metas %}
+                     <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
+                         <h4 class="list-group-item-heading">
+                             {{ meta.filename }}
+                             <small class="pull-right"><em>Uploaded {{ meta.upload_date }}</em></small>
+                         </h4>
+                         <p class="list-group-item-text">
+                             {% for tag in meta.tags %}
+                                 <span class="label label-primary">{{ tag }}</span>
+                             {% endfor %}
+                         </p>
+                    </a>
+            {% else %}
+                <em>No files are running</em>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

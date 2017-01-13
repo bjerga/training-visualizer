@@ -69,10 +69,13 @@ def initdb_command():
 
 
 # define default home page
+# shows a list of running files
 @app.route('/')
 def home():
 	if current_user.is_authenticated:
-		return redirect(url_for('show_all_files'))
+		running = get_running()
+		metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
+		return render_template('home.html', metas=metas)
 	return redirect(url_for('login'))
 
 
@@ -463,6 +466,22 @@ def is_running(filename):
 			break
 
 	return is_file_running
+
+
+# return a set of all files running
+def get_running():
+	running = set()
+	try:
+		processes = app.config['processes'][get_current_user()]
+	except KeyError:
+		processes = {}
+
+	for filename in processes:
+		for process in processes[filename]:
+			if process.is_alive():
+				running.add(filename)
+
+	return running
 
 
 # helper method dependent on app

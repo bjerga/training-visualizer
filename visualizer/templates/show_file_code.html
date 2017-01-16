@@ -45,7 +45,17 @@
                     cache: false,
                     url: "{{ url_for('check_running', filename=filename) }}",
                     success: function(response) {
-                        if (response.is_running < 0) {
+                        if (response.is_running) {
+                            $('#run-button').attr({
+                                disabled: true,
+                                value: 'Running...'
+                            });
+
+                            // disable network download, to prevent partially trained networks to be downloaded
+                            $('#download-button').attr('disabled', true);
+                            $('#download-button').removeAttr('href');
+                        }
+                        else {
                             $('#run-button').attr({
                                 disabled: false,
                                 value: 'Run'
@@ -56,16 +66,6 @@
 
                             // update value to stop checking if program is running
                             check_running = false;
-                        }
-                        else {
-                            $('#run-button').attr({
-                                disabled: true,
-                                value: 'Running...'
-                            });
-
-                            // disable network download, to prevent partially trained networks to be downloaded
-                            $('#download-button').attr('disabled', true);
-                            $('#download-button').removeAttr('href');
                         }
                     }
                 })

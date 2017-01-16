@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime as dt
 from shutil import rmtree
 from os import mkdir, listdir
 from os.path import join, dirname
@@ -339,9 +339,15 @@ def get_visualization_sources(filename,):
 		# if not, append to act. path list for latest layer number
 		else:
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
-	
+
+	# get time of production by converting timestamp in an arbitrary visualization into a readable format
+	if plots:
+		production_time = dt.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
+	else:
+		production_time = 'No visualizations produced yet'
+
 	# use is_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=is_running(filename))
+	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, production_time=production_time, should_visualize=is_running(filename))
 
 
 # define how to run a program using new processes
@@ -445,16 +451,15 @@ def check_running(filename):
 
 # helper method dependent on app
 # check if file is running
-# if running, return 1, else -1
 def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_file_running = -1
+	is_file_running = False
 
-	# if any process for the file is still alive, return 1
+	# if any process for the file is still alive, return true
 	for process in app.config['processes'][get_current_user()][filename]:
 		if process.is_alive():
-			is_file_running = 1
+			is_file_running = True
 			break
 
 	return is_file_running

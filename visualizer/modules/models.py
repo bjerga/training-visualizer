@@ -78,6 +78,7 @@ class FileMeta(db.Model):
 	id = Column(Integer, primary_key=True)
 	filename = Column(String(50), nullable=False)
 	upload_date = Column(String(10), nullable=False)
+	last_run_date = Column(String(16))
 	path = Column(String(20), nullable=False)
 	
 	# connections to other models
@@ -87,6 +88,7 @@ class FileMeta(db.Model):
 	def __init__(self, filename, upload_date, path, owner):
 		self.filename = filename
 		self.upload_date = upload_date
+		self.last_run_date = None
 		self.path = path
 		self.owner = owner
 	

@@ -1,4 +1,4 @@
-from datetime import date, datetime as dt
+from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir
 from os.path import join, dirname
@@ -244,7 +244,7 @@ def show_all_files():
 			# redirect to file list view that only displays matching files
 			return redirect(url_for('search', query=query))
 		
-	return render_template('show_all_files.html', search_form=search_form, metas=metas)
+	return render_template('show_all_files.html', search_form=search_form, metas=metas, running=get_running())
 
 
 # page for file code view
@@ -345,7 +345,7 @@ def get_visualization_sources(filename,):
 
 	# get time of production by converting timestamp in an arbitrary visualization into a readable format
 	if plots:
-		production_time = dt.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
+		production_time = datetime.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
 	else:
 		production_time = 'No visualizations produced yet'
 
@@ -381,6 +381,10 @@ def run_upload(filename):
 	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
 	app.config['processes'][get_current_user()][filename].append(p)
+
+	# update last run column in database
+	meta.last_run_date = datetime.now()
+	db.session.commit()
 	
 	# redirect to file visualization view
 	return redirect(url_for('show_file_visualization', filename=filename))

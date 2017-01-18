@@ -88,7 +88,7 @@ class FileMeta(db.Model):
 	def __init__(self, filename, upload_date, path, owner):
 		self.filename = filename
 		self.upload_date = upload_date
-		self.last_run_date = None
+		self.last_run_date = 'N/A'
 		self.path = path
 		self.owner = owner
 	

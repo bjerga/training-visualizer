@@ -200,7 +200,7 @@ def upload_file():
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
 				file.save(file_path)
-				file_meta = FileMeta(filename, date.today(), file_path, get_current_user())
+				file_meta = FileMeta(filename, date.today().strftime("%d/%m/%y"), file_path, get_current_user())
 				
 				# create file tags
 				for text in form.tags.data:
@@ -383,7 +383,7 @@ def run_upload(filename):
 	app.config['processes'][get_current_user()][filename].append(p)
 
 	# update last run column in database
-	meta.last_run_date = datetime.now()
+	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
 	db.session.commit()
 	
 	# redirect to file visualization view

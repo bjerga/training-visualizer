@@ -1,6 +1,7 @@
 {% extends "show_file.html" %}
 {% import 'macros.html' as macros %}
 {% block subpage %}
+
     <ul class="list-inline">
         {% for tag in meta.tags %}
             <li>
@@ -32,6 +33,11 @@
         {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
     {% endcall %}
     <a id="download-button" role="button" class="btn btn-primary btn-lg btn-block" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
+
+{% endblock %}
+{% block script %}
+
+    {{ super() }}
 
     <script>
         var check_running = true;

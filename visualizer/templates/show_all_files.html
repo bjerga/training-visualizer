@@ -15,7 +15,14 @@
                      <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
                          <h4 class="list-group-item-heading">
                              {{ meta.filename }}
-                             <small class="pull-right"><em>Uploaded {{ meta.upload_date }}</em></small>
+                             {% if meta.filename in running %}
+                                 <small class="pull-right">
+                                     <strong>Last run:</strong> <span class="label label-warning">Running</span>
+                                 </small>
+                             {% else %}
+                                 <small class="pull-right"><strong>Last run:</strong> {{ meta.last_run_date }}</small>
+                             {% endif %}
+                             <small class="pull-right"><strong>Uploaded:</strong> {{ meta.upload_date }} &ensp;</small>
                          </h4>
                          <p class="list-group-item-text">
                              {% for tag in meta.tags %}

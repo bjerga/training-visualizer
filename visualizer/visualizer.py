@@ -468,6 +468,12 @@ def is_running(filename):
 	return is_file_running
 
 
+@login_required
+@app.route('/running')
+def running():
+	return jsonify(running=list(get_running()))
+
+
 # return a set of all files running
 def get_running():
 	running = set()

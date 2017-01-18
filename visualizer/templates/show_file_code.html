@@ -1,7 +1,6 @@
 {% extends "show_file.html" %}
 {% import 'macros.html' as macros %}
 {% block subpage %}
-    <div id=flash></div>
     <ul class="list-inline">
         {% for tag in meta.tags %}
             <li>
@@ -56,7 +55,6 @@
                             $('#download-button').attr('disabled', true);
                             $('#download-button').removeAttr('href');
                             check_running = false;
-                            $('#flash').html('<div class="alert alert-success alert-dismissible" role="alert">Done</div>');
                         }
                         else {
                             $('#run-button').attr({

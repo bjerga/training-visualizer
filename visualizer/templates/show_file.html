@@ -32,19 +32,22 @@
         <br>
         {% block subpage %}{% endblock %}
     </div>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
-    <script>
-        (function() {
-            var nav = document.getElementById('submenu1'),
-                    anchor = nav.getElementsByTagName('a'),
-                    menu = nav.getElementsByTagName('li'),
-                    current = window.location.pathname.split('/')[3];
-            for (var i = 0; i < menu.length; i++) {
-                if (current.length > 0 && anchor[i].href.split('/')[5] == current) {
-                    menu[i].className = "active";
+    {% block script %}
+        {{ super() }}
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script>window.jQuery || document.write('<script src="{{ url_for('static', filename='js/jquery-3.1.1.min.js') }}">\x3C/script>')</script>
+        <script>
+            (function() {
+                var nav = document.getElementById('submenu1'),
+                        anchor = nav.getElementsByTagName('a'),
+                        menu = nav.getElementsByTagName('li'),
+                        current = window.location.pathname.split('/')[3];
+                for (var i = 0; i < menu.length; i++) {
+                    if (current.length > 0 && anchor[i].href.split('/')[5] == current) {
+                        menu[i].className = "active";
+                    }
                 }
-            }
-        })();
-    </script>
+            })();
+        </script>
+    {% endblock %}
 {% endblock %}

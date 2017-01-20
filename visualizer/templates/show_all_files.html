@@ -10,29 +10,52 @@
             {{ macros.render_search_field(search_form.search, placeholder=search_text) }}
         {% endcall %}
         <br>
-        <div class="list-group">
-            {% for meta in metas %}
-                     <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
-                         <h4 class="list-group-item-heading">
-                             {{ meta.filename }}
-                             {% if meta.filename in running %}
-                                 <small class="pull-right">
-                                     <strong>Last run:</strong> <span class="label label-warning">Running</span>
-                                 </small>
-                             {% else %}
-                                 <small class="pull-right"><strong>Last run:</strong> {{ meta.last_run_date }}</small>
-                             {% endif %}
-                             <small class="pull-right"><strong>Uploaded:</strong> {{ meta.upload_date }} &ensp;</small>
-                         </h4>
-                         <p class="list-group-item-text">
-                             {% for tag in meta.tags %}
-                                 <span class="label label-primary">{{ tag }}</span>
-                             {% endfor %}
-                         </p>
-                    </a>
-            {% else %}
-                <em>No files available</em>
-            {% endfor %}
-        </div>
+        <table id="myTable" class="table table-hover tablesorter">
+            <thead>
+                <tr style="cursor:pointer;">
+                    <th style="outline: none;">Filename</th>
+                    <th style="cursor: default;" class="sorter-false">Tags</th>
+                    <th style="outline: none;">Uploaded</th>
+                    <th style="outline: none;">Last Run</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for meta in metas %}
+                    <tr class="clickable-row" style="cursor:pointer;" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
+                        <td>{{ meta.filename }}</td>
+                        <td>
+                            {% for tag in meta.tags %}
+                                <span class="label label-primary">{{ tag }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>{{ meta.upload_date }}</td>
+                        <td>
+                            {% if meta.filename in running %}
+                                <span class="label label-warning">Running</span>
+                            {% else %}
+                                {{ meta.last_run_date }}
+                            {% endif %}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+{% endblock %}
+{% block script %}
+    {{ super() }}
+    <script>
+        jQuery(document).ready(function($) {
+            $(".clickable-row").click(function() {
+                window.document.location = $(this).data("href");
+            });
+        });
+
+        $(document).ready(function() {
+            $(function() {
+                $("#myTable").tablesorter();
+            });
+        });
+
+    </script>
+
 {% endblock %}

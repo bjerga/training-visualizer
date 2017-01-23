@@ -3,8 +3,3 @@
 visualizer/*.db
 visualizer/static/user_storage/
 test_code/deep_dream/output
-test_code/deep_dream/old_output
-test_code/deconvolution/output
-test_code/deconvolution/max_images
-test_code/deconvolution/10000_test
-test_code/deconvolution/input/fall11_urls.txt

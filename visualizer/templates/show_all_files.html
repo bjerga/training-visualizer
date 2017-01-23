@@ -5,40 +5,44 @@
         <div class="page-header">
             <h2>Uploaded files</h2>
         </div>
-        {% call macros.render_form(search_form, action_url=url_for("show_all_files"), button=false) %}
-            {{ search_form.csrf_token }}
-            {{ macros.render_search_field(search_form.search, placeholder=search_text) }}
-        {% endcall %}
-        <br>
-        <table id="myTable" class="table table-hover tablesorter">
-            <thead>
-                <tr style="cursor:pointer;">
-                    <th style="outline: none;">Filename</th>
-                    <th style="cursor: default;" class="sorter-false">Tags</th>
-                    <th style="outline: none;">Uploaded</th>
-                    <th style="outline: none;">Last Run</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for meta in metas %}
-                    <tr class="clickable-row" style="cursor:pointer;" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
-                        <td>{{ meta.filename }}</td>
-                        <td>
-                            {% for tag in meta.tags %}
-                                <span class="label label-primary">{{ tag }}</span>
-                            {% endfor %}
-                        </td>
-                        <td>{{ meta.upload_date }}</td>
-                        <td>
-                            {% if meta.filename in running %}
-                                <span class="label label-warning">Running</span>
-                            {% else %}
-                                {{ meta.last_run_date }}
-                            {% endif %}</td>
+        {% if metas %}
+            {% call macros.render_form(search_form, action_url=url_for("show_all_files"), button=false) %}
+                {{ search_form.csrf_token }}
+                {{ macros.render_search_field(search_form.search, placeholder=search_text) }}
+            {% endcall %}
+            <br>
+            <table id="myTable" class="table table-hover tablesorter">
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th class="sorter-false">Tags</th>
+                        <th>Uploaded</th>
+                        <th>Last Run</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {% for meta in metas %}
+                        <tr class="clickable-row" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
+                            <td>{{ meta.filename }}</td>
+                            <td>
+                                {% for tag in meta.tags %}
+                                    <span class="label label-primary">{{ tag }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ meta.upload_date }}</td>
+                            <td>
+                                {% if meta.filename in running %}
+                                    <span class="label label-warning">Running</span>
+                                {% else %}
+                                    {{ meta.last_run_date }}
+                                {% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            No files are uploaded. Click <a href="{{ url_for('upload_file') }}">here</a> to upload a new file.
+        {% endif %}
     </div>
 {% endblock %}
 {% block script %}

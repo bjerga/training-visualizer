@@ -5,22 +5,32 @@
         <div class="page-header">
             <h2>Running files</h2>
         </div>
-        <div class="list-group">
-            {% for meta in metas %}
-                     <a class="list-group-item" href="{{ url_for('show_file_code', filename=meta.filename ) }}">
-                         <h4 class="list-group-item-heading">
-                             {{ meta.filename }}
-                             <small class="pull-right"><em>Uploaded {{ meta.upload_date }}</em></small>
-                         </h4>
-                         <p class="list-group-item-text">
-                             {% for tag in meta.tags %}
-                                 <span class="label label-primary">{{ tag }}</span>
-                             {% endfor %}
-                         </p>
-                    </a>
-            {% else %}
-                <em>No files are running</em>
-            {% endfor %}
-        </div>
+        {% if metas %}
+            <table id="myTable" class="table table-hover tablesorter">
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th class="sorter-false">Tags</th>
+                        <th>Uploaded</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    {% for meta in metas %}
+                        <tr class="clickable-row" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
+                            <td>{{ meta.filename }}</td>
+                            <td>
+                                {% for tag in meta.tags %}
+                                    <span class="label label-primary">{{ tag }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ meta.upload_date }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            No files are currently running.
+        {% endif %}
     </div>
 {% endblock %}

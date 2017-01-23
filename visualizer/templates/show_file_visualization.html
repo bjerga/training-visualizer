@@ -1,15 +1,15 @@
 {% extends "show_file.html" %}
-
 {% block subpage %}
 
     <p><b>Produced:</b><div id="prod_time">No visualizations produced yet</div></p>
 
     <h3>Visualization of training progress:</h3>
     <div id=plots><em>No plots have been produced yet</em></div>
-
     <h3>Visualization of layer activations:</h3>
     <div id=activations><em>No activation output have been produced yet</em></div>
-
+{% endblock %}
+{% block script %}
+    {{ super() }}
     <script>
         // declare needed variables
         var interval, htmlArray, image_row;
@@ -121,5 +121,4 @@
         create_visualization_html();
         interval = setInterval(create_visualization_html, 3000);
     </script>
-
 {% endblock %}

@@ -3,24 +3,19 @@
 {% block content %}
     <div class="container">
         <div class="page-header">
-            <h2>Uploaded files</h2>
+            <h2>Running files</h2>
         </div>
         {% if metas %}
-            {% call macros.render_form(search_form, action_url=url_for("show_all_files"), button=false) %}
-                {{ search_form.csrf_token }}
-                {{ macros.render_search_field(search_form.search, placeholder=search_text) }}
-            {% endcall %}
-            <br>
             <table id="myTable" class="table table-hover tablesorter">
                 <thead>
                     <tr>
                         <th>Filename</th>
                         <th class="sorter-false">Tags</th>
                         <th>Uploaded</th>
-                        <th>Last Run</th>
                     </tr>
                 </thead>
                 <tbody>
+
                     {% for meta in metas %}
                         <tr class="clickable-row" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
                             <td>{{ meta.filename }}</td>
@@ -30,18 +25,12 @@
                                 {% endfor %}
                             </td>
                             <td>{{ meta.upload_date }}</td>
-                            <td>
-                                {% if meta.filename in running %}
-                                    <span class="label label-warning">Running</span>
-                                {% else %}
-                                    {{ meta.last_run_date }}
-                                {% endif %}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
-            No files are uploaded. Click <a href="{{ url_for('upload_file') }}">here</a> to upload a new file.
+            No files are currently running.
         {% endif %}
     </div>
 {% endblock %}
@@ -59,7 +48,6 @@
                 $("#myTable").tablesorter();
             });
         });
-
     </script>
 
 {% endblock %}

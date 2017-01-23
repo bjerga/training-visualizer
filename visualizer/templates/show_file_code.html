@@ -1,6 +1,7 @@
 {% extends "show_file.html" %}
 {% import 'macros.html' as macros %}
 {% block subpage %}
+
     <ul class="list-inline">
         {% for tag in meta.tags %}
             <li>
@@ -26,12 +27,18 @@
             </div>
         </li>
     </ul>
-    <p><b>Uploaded:</b> {{ meta.upload_date }}</p>
+    <p><strong>Uploaded:</strong> {{ meta.upload_date }} <br>
+    <strong>Last run:</strong> {{ meta.last_run_date }}</p>
     <pre class="pre-scrollable">{{ content }}</pre><br>
     {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
         {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
     {% endcall %}
     <a id="download-button" role="button" class="btn btn-primary btn-lg btn-block" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
+
+{% endblock %}
+{% block script %}
+
+    {{ super() }}
 
     <script>
         var check_running = true;
@@ -54,6 +61,7 @@
                             // disable network download, to prevent partially trained networks to be downloaded
                             $('#download-button').attr('disabled', true);
                             $('#download-button').removeAttr('href');
+                            check_running = false;
                         }
                         else {
                             $('#run-button').attr({

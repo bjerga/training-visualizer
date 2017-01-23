@@ -7,6 +7,7 @@
         <link rel=stylesheet media=screen href="{{ url_for('static', filename='css/style.css') }}">
         <script src="http://code.jquery.com/jquery-latest.js"></script>
         <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/jquery.tablesorter.js') }}"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
 </head>
@@ -15,9 +16,7 @@
     <nav class="navbar navbar-default">
         <div class="container-fluid">
             <div class="navbar-header">
-                <a id="home" class="navbar-brand"{% if current_user.get_id() %}
-                   href="{{ url_for('show_all_files') }}"{% else %}
-                   href="{{ url_for('login') }}"{% endif %}>Visualizer</a>
+                <a id="home" class="navbar-brand" href="{{ url_for('home') }}">Visualizer</a>
             </div>
             {% if not current_user.get_id() %}
                 <ul id="main-menu1" class="nav navbar-nav">
@@ -48,24 +47,57 @@
             </div>
         {% endfor %}
     {% endwith %}
+
+    <div id="finish-running"></div>
+
     {% block content %}{% endblock %}
     <br><br>
+    {% block script %}
+        <script>
+            (function() {
+                var nav = document.getElementById('main-menu1'),
+                        anchor = nav.getElementsByTagName('a'),
+                        menu = nav.getElementsByTagName('li'),
+                        path = window.location.pathname.split('/'),
+                        current = path[path.length - 1];
+                for (var i = 0; i < menu.length; i++) {
+                    var anchor_list = anchor[i].href.split('/');
+                    if (current.length > 0 && anchor_list[anchor_list.length - 1] == current) {
+                        menu[i].className = "active";
+                    }
+                }
+            })();
+
+            var prev_running = [];
+
+            function update_running() {
+
+                $.ajax({
+                    type: 'GET',
+                    cache: false,
+                    url: "{{ url_for('get_running_json') }}",
+                    success: function (response) {
+                        var running = response.running;
+                        var diff = $(prev_running).not(running).get();
+                        var htmlArray = [];
+                        for (var i = 0; i < diff.length; i++) {
+                            var url = '/uploads/' + diff[i] + '/code';
+                            htmlArray.push('<div class="alert alert-success alert-dismissable" role="alert">');
+                            htmlArray.push('<button type="button" class="close" data-dismiss="alert">&times;</button>');
+                            htmlArray.push('The file <a href="' + url + '">' + diff[i] + '</a> has finished running.');
+                            htmlArray.push('</div>');
+                        }
+                        $('#finish-running').append(htmlArray.join(''));
+                        prev_running = running;
+                    }
+                });
+            }
+
+            update_running();
+            var interval = setInterval(update_running, 3000);
+        </script>
+    {% endblock %}
 
 {% endblock %}
 </body>
-<script type="text/javascript">
-    (function() {
-        var nav = document.getElementById('main-menu1'),
-                anchor = nav.getElementsByTagName('a'),
-                menu = nav.getElementsByTagName('li'),
-                path = window.location.pathname.split('/'),
-                current = path[path.length - 1];
-        for (var i = 0; i < menu.length; i++) {
-            var anchor_list = anchor[i].href.split('/');
-            if (current.length > 0 && anchor_list[anchor_list.length - 1] == current) {
-                menu[i].className = "active";
-            }
-        }
-    })();
-</script>
 </html>

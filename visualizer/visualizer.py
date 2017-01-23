@@ -1,4 +1,4 @@
-from datetime import date, datetime as dt
+from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir
 from os.path import join, dirname
@@ -69,10 +69,13 @@ def initdb_command():
 
 
 # define default home page
+# shows a list of running files
 @app.route('/')
 def home():
 	if current_user.is_authenticated:
-		return redirect(url_for('show_all_files'))
+		running = get_running()
+		metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
+		return render_template('home.html', metas=metas)
 	return redirect(url_for('login'))
 
 
@@ -197,7 +200,7 @@ def upload_file():
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
 				file.save(file_path)
-				file_meta = FileMeta(filename, date.today(), file_path, get_current_user())
+				file_meta = FileMeta(filename, date.today().strftime("%d/%m/%y"), file_path, get_current_user())
 				
 				# create file tags
 				for text in form.tags.data:
@@ -241,7 +244,7 @@ def show_all_files():
 			# redirect to file list view that only displays matching files
 			return redirect(url_for('search', query=query))
 		
-	return render_template('show_all_files.html', search_form=search_form, metas=metas)
+	return render_template('show_all_files.html', search_form=search_form, metas=metas, running=get_running())
 
 
 # page for file code view
@@ -342,7 +345,7 @@ def get_visualization_sources(filename,):
 
 	# get time of production by converting timestamp in an arbitrary visualization into a readable format
 	if plots:
-		production_time = dt.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
+		production_time = datetime.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
 	else:
 		production_time = 'No visualizations produced yet'
 
@@ -378,6 +381,10 @@ def run_upload(filename):
 	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
 	app.config['processes'][get_current_user()][filename].append(p)
+
+	# update last run column in database
+	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
+	db.session.commit()
 	
 	# redirect to file visualization view
 	return redirect(url_for('show_file_visualization', filename=filename))
@@ -463,6 +470,28 @@ def is_running(filename):
 			break
 
 	return is_file_running
+
+
+@login_required
+@app.route('/uploads/running')
+def get_running_json():
+	return jsonify(running=list(get_running()))
+
+
+# return a set of all files running
+def get_running():
+	running = set()
+	try:
+		processes = app.config['processes'][get_current_user()]
+	except KeyError:
+		processes = {}
+
+	for filename in processes:
+		for process in processes[filename]:
+			if process.is_alive():
+				running.add(filename)
+
+	return running
 
 
 # helper method dependent on app

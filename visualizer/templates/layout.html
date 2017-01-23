@@ -75,7 +75,7 @@
                 $.ajax({
                     type: 'GET',
                     cache: false,
-                    url: "{{ url_for('running') }}",
+                    url: "{{ url_for('get_running_json') }}",
                     success: function (response) {
                         var running = response.running;
                         var diff = $(prev_running).not(running).get();

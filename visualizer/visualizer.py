@@ -473,8 +473,8 @@ def is_running(filename):
 
 
 @login_required
-@app.route('/running')
-def running():
+@app.route('/uploads/running')
+def get_running_json():
 	return jsonify(running=list(get_running()))
 
 

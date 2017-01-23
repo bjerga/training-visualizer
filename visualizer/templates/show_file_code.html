@@ -31,9 +31,11 @@
     {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
         {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
     {% endcall %}
+    <a id="download-button" role="button" class="btn btn-primary btn-lg btn-block" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
 
     <script>
         var check_running = true;
+        var download_button_href = $('#download-button').attr('href');
 
         function update_values() {
             if (check_running) {
@@ -43,18 +45,27 @@
                     cache: false,
                     url: "{{ url_for('check_running', filename=filename) }}",
                     success: function(response) {
-                        if (response.is_running < 0) {
-                            $('#run-button').attr({
-                                disabled: false,
-                                value: 'Run'
-                            });
-                            check_running = false;
-                        }
-                        else {
+                        if (response.is_running) {
                             $('#run-button').attr({
                                 disabled: true,
                                 value: 'Running...'
                             });
+
+                            // disable network download, to prevent partially trained networks to be downloaded
+                            $('#download-button').attr('disabled', true);
+                            $('#download-button').removeAttr('href');
+                        }
+                        else {
+                            $('#run-button').attr({
+                                disabled: false,
+                                value: 'Run'
+                            });
+
+                            // if not running, check if networks can be downloaded and activate/deactivate download button
+                            set_downloadability();
+
+                            // update value to stop checking if program is running
+                            check_running = false;
                         }
                     }
                 })
@@ -62,6 +73,25 @@
             else {
                 clearInterval(interval)
             }
+        }
+
+        // check if there exists any saved networks for current file, and set download button to be active or not
+        function set_downloadability() {
+            $.ajax({
+                type: 'GET',
+                cache: false,
+                url: "{{ url_for('check_networks_exist', filename=filename) }}",
+                success: function (response) {
+                    if (response.networks_exist) {
+                        $('#download-button').attr('disabled', false);
+                        $('#download-button').attr('href', download_button_href);
+                    }
+                    else {
+                        $('#download-button').attr('disabled', true);
+                        $('#download-button').removeAttr('href');
+                    }
+                }
+            });
         }
 
         update_values();

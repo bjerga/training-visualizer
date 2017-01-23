@@ -2,6 +2,8 @@
 
 {% block subpage %}
 
+    <p><b>Produced:</b><div id="prod_time">No visualizations produced yet</div></p>
+
     <h3>Visualization of training progress:</h3>
     <div id=plots><em>No plots have been produced yet</em></div>
 
@@ -14,13 +16,13 @@
         var shown_plots = 0;
         var shown_activations = 0;
         var stored_activations = 0;
-        var should_visualize = 1;
+        var should_visualize = true;
 
         // uses image sources to create HTML to display visualization
         function create_visualization_html(){
 
-            // as long as process that produces images is alive, should_visualize is 1, else -1
-            if (should_visualize > 0){
+            // as long as process that produces images is alive, should_visualize is true, else false
+            if (should_visualize){
 
                 // use AJAX to get image/visualization sources
                 $.ajax({
@@ -29,6 +31,9 @@
                     url: "{{ url_for('get_visualization_sources', filename=filename) }}",
                     success: function(response){
                         // when response is received
+
+                        // update production time message
+                        $('#prod_time').html(response.production_time);
 
                         // if there exists more plots than those shown, create HTML to show plots
                         if (shown_plots < response.plot_sources.length) {

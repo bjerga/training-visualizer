@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime as dt
 from shutil import rmtree
 from os import mkdir, listdir
 from os.path import join, dirname
@@ -192,7 +192,7 @@ def upload_file():
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['results', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
+				create_folders(folder_path, ['results', 'networks', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -339,9 +339,15 @@ def get_visualization_sources(filename,):
 		# if not, append to act. path list for latest layer number
 		else:
 			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
-	
+
+	# get time of production by converting timestamp in an arbitrary visualization into a readable format
+	if plots:
+		production_time = dt.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
+	else:
+		production_time = 'No visualizations produced yet'
+
 	# use is_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, should_visualize=is_running(filename))
+	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, production_time=production_time, should_visualize=is_running(filename))
 
 
 # define how to run a program using new processes
@@ -377,6 +383,18 @@ def run_upload(filename):
 	return redirect(url_for('show_file_visualization', filename=filename))
 
 
+# define how to download a trained network
+@login_required
+@app.route('/uploads/<filename>/download')
+def download_network(filename):
+
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+
+	network_name = listdir(network_folder)[-1]
+
+	return send_from_directory(network_folder, network_name, as_attachment=True)
+
+
 # define how to delete file
 @login_required
 @app.route('/uploads/<filename>/delete')
@@ -409,9 +427,23 @@ def search(query):
 	return render_template('show_all_files.html', search_form=SearchForm(), metas=results, search_text=query)
 
 
+# helper method dependent on app
+# check if there exists at least one network for selected file
+@login_required
+@app.route('/uploads/<filename>/check_networks_exist')
+def check_networks_exist(filename):
+	networks_exist = False
+
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+	if listdir(network_folder):
+		networks_exist = True
+
+	return jsonify(networks_exist=networks_exist)
+
+
 # define how to check if file is running
 @login_required
-@app.route('/check_running/<filename>')
+@app.route('/uploads/<filename>/check_running')
 # check if file is running, return json-object
 def check_running(filename):
 	return jsonify(is_running=is_running(filename))
@@ -419,16 +451,15 @@ def check_running(filename):
 
 # helper method dependent on app
 # check if file is running
-# if running, return 1, else -1
 def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_file_running = -1
+	is_file_running = False
 
-	# if any process for the file is still alive, return 1
+	# if any process for the file is still alive, return true
 	for process in app.config['processes'][get_current_user()][filename]:
 		if process.is_alive():
-			is_file_running = 1
+			is_file_running = True
 			break
 
 	return is_file_running

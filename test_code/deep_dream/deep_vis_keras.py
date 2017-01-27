@@ -37,13 +37,15 @@ no_of_iterations = 500
 
 # specify L2-decay
 # used to prevent a small number of extreme pixel values from dominating the output image
-l2_decay = 0.0001
+# l2_decay = 0.0001
+l2_decay = 0.0
 
 # specify frequency of blurring and standard deviation for kernel for Gaussian blur
 # used to penalize high frequency information in the output image
 blur_interval = 4
 # standard deviation values between 0.0 and 0.3 work poorly, according to yosinski
-blur_std = 1.0
+# blur_std = 1.0
+blur_std = 0.5
 
 # specify value percentile limit
 # used to induce sparsity by setting pixels with small absolute value to zero
@@ -282,6 +284,9 @@ def expand_for_color(np_array):
 def main():
     # create model to generate gradients from
     model = create_model()
+    
+    # list of images generated from regularized gradient ascent
+    generated_images = []
 
     # select neurons to visualize for by adding (layer number, neuron number)
     # neurons_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]

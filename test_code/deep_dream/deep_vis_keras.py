@@ -105,7 +105,7 @@ def create_model():
     return vgg_model
 
 
-# saves the visualization and a txt-file describing its creation environment
+# saves the visualization and a text file describing its creation environment
 def save_visualization(img, layer_no, neuron_no, loss_value):
     
     # create appropriate name to identify image

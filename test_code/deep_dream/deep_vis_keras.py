@@ -50,7 +50,7 @@ abs_contribution_percentile = 0
 regularize = True
 
 
-# util function to convert a tensor into a valid image
+# utility function used to convert a tensor into a savable image
 def deprocess(vis_tensor, color_axis):
 
     # remove batch dimension, and alter color axis accordingly
@@ -73,6 +73,7 @@ def deprocess(vis_tensor, color_axis):
     return img
 
 
+# creates a model to generate gradients from
 def create_model():
     base_model = VGG16(include_top=True, weights='imagenet')
 
@@ -94,6 +95,7 @@ def create_model():
     return vgg_model
 
 
+# saves the visualization and a txt-file describing its creation environment
 def save_visualization(img, class_index, loss_value):
     
     # define output path and make folder
@@ -133,29 +135,34 @@ def save_visualization(img, class_index, loss_value):
     print('\nImage of class %d have been saved as %s.png\n' % (class_index, image_name))
 
 
+# returns the function to easily compute the input image gradients w.r.t. the activations
 def get_gradient_function(model_input, model_output, class_index):
     
-    # The loss is the activation of the neuron for the chosen class
+    # loss is the activation of the neuron for the chosen class
     loss = model_output[0, class_index]
     
-    # we compute the gradient of the input picture w.r.t. this loss
+    # gradients are computed from the visualization w.r.t. this loss
     grads = K.gradients(loss, model_input)[0]
     
-    # this function returns the loss and grads given the input picture
-    # also add a flag to disable the learning phase (in our case dropout)
+    # return function returning the loss and grads given a visualization image
+    # add a flag to disable the learning phase (e.g. when using dropout)
     return K.function([model_input, K.learning_phase()], [loss, grads])
 
 
+# creates an initial image to manipulate into a visualization
 def create_initial_image(model_input_shape):
     
-    np.random.seed(1337)  # for reproducibility
-    # we start from a gray image with some random noise
+    # set random seed to be able to reproduce initial state of image
+    # used in testing only, and should be remove upon implementation with tool
+    np.random.seed(1337)
     
     # return a random, initial image, and the color axis of the image
     # add (1,) for batch axis
     return np.random.normal(0, 10, (1,) + model_input_shape[1:]), model_input_shape.index(3)
 
 
+# regularizes input image with various techniques
+# each technique is activated by non-zero values for their respective global variables
 def ensemble_regularization(deep_vis, color_axis, pixel_gradients, iteration):
     
     # regularizer #1
@@ -289,13 +296,14 @@ def main():
                 # update visualization image
                 deep_vis += pixel_gradients * learning_rate
         
+                # if regularization has been activated, regularize image
                 if regularize:
                     deep_vis = ensemble_regularization(deep_vis, color_axis, pixel_gradients, i)
         
                 # print('Current loss value:', loss_value)
                 print('Round %d finished.' % i)
 
-            # process visualization to match with standard image dimensions and add it to list of generated images
+            # process visualization to match with standard image dimensions
             visualization_image = deprocess(deep_vis, color_axis)
             
             print('Class %d visualization completed in %ds' % (class_index, time() - start_time))

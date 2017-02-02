@@ -29,13 +29,13 @@ def simple_example():
 
 
 def adv_example():
-	shape = (6, 6, 1)
+	shape = (8, 8, 1)
 	
 	img = np.random.randint(0, 10, (1,) + shape)
 	
 	model = Sequential()
 	model.add(Convolution2D(1, 2, 2, input_shape=shape))
-	model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+	model.add(MaxPooling2D((3, 3), strides=(2, 2)))
 	
 	model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 	
@@ -65,14 +65,14 @@ def adv_example():
 	# print(model.layers[1].pool_size)
 	
 	runs = 1
-	test_speed = False
+	test_speed = True
 	if test_speed:
 		runs = 1000000
 	
 	for _ in range(runs):
 		unpooled_alt1 = find_max_pos(temp, model.layers[1].pool_size)
-	print('\nUnpooled alternative 1:')
-	array_print(unpooled_alt1)
+	# print('\nUnpooled alternative 1:')
+	# array_print(unpooled_alt1)
 
 	for _ in range(runs):
 		unpooled_alt2 = unpool_with_mask(temp, temp2, model.layers[1].get_config())
@@ -80,20 +80,64 @@ def adv_example():
 	array_print(unpooled_alt2)
 	
 	
+def get_submask(i, j, pool_input, pool_output, stride_width, stride_height, pool_width, pool_height):
+	
+	pool_area = pool_input[:, i * stride_width:i * stride_width + pool_width,
+				j * stride_height:j * stride_height + pool_height, :]
+	sub_mask = pool_output[:, i, j, :] == pool_area
+	
+	return pool_area, sub_mask
+
+
+def get_true_mask(output_mask, i, j, sub_mask, pool_area, stride_width, stride_height, pool_width, pool_height):
+	output_mask[:, i * stride_width:i * stride_width + pool_width, j * stride_height:j * stride_height + pool_height,:] \
+		= get_log_or(output_mask, sub_mask * pool_area, i, j, stride_width, stride_height, pool_width, pool_height)
+
+
+def get_log_or(output_mask, mask, i, j, stride_width, stride_height, pool_width, pool_height):
+	return np.logical_or(output_mask[:, i * stride_width:i * stride_width + pool_width,
+				  j * stride_height:j * stride_height + pool_height, :], mask)
+
+
 # TODO: add support for channels, strides and border modes
+# TODO: if valid, add outer zero (or -math.inf) padding, then remove?
 def unpool_with_mask(pool_input, pool_output, pool_config):
 	
 	# print(pool_config)
 	
-	output = np.empty(pool_input.shape)
-	output[:] = None
+	pool_height = pool_config['pool_size'][0]
+	pool_width = pool_config['pool_size'][1]
+	stride_height = pool_config['strides'][0]
+	stride_width = pool_config['strides'][1]
+	
+	output_mask = np.empty(pool_input.shape)
+	output_mask[:] = False
+	
+	for i in range(pool_output.shape[1]):
+		for j in range(pool_output.shape[2]):
+			start_x = i*stride_width
+			end_x = start_x + pool_width
+			start_y = j*stride_height
+			end_y = start_y + pool_height
+			
+			pool_area = pool_input[:, start_x:end_x, start_y:end_y, :]
+			sub_mask = pool_output[:, i, j, :] == pool_area
+			# print('\nSubmask for', pool_output[:, i, j, :])
+			# array_print(sub_mask)
+			
+			# TODO: check if strides are larger or smaller than pool size
+			# TODO: on smaller strides, second update overwrites first if second has another max (maybe not anymore)
+			output_mask[:, start_x:end_x, start_y:end_y, :] = np.logical_or(output_mask[:, start_x:end_x, start_y:end_y, :], sub_mask * pool_area)
+			# print('\nUpdated output:')
+			# array_print(output_mask)
+	
 	
 	# unpool_mask = np.repeat(np.repeat(pool_output, pool_size[0], axis=1), pool_size[1], axis=2)
 	
-	unpool_mask = pool_output
-	for i in range(len(pool_config['pool_size'])):
-		unpool_mask = np.repeat(unpool_mask, pool_config['pool_size'][i], axis=i+1)
-
+	# unpool_mask = pool_output
+	# for i in range(len(pool_config['pool_size'])):
+	# 	unpool_mask = np.repeat(unpool_mask, pool_config['pool_size'][i], axis=i+1)
+	#
 	# print('\nUnpool mask after step 1:')
 	# array_print(unpool_mask)
 	
@@ -110,15 +154,16 @@ def unpool_with_mask(pool_input, pool_output, pool_config):
 		# else:
 		# 	axis = 1
 	
-	if pool_input.shape != unpool_mask.shape:
-		output[:, :unpool_mask.shape[1], :unpool_mask.shape[2], :] = unpool_mask
-		unpool_mask = output
+	# if pool_input.shape != unpool_mask.shape:
+	# 	output[:, :unpool_mask.shape[1], :unpool_mask.shape[2], :] = unpool_mask
+	# 	unpool_mask = output
 	
-	unpool_mask = unpool_mask == pool_input
+	# unpool_mask = unpool_mask == pool_input
 	# print('\nUnpool mask after step 3:', unpool_mask)
 	# array_print(unpool_mask)
 	
-	return pool_input * unpool_mask
+	# return pool_input * unpool_mask
+	return pool_input * output_mask
 	
 	
 def find_max_pos(input_tensor, pool_size):

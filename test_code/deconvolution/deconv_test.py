@@ -35,7 +35,7 @@ def adv_example():
 	
 	model = Sequential()
 	model.add(Convolution2D(1, 2, 2, input_shape=shape))
-	model.add(MaxPooling2D((3, 3), strides=(3, 3)))
+	model.add(MaxPooling2D((3, 3), strides=(3, 3), border_mode='same'))
 	
 	model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 	
@@ -70,32 +70,53 @@ def adv_example():
 		runs = 1000000
 
 	for _ in range(runs):
-		unpooled_alt2 = unpool_with_mask(temp, temp2, model.layers[1].pool_size, model.layers[1].strides)
+		max_layer = model.layers[1]
+		unpooled_alt2 = unpool_with_mask(temp, temp2, max_layer.pool_size, max_layer.strides, max_layer.border_mode)
 	print('\nUnpooled alternative 2:')
 	array_print(unpooled_alt2)
 
 
 # TODO: add support for channels, and border modes
-# TODO: if valid, add outer zero (or -math.inf) padding, then remove?
+# TODO: if same, add outer zero (or -math.inf) padding, then remove?
+# TODO: currently, same-mode is supported by altering indexing when recreating pooling areas. 3x3 pools seem OK, but should be tested more. no other variations have been tested.
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-def unpool_with_mask(pool_input, pool_output, pool_size, strides):
+def unpool_with_mask(pool_input, pool_output, pool_size, strides, border_mode):
 	
 	# pool size and strides are both a (height, width)-tuple
+	# border mode is either 'valid' or 'same'
+	
+	height_offset = 0
+	width_offset = 0
+	
+	# if border mode is same, use offsets to correct computed pooling regions
+	if border_mode == 'same':
+		# floor divide pool size to get offset in the different directions
+		height_offset = pool_size[0] // 2
+		width_offset = pool_size[1] // 2
 	
 	# create initial mask with all zero entries in pooling input shape
 	unpool_mask = np.zeros(pool_input.shape)
 	
 	# for every element in pooling output
 	for i in range(pool_output.shape[1]):
-		# compute pooling filter height indices
-		start_height = i * strides[0]
+		# compute pooling region height indices
+		start_height = i * strides[0] - height_offset
 		end_height = start_height + pool_size[0]
+		
+		# if height offset makes start height negative, correct
+		if start_height < 0:
+			start_height = 0
+		
 		for j in range(pool_output.shape[2]):
-			# compute pooling filter width indices
-			start_width = j * strides[1]
+			# compute pooling region width indices
+			start_width = j * strides[1] - width_offset
 			end_width = start_width + pool_size[1]
+			
+			# if width offset makes start width negative, correct
+			if start_width < 0:
+				start_width = 0
 			
 			# find which elements in the original pooling area that match the pooling output for that area
 			output_matches = pool_output[:, i, j, :] == pool_input[:, start_height:end_height, start_width:end_width, :]

@@ -12,6 +12,7 @@ from sqlalchemy import func, distinct
 from .modules.helpers import *
 from .modules.models import *
 from .modules.forms import *
+from .modules.visualizations import *
 
 # Create application
 app = Flask(__name__)
@@ -292,7 +293,8 @@ def show_file_code(filename):
 def show_file_visualization(filename):
 	# get information about file and visualize
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	return render_template('show_file_visualization.html', filename=filename, meta=meta)
+	result = polynomial()
+	return render_template('show_file_visualization.html', filename=filename, meta=meta, result=result)
 
 
 # page for file history view

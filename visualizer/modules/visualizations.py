@@ -41,8 +41,8 @@ def create_figure(content, name):
 	x_label, y_label = name.split('.')[0].split('_')
 	fig.title.text = ('%s Over %s' % (y_label, x_label)).title()
 
-	fig.add_layout(Title(text=x_label.title()), "below")
-	fig.add_layout(Title(text=y_label.title()), "left")
+	fig.xaxis.axis_label = x_label.title()
+	fig.yaxis.axis_label = y_label.title()
 
 	# set limits of x to be outermost points
 	fig.x_range = Range1d(0, len(content) - 1)

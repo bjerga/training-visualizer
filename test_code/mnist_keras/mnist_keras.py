@@ -34,12 +34,12 @@ class AccuracyListSaver(Callback):
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_accuracy.txt', 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new accuracy line
-        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_accuracy.txt', 'a') as f:
             f.write(str(logs['acc']) + '\n')
 
 
@@ -60,12 +60,12 @@ class LossListSaver(Callback):
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_loss.txt', 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new loss line
-        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_loss.txt', 'a') as f:
             f.write(str(logs['loss']) + '\n')
 
 

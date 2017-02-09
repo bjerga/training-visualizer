@@ -293,8 +293,22 @@ def show_file_code(filename):
 def show_file_visualization(filename):
 	# get information about file and visualize
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	result = polynomial()
-	return render_template('show_file_visualization.html', filename=filename, meta=meta, result=result)
+	# get plots for training progress (accuracy and loss)
+	plot = training_progress(filename, meta.path)
+	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot)
+
+
+# WIP: method for updating, currently not working properly
+'''# page for file visualization view
+@login_required
+@app.route('/uploads/<filename>/visualization/training_progress', methods=['GET', 'POST'])
+def get_training_progress(filename):
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	try:
+		js_resources, css_resources, script, div = training_progress(filename, meta.path)
+	except TypeError:
+		return jsonify(div="No training progress visualization produced yet.")
+	return jsonify(div=script+div)'''
 
 
 # page for file history view
@@ -306,55 +320,6 @@ def show_file_history(filename):
 	return render_template('show_file_history.html', filename=filename, meta=meta)
 
 
-# define how to get visualization sources
-# returns json-object
-@login_required
-@app.route('/uploads/<filename>/visualization_sources')
-def get_visualization_sources(filename,):
-	
-	# get folder name from filename
-	folder_name = filename.rsplit('.', 1)[0]
-	
-	# for plots
-	plot_sources = []
-	
-	# get all static plot URLs
-	plots = sorted(listdir(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', folder_name, 'plots')))
-	for plot in plots:
-		plot_path = 'user_storage/%s/programs/%s/plots/%s' % (get_current_user(), folder_name, plot)
-		plot_sources.append(url_for('static', filename=plot_path))
-	
-	# for activations
-	# each tuple contain sources for all activation images for one layer
-	activation_tuples = []
-	
-	# get all static activation URLs and add to correct tuple
-	activations = sorted(listdir(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', folder_name, 'activations')))
-	prev_activation_layer = ''
-	for activation in activations:
-		
-		activation_path = 'user_storage/%s/programs/%s/activations/%s' % (get_current_user(), folder_name, activation)
-		
-		# every activation starts with 'ln' and then a number, denoting layer number
-		# if activation belongs to new layer, add new (layer title, act. path list)-tuple
-		if activation[2] != prev_activation_layer:
-			layer_title = 'Layer %s - %s' % (activation[2], activation.split('_', 2)[1].title())
-			activation_tuples.append((layer_title, [url_for('static', filename=activation_path)]))
-			prev_activation_layer = activation[2]
-		# if not, append to act. path list for latest layer number
-		else:
-			activation_tuples[-1][1].append(url_for('static', filename=activation_path))
-
-	# get time of production by converting timestamp in an arbitrary visualization into a readable format
-	if plots:
-		production_time = datetime.fromtimestamp(float(plots[0].rsplit('.', 1)[0].rsplit('_', 1)[1])).strftime('%d %b %y %X')
-	else:
-		production_time = 'No visualizations produced yet'
-
-	# use is_running to investigate if visualization producing process is still running
-	return jsonify(plot_sources=plot_sources, activation_tuples=activation_tuples, production_time=production_time, should_visualize=is_running(filename))
-
-
 # define how to run a program using new processes
 @login_required
 @app.route('/uploads/<filename>/run', methods=['POST'])
@@ -362,10 +327,19 @@ def run_upload(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
-	
-	# move results and plots if any exist
-	if len(listdir(meta.path.replace(meta.filename, 'results'))) != 0:
-		move_to_historical_folder(meta.path)
+
+	result_path = meta.path.replace(filename, 'results')
+
+	#if len(listdir(result_path) != 0):
+		# TODO: alert that files will be deleted
+
+	# remove results folder and all its files before creating a new, empty one
+	try:
+		rmtree(result_path, ignore_errors=True)
+	except FileNotFoundError:
+		pass
+	finally:
+		mkdir(result_path)
 
 	# clear process-list for filename
 	prevent_process_key_error(filename)
@@ -376,11 +350,6 @@ def run_upload(filename):
 	
 	# start and save a new process for running the program
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
-	p.start()
-	app.config['processes'][get_current_user()][filename].append(p)
-
-	# start and save a new process for visualizing the callback output
-	p = Process(target=visualize_callback_output, args=(meta.path, meta.filename, shared_bool))
 	p.start()
 	app.config['processes'][get_current_user()][filename].append(p)
 

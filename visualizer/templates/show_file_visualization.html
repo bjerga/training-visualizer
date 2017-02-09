@@ -2,131 +2,18 @@
 {% block head %}
     {{ super() }}
     <head>
-        {{ result[0]|safe }}
-        {{ result[1]|safe }}
+        {{ plot[0]|safe }}
+        {{ plot[1]|safe }}
     </head>
 {% endblock %}
 {% block subpage %}
-
-    <p><b>Produced:</b><div id="prod_time">No visualizations produced yet</div></p>
-    {{ result[2]|safe }}
-    {{ result[3]|safe }}
     <h3>Visualization of training progress:</h3>
-    <div id=plots><em>No plots have been produced yet</em></div>
-    <h3>Visualization of layer activations:</h3>
-    <div id=activations><em>No activation output have been produced yet</em></div>
-{% endblock %}
-{% block script %}
-    {{ super() }}
-    <script>
-        /*// declare needed variables
-        var interval, htmlArray, image_row;
-        var shown_plots = 0;
-        var shown_activations = 0;
-        var stored_activations = 0;
-        var should_visualize = true;
-
-        // uses image sources to create HTML to display visualization
-        function create_visualization_html(){
-
-            // as long as process that produces images is alive, should_visualize is true, else false
-            if (should_visualize){
-
-                // use AJAX to get image/visualization sources
-                $.ajax({
-                    type: 'GET',
-                    cache: false,
-                    url: "{{ url_for('get_visualization_sources', filename=filename) }}",
-                    success: function(response){
-                        // when response is received
-
-                        // update production time message
-                        $('#prod_time').html(response.production_time);
-
-                        // if there exists more plots than those shown, create HTML to show plots
-                        if (shown_plots < response.plot_sources.length) {
-                            htmlArray = [];
-                            shown_plots = 0;
-
-                            // for every plot source, create HTML to display and count plot as shown
-                            for (var i=0; i < response.plot_sources.length; i++) {
-                                htmlArray.push('<img id=plot_' + i + ' src=' + response.plot_sources[i] + '>');
-                                shown_plots++;
-                            }
-
-                            // add created HTML to div with id 'plots'
-                            $('#plots').html(htmlArray.join(''));
-                        }
-                        // if there are no new plots, update shown ones
-                        else {
-                            // alter source of existing HTML images using id's given in creation
-                            for (var j=0; j < response.plot_sources.length; j++) {
-                                $('#plot_' + j).attr('src', response.plot_sources[j]);
-                            }
-                        }
-
-                        // count amount of stored activation images
-                        for (var k=0; k < response.activation_tuples.length; k++) {
-                            stored_activations += response.activation_tuples[k][1].length;
-                        }
-
-                        // if there exists more activations than those shown, create HTML to show activations
-                        if (shown_activations < stored_activations) {
-                            htmlArray = [];
-                            shown_activations = 0;
-
-                            // for every activation tuple
-                            for (var l=0; l < response.activation_tuples.length; l++) {
-
-                                // add headline displaying layer title (number and type)
-                                htmlArray.push('<div>' + response.activation_tuples[l][0] + '</div>');
-
-                                // add layer's activations in rows of four (is currently overridden by auto-adjustments from
-                                // bootstrap, which show as many images as possible in one line), and count activations as shown
-                                image_row = '';
-                                for (var m=0; m < response.activation_tuples[l][1].length; m++) {
-                                    image_row += '<img id=lay_' + l + '_act_' + m + ' src=' + response.activation_tuples[l][1][m] + '>';
-                                    shown_activations++;
-
-                                    // if 4 images added to row, add to HTML
-                                    if (!((m+1) % 4)) {
-                                        htmlArray.push(image_row);
-                                        image_row = '';
-                                    }
-                                }
-
-                                // if length is not multiple of four, last image row has not been added to HTML
-                                if ((response.activation_tuples[l][1].length) % 4) {
-                                    htmlArray.push(image_row);
-                                }
-                            }
-
-                            // add created HTML to div with id 'activations'
-                            $('#activations').html(htmlArray.join(''));
-                        }
-                        // if there are no new activations, update shown ones
-                        else {
-                            // alter source of existing HTML images using id's given in creation
-                            for (var n=0; n < response.activation_tuples.length; n++) {
-                                for (var o=0; o < response.activation_tuples[n][1].length; o++) {
-                                    $('#lay_' + n + '_act_' + o).attr('src', response.activation_tuples[n][1][o]);
-                                }
-                            }
-                        }
-
-                        // update should_visualize to determine if another AJAX request should be sent
-                        should_visualize = response.should_visualize;
-                    }
-                })
-            }
-            // if image producing process is finished (killed), clear interval to stop repeating calls to function
-            else {
-                clearInterval(interval)
-            }
-        }
-
-        // do initial call to function and set call to repeat every 3 seconds
-        create_visualization_html();
-        interval = setInterval(create_visualization_html, 3000);*/
-    </script>
+    <div id=plots>
+        {% if plot %}
+            {{ plot[2]|safe }}
+            {{ plot[3]|safe }}
+        {% else %}
+            <p class="help-block">No training progress data produced.</p>
+        {% endif %}
+    </div>
 {% endblock %}

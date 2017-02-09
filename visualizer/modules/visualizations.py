@@ -1,63 +1,60 @@
 from bokeh.embed import components
+from bokeh.models import Title, Range1d
 from bokeh.plotting import figure
 from bokeh.resources import INLINE
+from bokeh.layouts import row
+
+from visualizer.modules.helpers import get_content, get_pickle
 
 
-def polynomial():
+def training_progress(filename, file_path):
 
-	# Get all the form arguments in the url with defaults
-	color = '#000000'
-	_from = 0
-	to = 10
+	results_path = file_path.replace(filename, 'results')
 
-	# Create a polynomial line graph with those arguments
-	x = list(range(_from, to + 1))
-	fig = figure(title="Polynomial", toolbar_location=None)
-	fig.line(x, [i ** 2 for i in x], color=color, line_width=2)
+	accuracy = "batch_accuracy.txt"
+	loss = "batch_loss.txt"
+
+	accuracy_data = get_content(accuracy, results_path)
+	loss_data = get_content(loss, results_path)
+
+	if not accuracy_data or not loss_data:
+		return None
+
+	accuracy_plot = create_figure(accuracy_data, accuracy)
+	loss_plot = create_figure(loss_data, loss)
 
 	js_resources = INLINE.render_js()
 	css_resources = INLINE.render_css()
 
-	script, div = components(fig)
-	print(div)
+	script, div = components(row(accuracy_plot, loss_plot))
 
 	return js_resources, css_resources, script, div
 
 
-def plot_content(text_file, plot_color, results_path, plots_path):
-	filename = text_file[:-4]
-
-
-
-# plot text file content
-def plot_content(text_file, plot_color, results_path, plots_path):
-
-	# get filename without '.txt'
-	filename = text_file[:-4]
-
-	# read content of text file
-	with open(join(results_path, text_file), 'r') as f:
-		content_list = [float(line) for line in f]
+def create_figure(content, name):
 
 	# create new plot
-	# plt.figure(figsize=(20, 10))
-	plt.plot(content_list, plot_color + '-')
+	fig = figure(toolbar_location=None, plot_width=300, plot_height=300)
+	fig.line(list(range(0, len(content))), content)
 
 	# set plot title and labels
-	x_label, y_label, model_no = filename.split('_')
-	plt.title(('%s Over %s For Model No. %s' % (y_label, x_label, model_no)).title())
-	plt.xlabel(x_label.title())
-	plt.ylabel(y_label.title())
+	x_label, y_label = name.split('.')[0].split('_')
+	fig.title.text = ('%s Over %s' % (y_label, x_label)).title()
+
+	fig.add_layout(Title(text=x_label.title()), "below")
+	fig.add_layout(Title(text=y_label.title()), "left")
 
 	# set limits of x to be outermost points
-	plt.xlim([0, len(content_list) - 1])
+	fig.x_range = Range1d(0, len(content) - 1)
 
-	# remove old plot of file before saving new one
-	[remove(join(plots_path, plot_file)) for plot_file in listdir(plots_path) if plot_file.startswith(filename)]
+	return fig
 
-	# save new plot
-	plt.savefig(join(plots_path, '%s_plot_%d.png' % (filename, time())))
 
-	# clear and close plot
-	plt.clf()
-	plt.close()
+# WIP: visualize activations
+'''def activations(filename, file_path):
+
+	results_path = file_path.replace(filename, 'results')
+	pickle_file = "layer_dict_0.pickle"
+
+	activations_data = get_pickle(pickle_file, results_path)'''
+

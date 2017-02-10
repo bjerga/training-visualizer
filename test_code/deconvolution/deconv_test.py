@@ -5,19 +5,13 @@ from keras.models import Sequential
 from keras.layers import Convolution2D, MaxPooling2D
 
 
-# må finne måte å implementere max switch på
-# kan potensielt bruke samme stil som for å hente alle activations, med K-funksjon
-
-
 def simple_example():
-	shape = (4, 4, 1)
+	shape = (4, 4, 3)
 	
 	img = np.random.randint(0, 10, (1,) + shape)
 	
 	model = Sequential()
 	model.add(MaxPooling2D((2, 2), input_shape=shape))
-	
-	model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 	
 	pred = model.predict(img)
 	
@@ -26,108 +20,162 @@ def simple_example():
 	
 	print('Processed:')
 	array_print(pred)
+	
+	print('Unpooled:')
+	array_print(unpool_with_mask(img, pred, (2, 2)))
 
 
 def adv_example():
-	shape = (8, 8, 1)
+	num = 7
+	samples = 2
+	filters = 2
 	
-	img = np.random.randint(0, 10, (1,) + shape)
+	if K.image_dim_ordering() == 'tf':
+		shape = (num, num, 3)
+		max_pattern = np.zeros((samples, num-1, num-1, filters))
+		copy_pattern = np.zeros((samples, num-1, num-1, filters))
+	else:
+		shape = (3, num, num)
+		max_pattern = np.zeros((samples, filters, num-1, num-1))
+		copy_pattern = np.zeros((samples, filters, num-1, num-1))
 	
-	model = Sequential()
-	model.add(Convolution2D(1, 2, 2, input_shape=shape))
-	model.add(MaxPooling2D((3, 3), strides=(3, 3), border_mode='same'))
+	for _ in range(100):
+		img = np.random.randint(0, 10, (samples,) + shape)
+		
+		model = Sequential()
+		model.add(Convolution2D(filters, 2, 2, input_shape=shape))
+		model.add(MaxPooling2D((3, 3), strides=(3, 3), border_mode='valid'))
 	
-	model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+		get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
+		pool_input = get_activation_tensor([img, 0])[0]
+		# print('\n', model.layers[0].name, '\nShape:', pool_input.shape)
+		# array_print(pool_input)
+		
+		get_activation_tensor = K.function([model.layers[1].input, K.learning_phase()], [model.layers[1].output])
+		pool_output = get_activation_tensor([pool_input, 0])[0]
+		# print('\n', model.layers[1].name, '\nShape:', pool_output.shape)
+		# array_print(pool_output)
 	
-	pred = model.predict(img)
-	
-	print('Original:')
-	array_print(img)
-	
-	print('Processed:')
-	print(pred)
-
-	get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
-	temp = get_activation_tensor([img, 0])[0]
-	print('\n', model.layers[0].name)
-	print('Shape:', temp.shape)
-	array_print(temp)
-	
-	# print('Pure:', temp)
-	
-	get_activation_tensor = K.function([model.layers[1].input, K.learning_phase()], [model.layers[1].output])
-	temp2 = get_activation_tensor([temp, 0])[0]
-	print('\n', model.layers[1].name)
-	print('Shape:', temp2.shape)
-	array_print(temp2)
-	
-	# print(model.layers[1].get_config())
-	# print(model.layers[1].pool_size)
-	
-	runs = 1
-	test_speed = False
-	if test_speed:
-		runs = 1000000
-
-	for _ in range(runs):
 		max_layer = model.layers[1]
-		unpooled_alt2 = unpool_with_mask(temp, temp2, max_layer.pool_size, max_layer.strides, max_layer.border_mode)
-	print('\nUnpooled alternative 2:')
-	array_print(unpooled_alt2)
+		unpooled = unpool_with_mask(pool_input, pool_output, max_layer.pool_size, max_layer.strides, max_layer.border_mode)
+		copy_pattern += unpooled
 
+		for s in range(pool_output.shape[0]):
+			if K.image_dim_ordering() == 'tf':
+				for i in range(pool_output.shape[1]):
+					for j in range(pool_output.shape[2]):
+						max_pattern += pool_output[s, i, j, :] == pool_input
+			else:
+				for i in range(pool_output.shape[2]):
+					for j in range(pool_output.shape[3]):
+						max_pattern += pool_output[s, :, i, j] == pool_input
+				
+	get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
+	pool_input = get_activation_tensor([img, 0])[0]
+	print('\n', model.layers[0].name, '\nShape:', pool_input.shape)
+	array_print(pool_input)
 
-# TODO: add support for channels, and border modes
-# TODO: if same, add outer zero (or -math.inf) padding, then remove?
-# TODO: currently, same-mode is supported by altering indexing when recreating pooling areas. 3x3 pools seem OK, but should be tested more. no other variations have been tested.
+	get_activation_tensor = K.function([model.layers[1].input, K.learning_phase()], [model.layers[1].output])
+	pool_output = get_activation_tensor([pool_input, 0])[0]
+	print('\n', model.layers[1].name, '\nShape:', pool_output.shape)
+	array_print(pool_output)
+
+	max_layer = model.layers[1]
+	unpooled = unpool_with_mask(pool_input, pool_output, max_layer.pool_size, max_layer.strides, max_layer.border_mode)
+	print('\nUnpooled:')
+	array_print(unpooled)
+
+	max_pattern = max_pattern > 0
+	print('\nMax. output shape:', pool_output.shape)
+	array_print(max_pattern)
+
+	copy_pattern = copy_pattern > 0
+	print('\nCopy:')
+	array_print(copy_pattern)
+	
+
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-def unpool_with_mask(pool_input, pool_output, pool_size, strides, border_mode):
+# note when using border_mode='same': if there is no obvious center in the pooling region, unlike in 3x3, the max
+# pooling will use upper and leftmost entry of the possible center entries as the actual center, e.g. entry [1, 1] in a
+# 4x4 region. this center must always be in the original tensor, i.e. never in the padding. in other words, padding will
+# be added if it is possible to fit another center within the original tensor. padding will also be added to balance the
+# how much of each region is inside the original tensor, e.g. padding to get two regions with 75% of entries inside each
+# instead of one region with 100% inside and the other with 25% inside
+def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mode='valid'):
 	
-	# pool size and strides are both a (height, width)-tuple
+	# pool size and strides are both (rows, columns)-tuples
 	# border mode is either 'valid' or 'same'
 	
-	height_offset = 0
-	width_offset = 0
+	# check backend used to detect dimensions used
+	if K.image_dim_ordering() == 'tf':
+		# tensorflow is used, dimension are (samples, rows, columns, feature maps/channels)
+		row_count = pool_output.shape[1]
+		column_count = pool_output.shape[2]
+	else:
+		# theano is used, dimension are (samples, feature maps/channels, rows, columns)
+		row_count = pool_output.shape[2]
+		column_count = pool_output.shape[3]
+		
+	# if strides are not specified, default to pool_size
+	if strides is None:
+		strides = pool_size
+	
+	# initialize offset to 0, as it is not needed when border mode is valid
+	row_offset = 0
+	column_offset = 0
 	
 	# if border mode is same, use offsets to correct computed pooling regions
 	if border_mode == 'same':
-		# floor divide pool size to get offset in the different directions
-		height_offset = pool_size[0] // 2
-		width_offset = pool_size[1] // 2
-	
-	# create initial mask with all zero entries in pooling input shape
+		
+		row_offset = (((pool_output.shape[1] - 1) * strides[0] + pool_size[0]) - pool_input.shape[1]) // 2
+		column_offset = (((pool_output.shape[2] - 1) * strides[1] + pool_size[1]) - pool_input.shape[2]) // 2
+		
+		# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
+		# computed offset can be negative, but this equals no offset
+		if row_offset < 0:
+			row_offset = 0
+		if column_offset < 0:
+			column_offset = 0
+		
+	# create initial mask with all zero (False) entries in pooling input shape
 	unpool_mask = np.zeros(pool_input.shape)
 	
-	# for every element in pooling output
-	for i in range(pool_output.shape[1]):
-		# compute pooling region height indices
-		start_height = i * strides[0] - height_offset
-		end_height = start_height + pool_size[0]
-		
-		# if height offset makes start height negative, correct
-		if start_height < 0:
-			start_height = 0
-		
-		for j in range(pool_output.shape[2]):
-			# compute pooling region width indices
-			start_width = j * strides[1] - width_offset
-			end_width = start_width + pool_size[1]
+	# for every sample
+	for sample_no in range(pool_output.shape[0]):
+		# for every element in pooling output
+		for i in range(row_count):
+			# compute pooling region row indices
+			start_row = i * strides[0] - row_offset
+			end_row = start_row + pool_size[0]
 			
-			# if width offset makes start width negative, correct
-			if start_width < 0:
-				start_width = 0
+			# we ignore padded parts, so if offset makes start row negative, correct
+			# no correction of end row is required, as list[start:end+positive num] is equivalent to list[start:end]
+			if start_row < 0:
+				start_row = 0
 			
-			# find which elements in the original pooling area that match the pooling output for that area
-			output_matches = pool_output[:, i, j, :] == pool_input[:, start_height:end_height, start_width:end_width, :]
-			# print('\nSubmask for', pool_output[:, i, j, :])
-			# array_print(output_matches)
-			
-			# update corresponding area in unpooling mask with the output matches
-			unpool_mask[:, start_height:end_height, start_width:end_width, :] += output_matches
-			# print('\nUpdated output:')
-			# array_print(unpool_mask)
-
+			for j in range(column_count):
+				# compute pooling region column indices
+				start_column = j * strides[1] - column_offset
+				end_column = start_column + pool_size[1]
+				
+				# we ignore padded parts, as with rows
+				if start_column < 0:
+					start_column = 0
+				
+				if K.image_dim_ordering() == 'tf':
+					# use tensorflow dimensions
+					# find which elements in the original pooling area that match the pooling output for that area
+					output_matches = pool_output[sample_no, i, j, :] == pool_input[sample_no, start_row:end_row, start_column:end_column, :]
+					
+					# update corresponding area in unpooling mask with the output matches
+					unpool_mask[sample_no, start_row:end_row, start_column:end_column, :] += output_matches
+				else:
+					# use theano dimensions
+					output_matches = pool_output[sample_no, :, i, j] == pool_input[sample_no, :, start_row:end_row, start_column:end_column]
+					unpool_mask[sample_no, :, start_row:end_row, start_column:end_column] += output_matches
+					
 	# generate True/False-mask from all entries that have matched at least once
 	unpool_mask = unpool_mask > 0
 	
@@ -136,40 +184,36 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides, border_mode):
 
 
 def array_print(np_array):
-	for i in range(len(np_array[0])):
-		row = ''
-		for j in range(len(np_array[0, i])):
-			row += ' ' + str(np_array[0, i, j, 0])
-		print(row)
+	if K.image_dim_ordering() == 'tf':
+		# use tensorflow dimensions
+		row_count = np_array.shape[1]
+		column_count = np_array.shape[2]
+		filter_count = np_array.shape[3]
+	else:
+		# use theano dimensions
+		row_count = np_array.shape[2]
+		column_count = np_array.shape[3]
+		filter_count = np_array.shape[1]
+	
+	for s in range(np_array.shape[0]):
+		print('\n\nFor sample no. %d:' % s)
+		for f in range(filter_count):
+			print('\nFor feature map %d:' % f)
+			for i in range(row_count):
+				print_row = ''
+				for j in range(column_count):
+					if K.image_dim_ordering() == 'tf':
+						print_row += ' ' + '%.5f' % np_array[s, i, j, f:f+1][0]
+					else:
+						print_row += ' ' + '%.5f' % np_array[s, f:f+1, i, j][0]
+				print(print_row)
 
 
 def main():
-	print('SIMPLE')
-	simple_example()
-	
+	# print('SIMPLE')
+	# simple_example()
+
 	print('\n\nADVANCED')
 	adv_example()
 
 main()
-	
-	
-
-
-# class Unpooling2D(Layer):
-#     def __init__(self, poolsize=(2, 2), ignore_border=True):
-#         super(Unpooling2D,self).__init__()
-#         self.input = T.tensor4()
-#         self.poolsize = poolsize
-#         self.ignore_border = ignore_border
-#
-#     def get_output(self, train):
-#         X = self.get_input(train)
-#         s1 = self.poolsize[0]
-#         s2 = self.poolsize[1]
-#         output = X.repeat(s1, axis=2).repeat(s2, axis=3)
-#         return output
-#
-#     def get_config(self):
-#         return {"name":self.__class__.__name__,
-#             "poolsize":self.poolsize,
-#             "ignore_border":self.ignore_border}

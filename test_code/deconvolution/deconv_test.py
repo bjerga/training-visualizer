@@ -27,7 +27,7 @@ def simple_example():
 
 def adv_example():
 	num = 7
-	samples = 2
+	samples = 1
 	filters = 2
 	
 	if K.image_dim_ordering() == 'tf':
@@ -44,7 +44,7 @@ def adv_example():
 		
 		model = Sequential()
 		model.add(Convolution2D(filters, 2, 2, input_shape=shape))
-		model.add(MaxPooling2D((3, 3), strides=(3, 3), border_mode='valid'))
+		model.add(MaxPooling2D((4, 4), strides=(5, 5), border_mode='same'))
 	
 		get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
 		pool_input = get_activation_tensor([img, 0])[0]
@@ -58,7 +58,7 @@ def adv_example():
 	
 		max_layer = model.layers[1]
 		unpooled = unpool_with_mask(pool_input, pool_output, max_layer.pool_size, max_layer.strides, max_layer.border_mode)
-		copy_pattern += unpooled
+		copy_pattern += unpooled == pool_input
 
 		for s in range(pool_output.shape[0]):
 			if K.image_dim_ordering() == 'tf':
@@ -68,7 +68,7 @@ def adv_example():
 			else:
 				for i in range(pool_output.shape[2]):
 					for j in range(pool_output.shape[3]):
-						max_pattern += pool_output[s, :, i, j] == pool_input
+						max_pattern += np.transpose(pool_output[s, :, i, j] == np.transpose(pool_input, axes=(0, 2, 3, 1)), axes=(0, 3, 1, 2))
 				
 	get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
 	pool_input = get_activation_tensor([img, 0])[0]
@@ -97,12 +97,6 @@ def adv_example():
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-# note when using border_mode='same': if there is no obvious center in the pooling region, unlike in 3x3, the max
-# pooling will use upper and leftmost entry of the possible center entries as the actual center, e.g. entry [1, 1] in a
-# 4x4 region. this center must always be in the original tensor, i.e. never in the padding. in other words, padding will
-# be added if it is possible to fit another center within the original tensor. padding will also be added to balance the
-# how much of each region is inside the original tensor, e.g. padding to get two regions with 75% of entries inside each
-# instead of one region with 100% inside and the other with 25% inside
 def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mode='valid'):
 	
 	# pool size and strides are both (rows, columns)-tuples
@@ -111,12 +105,12 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 	# check backend used to detect dimensions used
 	if K.image_dim_ordering() == 'tf':
 		# tensorflow is used, dimension are (samples, rows, columns, feature maps/channels)
-		row_count = pool_output.shape[1]
-		column_count = pool_output.shape[2]
+		row_dim = 1
+		column_dim = 2
 	else:
 		# theano is used, dimension are (samples, feature maps/channels, rows, columns)
-		row_count = pool_output.shape[2]
-		column_count = pool_output.shape[3]
+		row_dim = 2
+		column_dim = 3
 		
 	# if strides are not specified, default to pool_size
 	if strides is None:
@@ -126,18 +120,49 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 	row_offset = 0
 	column_offset = 0
 	
-	# if border mode is same, use offsets to correct computed pooling regions
+	# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
 	if border_mode == 'same':
 		
-		row_offset = (((pool_output.shape[1] - 1) * strides[0] + pool_size[0]) - pool_input.shape[1]) // 2
-		column_offset = (((pool_output.shape[2] - 1) * strides[1] + pool_size[1]) - pool_input.shape[2]) // 2
-		
-		# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
-		# computed offset can be negative, but this equals no offset
-		if row_offset < 0:
-			row_offset = 0
-		if column_offset < 0:
-			column_offset = 0
+		if K.image_dim_ordering() == 'tf':
+			# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
+			# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling will use upper- and
+			# leftmost entry of the possible center entries as the actual center, e.g. entry [1, 1] in a 4x4 region.
+			# padding will be added if it is possible to fit another center within the original tensor. padding will
+			# also be added to balance the how much of each region is inside the original tensor, e.g. padding to get
+			# two regions with 75% of entries inside each instead of one region with 100% inside and the other with 25%
+			# inside
+			
+			# find offset (to simulate padding) by computing total region space that falls outside of original tensor
+			# and divide by two to distribute to top-bottom/left-right of original tensor
+			row_offset = (((pool_output.shape[row_dim] - 1) * strides[0] + pool_size[0]) - pool_input.shape[row_dim]) // 2
+			column_offset = (((pool_output.shape[column_dim] - 1) * strides[1] + pool_size[1]) - pool_input.shape[column_dim]) // 2
+			
+			# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
+			# computed offset can be negative, but this equals no offset
+			if row_offset < 0:
+				row_offset = 0
+			if column_offset < 0:
+				column_offset = 0
+		else:
+			# when using theano, padding is always added, and a pooling region center is never in the padding.
+			# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling
+			# will use lower- and rightmost entry in the pooling region as the actual center, e.g. entry [3, 3] in a 4x4
+			# region. if only the rows have an unclear center, the center is chosen to be the at the lowermost row and
+			# the natural column center, e.g. entry [3, 1] in a 4x3 region. similarly, if only the columns have an
+			# unclear center, the center is chosen to be at the natural row center and the rightmost column, e.g. [3, 1]
+			# in a 3X4 region.
+			
+			# set offset (to simulate padding) to lowermost and rightmost entries by default
+			row_offset = pool_size[0] - 1
+			column_offset = pool_size[1] - 1
+			
+			# if rows have a clear center, update offset
+			if pool_size[0] % 2 == 1:
+				row_offset //= 2
+			
+			# if columns have a clear center, update offset
+			if pool_size[1] % 2 == 1:
+				column_offset //= 2
 		
 	# create initial mask with all zero (False) entries in pooling input shape
 	unpool_mask = np.zeros(pool_input.shape)
@@ -145,7 +170,7 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 	# for every sample
 	for sample_no in range(pool_output.shape[0]):
 		# for every element in pooling output
-		for i in range(row_count):
+		for i in range(pool_output.shape[row_dim]):
 			# compute pooling region row indices
 			start_row = i * strides[0] - row_offset
 			end_row = start_row + pool_size[0]
@@ -155,7 +180,7 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 			if start_row < 0:
 				start_row = 0
 			
-			for j in range(column_count):
+			for j in range(pool_output.shape[column_dim]):
 				# compute pooling region column indices
 				start_column = j * strides[1] - column_offset
 				end_column = start_column + pool_size[1]
@@ -166,6 +191,7 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 				
 				if K.image_dim_ordering() == 'tf':
 					# use tensorflow dimensions
+					
 					# find which elements in the original pooling area that match the pooling output for that area
 					output_matches = pool_output[sample_no, i, j, :] == pool_input[sample_no, start_row:end_row, start_column:end_column, :]
 					
@@ -173,8 +199,12 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 					unpool_mask[sample_no, start_row:end_row, start_column:end_column, :] += output_matches
 				else:
 					# use theano dimensions
-					output_matches = pool_output[sample_no, :, i, j] == pool_input[sample_no, :, start_row:end_row, start_column:end_column]
-					unpool_mask[sample_no, :, start_row:end_row, start_column:end_column] += output_matches
+					
+					# as with tf, but transpose original pooling input to find values equal to max for all filters
+					output_matches = pool_output[sample_no, :, i, j] == np.transpose(pool_input[sample_no, :, start_row:end_row, start_column:end_column], axes=(1, 2, 0))
+					
+					# as with tf, but transpose back to original form before addition
+					unpool_mask[sample_no, :, start_row:end_row, start_column:end_column] += np.transpose(output_matches, axes=(2, 0, 1))
 					
 	# generate True/False-mask from all entries that have matched at least once
 	unpool_mask = unpool_mask > 0

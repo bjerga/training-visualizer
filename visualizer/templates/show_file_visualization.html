@@ -2,16 +2,13 @@
 {% block head %}
     {{ super() }}
     <head>
-        {{ plot[0]|safe }}
-        {{ plot[1]|safe }}
     </head>
 {% endblock %}
 {% block subpage %}
     <h3>Visualization of training progress:</h3>
     <div id=plots>
         {% if plot %}
-            {{ plot[2]|safe }}
-            {{ plot[3]|safe }}
+            {{ plot|safe }}
         {% else %}
             <p class="help-block">No training progress data produced.</p>
         {% endif %}

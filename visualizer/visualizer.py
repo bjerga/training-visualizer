@@ -9,10 +9,14 @@ from flask_login import LoginManager, login_required, login_user, logout_user, c
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
+import subprocess
+
+from bokeh.embed import autoload_server
+from bokeh.client import pull_session
+
 from .modules.helpers import *
 from .modules.models import *
 from .modules.forms import *
-from .modules.visualizations import *
 
 # Create application
 app = Flask(__name__)
@@ -39,6 +43,10 @@ db.init_app(app)
 # initialize login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
+
+# start bokeh server
+bokeh_process = subprocess.Popen(['bokeh', 'serve','--allow-websocket-origin=localhost:5000', 'visualizer/bokeh/training_progress.py'],
+								 stdout=subprocess.PIPE)
 
 
 # define method necessary for login manager
@@ -291,10 +299,14 @@ def show_file_code(filename):
 @login_required
 @app.route('/uploads/<filename>/visualization', methods=['GET', 'POST'])
 def show_file_visualization(filename):
+
 	# get information about file and visualize
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+
 	# get plots for training progress (accuracy and loss)
-	plot = training_progress(filename, meta.path)
+	session = pull_session(session_id=None, url='http://localhost:5006', app_path='/training_progress')
+	plot = autoload_server(model=None, app_path='/training_progress', session_id=session.id)
+
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot)
 
 

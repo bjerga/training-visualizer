@@ -87,26 +87,6 @@ def run_python_shell(file_path, shared_bool):
 	return
 
 
-def get_content(text_file, results_path):
-
-	# read content of text file
-	try:
-		with open(join(results_path, text_file), 'r') as f:
-			content_list = [float(line) for line in f]
-	except FileNotFoundError:
-		return None
-
-	return content_list
-
-
-def get_pickle(pickle_file, results_path):
-
-	with open(join(results_path, pickle_file), 'rb') as f:
-		content_list = pickle.load(f)
-
-	return content_list
-
-
 # TODO: currently only works for black and white images, must also work for RGB
 # create activation images for all layers
 def visualize_activations(pickle_file, results_path, activations_path):

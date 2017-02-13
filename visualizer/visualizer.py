@@ -303,24 +303,13 @@ def show_file_visualization(filename):
 	# get information about file and visualize
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
-	# get plots for training progress (accuracy and loss)
+	# get plots for training progress (accuracy and loss) for the correct file
 	session = pull_session(session_id=None, url='http://localhost:5006', app_path='/training_progress')
+	file_source = session.document.get_model_by_name('file_source')
+	file_source.data = dict(file_path=[meta.path], file=[filename])
 	plot = autoload_server(model=None, app_path='/training_progress', session_id=session.id)
 
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot)
-
-
-# WIP: method for updating, currently not working properly
-'''# page for file visualization view
-@login_required
-@app.route('/uploads/<filename>/visualization/training_progress', methods=['GET', 'POST'])
-def get_training_progress(filename):
-	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	try:
-		js_resources, css_resources, script, div = training_progress(filename, meta.path)
-	except TypeError:
-		return jsonify(div="No training progress visualization produced yet.")
-	return jsonify(div=script+div)'''
 
 
 # page for file history view

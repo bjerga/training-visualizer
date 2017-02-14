@@ -1,16 +1,13 @@
 {% extends "show_file.html" %}
-{% block head %}
-    {{ super() }}
-    <head>
-    </head>
-{% endblock %}
 {% block subpage %}
-    <h3>Visualization of training progress:</h3>
+    {% call macros.render_form(form, url_for('show_file_visualization', filename=filename), button=false) %}
+        {{ macros.render_field(form.visualization, **{"onchange": "this.form.submit()"}) }}
+    {% endcall %}
     <div id=plots>
         {% if plot %}
             {{ plot|safe }}
         {% else %}
-            <p class="help-block">No training progress data produced.</p>
+            <p class="help-block">No visualizations available.</p>
         {% endif %}
     </div>
 {% endblock %}

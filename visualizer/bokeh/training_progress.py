@@ -1,7 +1,7 @@
 from os.path import join
-from bokeh.models import ColumnDataSource, Line
+from bokeh.models import ColumnDataSource, Line, Div, Paragraph
 from bokeh.plotting import figure, curdoc
-from bokeh.layouts import row
+from bokeh.layouts import row, layout
 
 document = curdoc()
 
@@ -51,6 +51,13 @@ def update_data():
 	loss_source.data = new_loss_data
 
 
-document.add_root(row(accuracy_fig, loss_fig))
+div = Div(text="<h3>Visualization of the training progress</h3>", width=500)
+
+l = layout([
+	[div],
+	[accuracy_fig, loss_fig]
+])
+
+document.add_root(l)
 document.add_root(file_source)
 document.add_periodic_callback(update_data, 200)

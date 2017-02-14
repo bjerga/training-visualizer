@@ -45,7 +45,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 # start bokeh server
-bokeh_process = subprocess.Popen(['bokeh', 'serve','--allow-websocket-origin=localhost:5000', 'visualizer/bokeh/training_progress.py'],
+bokeh_process = subprocess.Popen(['bokeh', 'serve','--allow-websocket-origin=localhost:5000',
+								  'visualizer/bokeh/training_progress.py',
+								  'visualizer/bokeh/layer_activations.py'],
 								 stdout=subprocess.PIPE)
 
 
@@ -303,13 +305,26 @@ def show_file_visualization(filename):
 	# get information about file and visualize
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
-	# get plots for training progress (accuracy and loss) for the correct file
-	session = pull_session(session_id=None, url='http://localhost:5006', app_path='/training_progress')
-	file_source = session.document.get_model_by_name('file_source')
-	file_source.data = dict(file_path=[meta.path], file=[filename])
-	plot = autoload_server(model=None, app_path='/training_progress', session_id=session.id)
+	# instantiate the form that is the dropdown menu for selecting visualization
+	form = VisualizationForm()
 
-	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot)
+	# get visualization choice from dropdown, or default to the first of the list
+	if form.validate_on_submit():
+		visualization_path = request.form.get('visualization')
+	else:
+		visualization_path = form.visualization.choices[0][0]
+
+	# get plots for training progress (accuracy and loss) for the correct file
+	session = pull_session(session_id=None, url='http://localhost:5006', app_path=visualization_path)
+	#TODO: only temporary until layer activations is properly implemented
+	try:
+		file_source = session.document.get_model_by_name('file_source')
+		file_source.data = dict(file_path=[meta.path], file=[filename])
+	except:
+		pass
+	plot = autoload_server(model=None, app_path=visualization_path, session_id=session.id)
+
+	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
 
 
 # page for file history view

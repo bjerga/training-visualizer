@@ -2,30 +2,117 @@ import numpy as np
 
 import keras.backend as K
 from keras.models import Sequential
-from keras.layers import Convolution2D, MaxPooling2D
+from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D
+from keras.layers import Activation
 
 
-def simple_example():
+def deconv_example():
+	do_print = 'f'  # full print
+	# do_print = 'l'  # limited print
+	# do_print = 'n'  # no print
+
 	shape = (4, 4, 3)
+	filters = 4
+	rows = 2
+	columns = 2
 	
+	np.random.seed(1337)
 	img = np.random.randint(0, 10, (1,) + shape)
 	
-	model = Sequential()
-	model.add(MaxPooling2D((2, 2), input_shape=shape))
+	# TODO: test how convolution uses weights and test against how deconvolution uses them
+	predictable_weights = np.arange(rows*columns*shape[2]*filters) + 1
+	predictable_weights = np.reshape(predictable_weights, (rows, columns, shape[2], filters))
+	print('\nPredictable weights, with shape', predictable_weights.shape)
+	print(predictable_weights)
 	
-	pred = model.predict(img)
+	# add biases
+	predictable_weights = [predictable_weights, np.zeros(predictable_weights.shape[3])]
 	
-	print('Original:')
-	array_print(img)
+	# print original info
+	if do_print != 'n':
+		print('\n***ORIGINAL INFO***')
+		print('Original, with shape', img.shape)
+		if do_print == 'f':
+			array_print(img)
+
+	conv_model = Sequential()
+	# conv_model.add(Convolution2D(filters, rows, columns, input_shape=shape))
+	conv_model.add(Convolution2D(filters, rows, columns, weights=predictable_weights, input_shape=shape))
+	# conv_model.add(Activation('relu'))
+	# conv_model.add(MaxPooling2D((2, 2)))
+	conv_pred = conv_model.predict(img)
 	
-	print('Processed:')
-	array_print(pred)
+	conv_weights = conv_model.layers[0].get_weights()
 	
-	print('Unpooled:')
-	array_print(unpool_with_mask(img, pred, (2, 2)))
+	# TODO: test flip and transpose for theano
+	# weights have dimensions (rows, columns, channels, filters)
+	# flip across rows (axis=0) and then columns (axis=1)
+	transformed_weights = np.flip(np.flip(conv_weights[0], axis=0), axis=1)
+	
+	# switch RGB channels at dim. 2 with filter channels at dim. 3
+	# creates three deconv. filters, R, G, and B, to apply to the feature map output of the previous conv. filters
+	transformed_weights = np.transpose(transformed_weights, axes=(0, 1, 3, 2))
+	
+	# add zero biases
+	transformed_weights = [transformed_weights, np.zeros(transformed_weights.shape[3])]
+	
+	# print conv info
+	if do_print != 'n':
+		print('\n***CONVOLUTIONAL MODEL INFO***')
+		print('Conv. input shape:', conv_model.input_shape)
+		print('Conv. output shape:', conv_model.output_shape)
+		
+		print('\nConv. weights, with shape', conv_weights[0].shape)
+		if do_print == 'f':
+			print(conv_weights[0])
+		
+		# is this the bias?
+		if do_print == 'f':
+			print('\nBias:\n', conv_weights[1])
+		
+		print('\nTransformed weights, with shape', transformed_weights[0].shape)
+		if do_print == 'f':
+			print(transformed_weights[0])
+			
+		print('\nConv. pred., with shape', conv_pred.shape)
+		if do_print == 'f':
+			array_print(conv_pred)
+
+	deconv_model = Sequential()
+	# TODO: before relu, unpool
+	# deconv_model.add(Activation('relu', input_shape=shape))
+	# deconv_model.add(Convolution2D(filters, rows, columns, weights=conv_weights, input_shape=conv_model.input_shape[1:]))
+	# TODO: test creating three 5x5x7 super-filters for deconv., each consisting of the R-, G-, or B-parts of the seven original 5x5x3 filters
+	deconv_model.add(Deconvolution2D(shape[2], rows, columns, weights=transformed_weights,
+									 output_shape=(1,) + conv_model.input_shape[1:],
+									 input_shape=conv_model.output_shape[1:]))
+	# deconv_pred = deconv_model.predict(img)
+	deconv_pred = deconv_model.predict(conv_pred)
+
+	deconv_weights = deconv_model.layers[-1].get_weights()
+
+	# print deconv info
+	if do_print != 'n':
+		print('\n***DECONVOLUTIONAL MODEL INFO***')
+		print('Deconv. input shape:', deconv_model.input_shape)
+		print('Deconv. output shape:', deconv_model.output_shape)
+		
+		print('\nDeconv. weights:', deconv_weights[0].shape)
+		if do_print == 'f':
+			print(conv_weights[0])
+			
+		print('\nDeconv. pred., with shape', deconv_pred.shape)
+		if do_print == 'f':
+			array_print(deconv_pred)
+			
+			print('\n0-9 scaled deconv. pred.')
+			array_print(np.rint(deconv_pred * (9.0/np.amax(deconv_pred))))
+			
+			print('\nOriginal again:')
+			array_print(img)
 
 
-def adv_example():
+def unpool_example():
 	num = 7
 	samples = 1
 	filters = 2
@@ -226,7 +313,7 @@ def array_print(np_array):
 		filter_count = np_array.shape[1]
 	
 	for s in range(np_array.shape[0]):
-		print('\n\nFor sample no. %d:' % s)
+		print('\nFor sample no. %d:' % s)
 		for f in range(filter_count):
 			print('\nFor feature map %d:' % f)
 			for i in range(row_count):
@@ -240,10 +327,10 @@ def array_print(np_array):
 
 
 def main():
-	# print('SIMPLE')
-	# simple_example()
+	print('Deconvolution example')
+	deconv_example()
 
-	print('\n\nADVANCED')
-	adv_example()
+	# print('\n\nUnpooling example')
+	# unpool_example()
 
 main()

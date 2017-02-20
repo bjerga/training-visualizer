@@ -107,7 +107,7 @@ class ActivationTupleListSaver(Callback):
             # NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
             layer_tuples.append((layer.name, get_activation_tensor([self.input_tensor, 0])[0]))
 
-        with open(self.results_path + '/layer_dict_%d.pickle' % self.model_no, 'wb') as f:
+        with open(self.results_path + '/layer_dict.pickle', 'wb') as f:
             pickle.dump(layer_tuples, f)
 
 

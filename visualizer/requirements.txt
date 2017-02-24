@@ -4,4 +4,5 @@ Flask-SQLAlchemy==2.1
 flask-security==1.7.5
 matplotlib==1.5.3
 Pillow==3.1.2
+bokeh=0.12.4 # also added a bugfix for layer activation, needs to be installed manually
 

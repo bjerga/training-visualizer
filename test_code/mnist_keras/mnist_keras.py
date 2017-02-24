@@ -34,12 +34,12 @@ class AccuracyListSaver(Callback):
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_accuracy.txt', 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new accuracy line
-        with open(self.results_path + '/batch_accuracy_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_accuracy.txt', 'a') as f:
             f.write(str(logs['acc']) + '\n')
 
 
@@ -60,12 +60,12 @@ class LossListSaver(Callback):
 
     def on_train_begin(self, logs={}):
         # ensure file creation
-        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'w') as f:
+        with open(self.results_path + '/batch_loss.txt', 'w') as f:
             f.write('')
 
     def on_batch_end(self, batch, logs={}):
         # write new loss line
-        with open(self.results_path + '/batch_loss_%d.txt' % self.model_no, 'a') as f:
+        with open(self.results_path + '/batch_loss.txt', 'a') as f:
             f.write(str(logs['loss']) + '\n')
 
 
@@ -107,7 +107,7 @@ class ActivationTupleListSaver(Callback):
             # NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
             layer_tuples.append((layer.name, get_activation_tensor([self.input_tensor, 0])[0]))
 
-        with open(self.results_path + '/layer_dict_%d.pickle' % self.model_no, 'wb') as f:
+        with open(self.results_path + '/layer_dict.pickle', 'wb') as f:
             pickle.dump(layer_tuples, f)
 
 

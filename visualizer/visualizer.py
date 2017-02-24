@@ -17,24 +17,10 @@ from .modules.helpers import *
 from .modules.models import *
 from .modules.forms import *
 
-# Create application
+
+# Create application and get config
 app = Flask(__name__)
-app.config.from_object(__name__)
-
-# temporary secret key
-app.secret_key = 'thisissupersecretestkeyintheworld'
-
-# entry to hold path to upload folder
-app.config['UPLOAD_FOLDER'] = join(dirname(__file__), 'static', 'user_storage')
-
-# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
-app.config['processes'] = {}
-
-# entry to hold database connection
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
-
-# set to disable notifications of overhead when running
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object('visualizer.config')
 
 # initialize database
 db.init_app(app)
@@ -55,8 +41,10 @@ bokeh_process = subprocess.Popen(['bokeh', 'serve', '--allow-websocket-origin=lo
 def load_user(username):
 	return User.query.filter_by(username=username).first()
 
-# load default config and override config from an environment variable
-app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)
+
+# not sure if this is needed
+'''# load default config and override config from an environment variable
+app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)'''
 
 
 # remove old database and create new
@@ -320,7 +308,7 @@ def show_file_visualization(filename):
 	#TODO: save the url for the server in a config
 	# build the url for getting a certain visualization technique given a user and file
 	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
-	url = 'http://localhost:5006' + visualization_path + '?' + urlencode(params)
+	url = app.config['BOKEH_SERVER'] + visualization_path + '?' + urlencode(params)
 	# send a GET request to the bokeh server
 	plot = requests.get(url).content.decode('ascii')
 
@@ -365,7 +353,7 @@ def run_upload(filename):
 
 	# clear process-list for filename
 	prevent_process_key_error(filename)
-	app.config['processes'][get_current_user()][filename] = []
+	app.config['PROCESSES'][get_current_user()][filename] = []
 	
 	# shared boolean denoting if run_python_shell-process is writing
 	shared_bool = Value('i', True)
@@ -373,7 +361,7 @@ def run_upload(filename):
 	# start and save a new process for running the program
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
 	p.start()
-	app.config['processes'][get_current_user()][filename].append(p)
+	app.config['PROCESSES'][get_current_user()][filename].append(p)
 
 	# update last run column in database
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -457,7 +445,7 @@ def is_running(filename):
 	is_file_running = False
 
 	# if any process for the file is still alive, return true
-	for process in app.config['processes'][get_current_user()][filename]:
+	for process in app.config['PROCESSES'][get_current_user()][filename]:
 		if process.is_alive():
 			is_file_running = True
 			break
@@ -475,7 +463,7 @@ def get_running_json():
 def get_running():
 	running = set()
 	try:
-		processes = app.config['processes'][get_current_user()]
+		processes = app.config['PROCESSES'][get_current_user()]
 	except KeyError:
 		processes = {}
 
@@ -492,14 +480,14 @@ def get_running():
 def prevent_process_key_error(filename):
 	try:
 		# test if username is in process dict
-		app.config['processes'][get_current_user()]
+		app.config['PROCESSES'][get_current_user()]
 	except KeyError:
 		# if not, add it
-		app.config['processes'][get_current_user()] = {}
+		app.config['PROCESSES'][get_current_user()] = {}
 
 	try:
 		# test if filename in user-process dict
-		app.config['processes'][get_current_user()][filename]
+		app.config['PROCESSES'][get_current_user()][filename]
 	except KeyError:
 		# if not, add it
-		app.config['processes'][get_current_user()][filename] = []
+		app.config['PROCESSES'][get_current_user()][filename] = []

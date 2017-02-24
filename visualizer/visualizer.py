@@ -3,16 +3,15 @@ from shutil import rmtree
 from os import mkdir, listdir
 from os.path import join, dirname
 from multiprocessing import Process, Value
+from urllib.parse import urlencode
 
 from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory, jsonify
 from flask_login import LoginManager, login_required, login_user, logout_user, current_user, abort
+import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
 import subprocess
-
-from bokeh.embed import autoload_server
-from bokeh.client import pull_session
 
 from .modules.helpers import *
 from .modules.models import *
@@ -45,7 +44,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 # start bokeh server
-bokeh_process = subprocess.Popen(['bokeh', 'serve','--allow-websocket-origin=localhost:5000',
+bokeh_process = subprocess.Popen(['bokeh', 'serve', '--allow-websocket-origin=localhost:5000',
 								  'visualizer/bokeh/training_progress.py',
 								  'visualizer/bokeh/layer_activations.py'],
 								 stdout=subprocess.PIPE)
@@ -314,15 +313,12 @@ def show_file_visualization(filename):
 	else:
 		visualization_path = form.visualization.choices[0][0]
 
-	# get plots for training progress (accuracy and loss) for the correct file
-	session = pull_session(session_id=None, url='http://localhost:5006', app_path=visualization_path)
-	#TODO: only temporary until layer activations is properly implemented
-	try:
-		file_source = session.document.get_model_by_name('file_source')
-		file_source.data = dict(file_path=[meta.path], file=[filename])
-	except:
-		pass
-	plot = autoload_server(model=None, app_path=visualization_path, session_id=session.id)
+	#TODO: save the url for the server in a config
+	# build the url for getting a certain visualization technique given a user and file
+	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	url = 'http://localhost:5006' + visualization_path + '?' + urlencode(params)
+	# send a GET request to the bokeh server
+	plot = requests.get(url).content.decode('ascii')
 
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
 

@@ -17,10 +17,11 @@ from .modules.helpers import *
 from .modules.models import *
 from .modules.forms import *
 
+from visualizer import app
 
 # Create application and get config
-app = Flask(__name__)
-app.config.from_object('visualizer.config')
+#app = Flask(__name__)
+#app.config.from_object('visualizer.config')
 
 # initialize database
 db.init_app(app)

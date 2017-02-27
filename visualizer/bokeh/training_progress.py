@@ -16,7 +16,7 @@ layer_activation_source = ColumnDataSource(data=dict())
 
 #TODO: get upload folder from a config file instead
 results_path = "/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/visualizer/visualizer/static/user_storage/" + \
-			   user + "/programs/" + file + "/results"
+			   user + "/" + file + "/results"
 
 accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=600, plot_height=300)
 accuracy_fig.title.text = ('Accuracy over Batch')

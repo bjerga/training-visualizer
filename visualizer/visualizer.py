@@ -97,9 +97,8 @@ def create_user():
 			db.session.add(User(form.username.data, form.password.data))
 			db.session.commit()
 			
-			# create folders for user to save data in
-			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs',
-														 form.username.data + '/data'])
+			# create folders for user to save programs in
+			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data])
 			
 			# display success message and route to login page
 			flash('User successfully created', 'success')
@@ -190,14 +189,14 @@ def upload_file():
 			if unique_filename(filename):
 				
 				# create folder for program
-				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
 				try:
 					mkdir(folder_path)
 				except FileExistsError:
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['results', 'networks', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
+				create_folders(folder_path, ['networks', 'results'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -382,11 +381,8 @@ def run_upload(filename):
 @login_required
 @app.route('/uploads/<filename>/download')
 def download_network(filename):
-
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
-
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0], 'networks')
 	network_name = listdir(network_folder)[-1]
-
 	return send_from_directory(network_folder, network_name, as_attachment=True)
 
 
@@ -401,8 +397,7 @@ def delete_file(filename):
 	db.session.commit()
 
 	# delete the folder of the file to be deleted
-	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]),
-		   ignore_errors=True)
+	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0]), ignore_errors=True)
 
 	# redirect to file list view
 	flash(filename + ' was deleted', 'danger')
@@ -429,7 +424,7 @@ def search(query):
 def check_networks_exist(filename):
 	networks_exist = False
 
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0], 'networks')
 	if listdir(network_folder):
 		networks_exist = True
 

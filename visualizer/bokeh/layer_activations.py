@@ -20,11 +20,11 @@ layer_activation_source = ColumnDataSource(data=dict())
 
 #TODO: get upload folder from a config file instead
 results_path = "/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/visualizer/visualizer/static/user_storage/" + \
-			   user + "/programs/" + file + "/results"
+			   user + "/" + file + "/results"
 
 # read content of pickle file
 try:
-	with open(join(results_path, 'layer_dict.pickle'), 'rb') as f:
+	with open(join(results_path, 'layer_activations.pickle'), 'rb') as f:
 		layer_activation_data = pickle.load(f)
 except FileNotFoundError:
 	#TODO: provide a div text saying that visualization could not be retrieved

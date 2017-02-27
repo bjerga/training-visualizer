@@ -225,19 +225,19 @@ def save_to_disk(model, model_no=None):
     if model_no is None:
         model_no = len(listdir(save_path))
 
-    model.save('%s/mnist_model_%d.h5' % (save_path, model_no))
+    model.save('%s/mnist_model.h5' % (save_path))
 
-    print('\nModel saved as mnist_model_%d.h5' % model_no)
+    print('\nModel saved as mnist_model.h5')
 
     return model_no
 
 
-def load_from_disk(model_no):
+def load_from_disk():
     
     # load chosen model number
-    model = load_model('%s/mnist_model_%d.h5' % (save_path, model_no))
+    model = load_model('%s/mnist_model.h5' % (save_path))
 
-    print('\nModel loaded from mnist_model_%d.h5' % model_no)
+    print('\nModel loaded from mnist_model.h5')
 
     return model
 

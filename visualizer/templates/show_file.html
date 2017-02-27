@@ -1,32 +1,12 @@
 {% extends "layout.html" %}
 {% import 'macros.html' as macros %}
 {% block content %}
-    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content panel-warning">
-                <div class="modal-header panel-heading">
-                    <h4 class="modal-title">Are you sure you want to delete '{{ filename }}'?
-                        <span class="glyphicon glyphicon-warning-sign pull-right" aria-hidden="true"></span>
-                    </h4>
-                </div>
-                <div class="modal-body">
-                    <p>The file and all data associated with it, including visualizations, will be deleted.<br>
-                        This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                    <a class="btn btn-danger" href="{{ url_for('delete_file', filename=meta.filename) }}">Delete</a>
-                </div>
-            </div>
-        </div>
-    </div>
     <div class="container">
         <div class="page-header"><h2>{{ meta.filename }}</h2></div>
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
                 <li id="code" role="presentation"><a href="{{ url_for('show_file_code', filename=meta.filename) }}">Code</a></li>
                 <li id="visualization" role="presentation"><a href="{{ url_for('show_file_visualization', filename=meta.filename) }}">Visualization</a></li>
-                <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#deleteModal">Delete File</button>
             </ul>
         </nav>
         <br>

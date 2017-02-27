@@ -12,7 +12,5 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:///visualizer.db'
 # set to disable notifications of overhead when running
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
-PROCESSES = {}
 
 BOKEH_SERVER='http://localhost:5006'

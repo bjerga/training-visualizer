@@ -36,6 +36,10 @@ bokeh_process = subprocess.Popen(['bokeh', 'serve', '--allow-websocket-origin=lo
 								 stdout=subprocess.PIPE)
 
 
+# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
+processes = {}
+
+
 # define method necessary for login manager
 @login_manager.user_loader
 def load_user(username):
@@ -337,6 +341,8 @@ def show_file_training_progress(filename):
 @login_required
 @app.route('/uploads/<filename>/run', methods=['POST'])
 def run_upload(filename):
+	global processes
+
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
@@ -353,15 +359,16 @@ def run_upload(filename):
 
 	# clear process-list for filename
 	prevent_process_key_error(filename)
-	app.config['PROCESSES'][get_current_user()][filename] = []
-	
+	processes[get_current_user()][filename] = []
+
 	# shared boolean denoting if run_python_shell-process is writing
 	shared_bool = Value('i', True)
 	
 	# start and save a new process for running the program
 	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
 	p.start()
-	app.config['PROCESSES'][get_current_user()][filename].append(p)
+
+	processes[get_current_user()][filename].append(p)
 
 	# update last run column in database
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -445,7 +452,7 @@ def is_running(filename):
 	is_file_running = False
 
 	# if any process for the file is still alive, return true
-	for process in app.config['PROCESSES'][get_current_user()][filename]:
+	for process in processes[get_current_user()][filename]:
 		if process.is_alive():
 			is_file_running = True
 			break
@@ -463,12 +470,12 @@ def get_running_json():
 def get_running():
 	running = set()
 	try:
-		processes = app.config['PROCESSES'][get_current_user()]
+		user_processes = processes[get_current_user()]
 	except KeyError:
-		processes = {}
+		user_processes = {}
 
-	for filename in processes:
-		for process in processes[filename]:
+	for filename in user_processes:
+		for process in user_processes[filename]:
 			if process.is_alive():
 				running.add(filename)
 
@@ -478,16 +485,17 @@ def get_running():
 # helper method dependent on app
 # used to prevent key errors for process dict
 def prevent_process_key_error(filename):
+	global processes
 	try:
 		# test if username is in process dict
-		app.config['PROCESSES'][get_current_user()]
+		processes[get_current_user()]
 	except KeyError:
 		# if not, add it
-		app.config['PROCESSES'][get_current_user()] = {}
+		processes[get_current_user()] = {}
 
 	try:
 		# test if filename in user-process dict
-		app.config['PROCESSES'][get_current_user()][filename]
+		processes[get_current_user()][filename]
 	except KeyError:
 		# if not, add it
-		app.config['PROCESSES'][get_current_user()][filename] = []
+		processes[get_current_user()][filename] = []

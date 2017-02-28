@@ -46,9 +46,9 @@
         </li>
     </ul>
     <p><strong>Uploaded:</strong> {{ meta.upload_date }} <br>
-    <strong>Last run:</strong> {{ meta.last_run_date }}</p>
+        <strong>Last run:</strong> {{ meta.last_run_date }}</p>
     <div class="btn-toolbar" role="toolbar">
-        <a id="download-button" role="button" class="btn btn-primary disabled" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
+        <a id="download-button" role="button" class="btn btn-primary" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
         <button id="delete-button" type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#deleteModal">Delete File</button>
     </div>
     <br>
@@ -58,55 +58,45 @@
     {% endcall %}
 
 {% endblock %}
-{% block script %}
 
-    {{ super() }}
+<script>
+    {% block script %}
 
-    <script>
-        var check_running = true;
-        var download_button_href = $('#download-button').attr('href');
+        {{ super() }}
 
-        function update_values() {
-            if (check_running) {
+        var check_network = true;
 
-                $.ajax({
-                    type: 'GET',
-                    cache: false,
-                    url: "{{ url_for('check_running', filename=filename) }}",
-                    success: function(response) {
-                        if (response.is_running) {
-                            $('#run-button').attr({
-                                disabled: true,
-                                value: 'Running...'
-                            });
+        function update_buttons() {
+            // if the file is running (prev_running is inherited from the 'layout' parent-template)
+            if ($.inArray("{{ filename }}", prev_running) != -1) {
+                $('#run-button').attr({
+                    disabled: true,
+                    value: 'Running...'
+                });
+                // disable network download, to prevent partially trained networks to be downloaded
+                $('#download-button').attr('disabled', true);
+                // disable delete network when running
+                $('#delete-button').prop('disabled', true);
 
-                            // disable network download, to prevent partially trained networks to be downloaded
-                            $('#download-button').attr('disabled', true);
-                            // disable delete network when running
-                            $('#delete-button').prop('disabled', true);
-                            check_running = false;
-                        }
-                        else {
-                            $('#run-button').attr({
-                                disabled: false,
-                                value: 'Run'
-                            });
-
-                            // if not running, check if networks can be downloaded and activate/deactivate download button
-                            set_downloadability();
-                            // activate delete network button
-                            $('#delete-button').prop('disabled', false);
-
-                            // update value to stop checking if program is running
-                            check_running = false;
-                        }
-                    }
-                })
+                check_network = true;
             }
+            // if the file is not running
             else {
-                clearInterval(interval)
+                $('#run-button').attr({
+                    disabled: false,
+                    value: 'Run'
+                });
+                // if not running, check if networks can be downloaded and activate/deactivate download button
+                if (check_network) {
+                    set_downloadability();
+                }
+                // activate delete network button
+                $('#delete-button').prop('disabled', false);
             }
         }
+
+        update_buttons();
+        interval = setInterval(update_buttons, 1000);
 
         // check if there exists any saved networks for current file, and set download button to be active or not
         function set_downloadability() {
@@ -115,18 +105,11 @@
                 cache: false,
                 url: "{{ url_for('check_networks_exist', filename=filename) }}",
                 success: function (response) {
-                    if (response.networks_exist) {
-                        $('#download-button').attr('disabled', false);
-                    }
-                    else {
-                        $('#download-button').attr('disabled', true);
-                    }
+                    $('#download-button').attr('disabled', !response.networks_exist);
                 }
             });
+            check_network = false;
         }
 
-        update_values();
-        interval = setInterval(update_values, 3000);
-    </script>
-
-{% endblock %}
+    {% endblock %}
+</script>

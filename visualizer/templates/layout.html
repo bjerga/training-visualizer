@@ -8,7 +8,6 @@
         <script src="http://code.jquery.com/jquery-latest.js"></script>
         <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
         <script src="{{ url_for('static', filename='js/jquery.tablesorter.js') }}"></script>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endblock %}
 </head>
 <body>
@@ -52,8 +51,9 @@
 
     {% block content %}{% endblock %}
     <br><br>
+    <script>
     {% block script %}
-        <script>
+
             (function() {
                 var nav = document.getElementById('main-menu1'),
                         anchor = nav.getElementsByTagName('a'),
@@ -95,8 +95,8 @@
 
             update_running();
             var interval = setInterval(update_running, 3000);
-        </script>
     {% endblock %}
+    </script>
 
 {% endblock %}
 </body>

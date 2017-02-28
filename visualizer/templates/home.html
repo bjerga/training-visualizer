@@ -34,9 +34,12 @@
         {% endif %}
     </div>
 {% endblock %}
-{% block script %}
-    {{ super() }}
-    <script>
+
+<script>
+    {% block script %}
+
+        {{ super() }}
+
         jQuery(document).ready(function($) {
             $(".clickable-row").click(function() {
                 window.document.location = $(this).data("href");
@@ -48,6 +51,6 @@
                 $("#myTable").tablesorter();
             });
         });
-    </script>
 
-{% endblock %}
+    {% endblock %}
+</script>

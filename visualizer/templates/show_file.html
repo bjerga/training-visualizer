@@ -2,7 +2,12 @@
 {% import 'macros.html' as macros %}
 {% block content %}
     <div class="container">
-        <div class="page-header"><h2>{{ meta.filename }}</h2></div>
+        <div class="page-header">
+            <h4>
+                <span class="h2">{{ meta.filename }}</span>
+                <span id="running-label" class="label label-warning pull-right" style="display:none;">Running</span>
+            </h4>
+        </div>
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
                 <li id="code" role="presentation"><a href="{{ url_for('show_file_code', filename=meta.filename) }}">Code</a></li>
@@ -13,9 +18,28 @@
         {% block subpage %}{% endblock %}
     </div>
 {% endblock %}
-{% block script %}
-    {{ super() }}
-    <script>
+
+<script>
+    {% block script %}
+        {{ super() }}
+
+        var check_network = true;
+
+        // updates the label next to the filename saying if the file is running.
+        function update_running_label() {
+            // if the file is running (prev_running is inherited from the 'layout' parent-template)
+            if ($.inArray("{{ filename }}", prev_running) != -1) {
+                $('#running-label').show();
+            }
+            // if the file is not running
+            else {
+                $('#running-label').hide();
+            }
+        }
+
+        update_running_label();
+        interval = setInterval(update_running_label, 1000);
+
         (function() {
             var nav = document.getElementById('submenu1'),
                     anchor = nav.getElementsByTagName('a'),
@@ -27,5 +51,6 @@
                 }
             }
         })();
-    </script>
-{% endblock %}
+
+    {% endblock %}
+</script>

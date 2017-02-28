@@ -67,6 +67,13 @@ def get_form_errors(form):
 	return form_errors
 
 
+# check if a network has any files associated with it, i.e. networks or visualization data
+def has_associated_files(file_folder):
+	network_folder = join(file_folder, 'networks')
+	result_folder = join(file_folder, 'results')
+	return listdir(network_folder) or listdir(result_folder)
+
+
 # run a python program via command line
 def run_python_shell(file_path, shared_bool):
 	if file_path:

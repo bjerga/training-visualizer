@@ -263,10 +263,13 @@ def show_all_files():
 def show_file_code(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	
+
 	# get file stored locally
-	file = send_from_directory(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]), filename)
-	
+	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+	file = send_from_directory(file_folder, filename)
+	# check whether the file has produced any results or networks
+	has_files = has_associated_files(file_folder)
+
 	# get content of file
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
@@ -293,7 +296,8 @@ def show_file_code(filename):
 		# update current page
 		return redirect(url_for('show_file_code', filename=filename))
 	
-	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(), filename=filename, meta=meta, content=content)
+	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(),
+						   filename=filename, meta=meta, content=content, has_files=has_files)
 
 
 # page for file visualization view

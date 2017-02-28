@@ -20,6 +20,28 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="runModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content panel-warning">
+                <div class="modal-header panel-heading">
+                    <h4 class="modal-title">Are you sure you want to run '{{ filename }}'?
+                        <span class="glyphicon glyphicon-warning-sign pull-right" aria-hidden="true"></span>
+                    </h4>
+                </div>
+                <div class="modal-body">
+                    <p>This file has data associated with it, either a network file or visualization data.
+                        If you choose to run the file anyway, this data will be overwritten. <br>
+                        Make sure to download all the files you may need before continuing. This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                        {{ macros.render_submit_field(form.run, {'run':'success'}) }}
+                    {% endcall %}
+                </div>
+            </div>
+        </div>
+    </div>
     <ul class="list-inline">
         {% for tag in meta.tags %}
             <li>
@@ -53,10 +75,13 @@
     </div>
     <br>
     <pre class="pre-scrollable">{{ content }}</pre><br>
-    {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
-        {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
-    {% endcall %}
-
+    {% if has_files %}
+        <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
+    {% else %}
+        {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
+            {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
+        {% endcall %}
+    {% endif %}
 {% endblock %}
 
 <script>

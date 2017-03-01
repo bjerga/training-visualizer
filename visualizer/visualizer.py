@@ -225,7 +225,7 @@ def upload_file():
 				
 				# redirect to file view for uploaded file
 				flash('File was successfully uploaded', 'success')
-				return redirect(url_for('show_file_code', filename=filename))
+				return redirect(url_for('show_file_overview', filename=filename))
 
 			else:
 				flash('Filename already exists', 'danger')
@@ -257,10 +257,10 @@ def show_all_files():
 	return render_template('show_all_files.html', search_form=search_form, metas=metas, running=get_running())
 
 
-# page for file code view
+# page for file overview
 @login_required
-@app.route('/uploads/<filename>/code', methods=['GET', 'POST'])
-def show_file_code(filename):
+@app.route('/uploads/<filename>/overview', methods=['GET', 'POST'])
+def show_file_overview(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
@@ -286,7 +286,7 @@ def show_file_code(filename):
 			tag = Tag.query.filter_by(text=text).first()
 			meta.tags.remove(tag)
 			db.session.commit()
-			return redirect(url_for('show_file_code', filename=filename))
+			return redirect(url_for('show_file_overview', filename=filename))
 
 		# if not, tags should be added
 		for text in tag_form.tags.data:
@@ -294,9 +294,9 @@ def show_file_code(filename):
 		db.session.commit()
 		
 		# update current page
-		return redirect(url_for('show_file_code', filename=filename))
+		return redirect(url_for('show_file_overview', filename=filename))
 	
-	return render_template('show_file_code.html', run_form=RunForm(), tag_form=TagForm(),
+	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
 						   filename=filename, meta=meta, content=content, has_files=has_files)
 
 

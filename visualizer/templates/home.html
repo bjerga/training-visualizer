@@ -17,7 +17,7 @@
                 <tbody>
 
                     {% for meta in metas %}
-                        <tr class="clickable-row" data-href="{{ url_for('show_file_code', filename=meta.filename ) }}">
+                        <tr class="clickable-row" data-href="{{ url_for('show_file_overview', filename=meta.filename ) }}">
                             <td>{{ meta.filename }}</td>
                             <td>
                                 {% for tag in meta.tags %}

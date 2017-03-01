@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField, SelectField
+from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField, SelectField, RadioField
 from wtforms.validators import DataRequired, EqualTo, Length, Regexp
 from wtforms.widgets import TextInput
 
@@ -83,6 +83,7 @@ class FileForm(FlaskForm):
 
 # form for run button in file view
 class RunForm(FlaskForm):
+	image = FileField('Upload image', validators=[])
 	run = SubmitField('Run')
 
 

@@ -296,7 +296,7 @@ def show_file_code(filename):
 		# update current page
 		return redirect(url_for('show_file_code', filename=filename))
 	
-	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(),
+	return render_template('show_file_code.html', run_form=RunForm(), tag_form=TagForm(),
 						   filename=filename, meta=meta, content=content, has_files=has_files)
 
 

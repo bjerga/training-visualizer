@@ -10,7 +10,7 @@
                     </h4>
                 </div>
                 <div class="modal-body">
-                    <p>The file and all data associated with it, including visualizations, will be deleted.<br>
+                    <p>The file and all data associated with it, including networks and visualizations, will be deleted.<br>
                         This action cannot be undone.</p>
                 </div>
                 <div class="modal-footer">
@@ -22,26 +22,37 @@
     </div>
     <div class="modal fade" id="runModal" tabindex="-1" role="dialog">
         <div class="modal-dialog" role="document">
-            <div class="modal-content panel-warning">
-                <div class="modal-header panel-heading">
-                    <h4 class="modal-title">Are you sure you want to run '{{ filename }}'?
-                        <span class="glyphicon glyphicon-warning-sign pull-right" aria-hidden="true"></span>
-                    </h4>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Select an image for visualization during training</h4>
                 </div>
-                <div class="modal-body">
-                    <p>This file has data associated with it, either a network file or visualization data.
-                        If you choose to run the file anyway, this data will be overwritten. <br>
-                        Make sure to download all the files you may need before continuing. This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer">
-                    {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
+                {% call macros.render_form(run_form, url_for("run_upload", filename=filename), button=false) %}
+                    <div class="modal-body">
+                        <p>This image will be used throughout the training for the different visualization techniques.
+                            Make sure that it is of correct format given your network requirements.</p>
+                        <p class="help-block"> If no image is selected, a random image from the training data will be used.</p><br>
+                        {{ run_form.image }}<br>
+                        {% if has_files %}
+                            <div class="alert alert-danger" role="alert">
+                                <span class="glyphicon glyphicon-warning-sign" aria-hidden="true"></span>
+                                <strong>Overwriting data for '{{ filename }}'</strong>
+                                <p>This file already has data associated with it, could be a network or visualization data.
+                                    If you choose to run the file anyway, this data will be overwritten. <br><br>
+                                    Make sure to download all the files you may need before continuing. <br>
+                                    This action cannot be undone.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                        {{ macros.render_submit_field(form.run, {'run':'success'}) }}
-                    {% endcall %}
-                </div>
+                        {{ macros.render_submit_field(run_form.run, {'run':'success'}) }}
+                    </div>
+                {% endcall %}
+
             </div>
         </div>
     </div>
+
     <ul class="list-inline">
         {% for tag in meta.tags %}
             <li>
@@ -75,13 +86,7 @@
     </div>
     <br>
     <pre class="pre-scrollable">{{ content }}</pre><br>
-    {% if has_files %}
-        <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
-    {% else %}
-        {% call macros.render_form(form, url_for("run_upload", filename=filename), button=false) %}
-            {{ macros.render_submit_field(form.run, {'run':'success btn-lg btn-block'}, id="run-button") }}
-        {% endcall %}
-    {% endif %}
+    <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
 {% endblock %}
 
 <script>

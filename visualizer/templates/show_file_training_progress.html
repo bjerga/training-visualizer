@@ -1,0 +1,11 @@
+{% extends "show_file.html" %}
+{% block subpage %}
+    <div id=plots>
+        {% if plot %}
+            {{ plot|safe }}
+        {% else %}
+            <p class="help-block">No visualizations available.</p>
+        {% endif %}
+    </div>
+    <style> body { width: 100%; } </style>
+{% endblock %}

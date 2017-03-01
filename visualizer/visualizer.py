@@ -305,7 +305,7 @@ def show_file_code(filename):
 @app.route('/uploads/<filename>/visualization', methods=['GET', 'POST'])
 def show_file_visualization(filename):
 
-	# get information about file and visualize
+	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# instantiate the form that is the dropdown menu for selecting visualization
@@ -327,13 +327,22 @@ def show_file_visualization(filename):
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
 
 
-# page for file history view
+# page for training progress view
 @login_required
-@app.route('/uploads/<filename>/history')
-def show_file_history(filename):
-	# get information about file and show history
+@app.route('/uploads/<filename>/training_progress')
+def show_file_training_progress(filename):
+
+	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	return render_template('show_file_history.html', filename=filename, meta=meta)
+
+	#TODO: save the url for the server in a config
+	# build the url for getting a certain visualization technique given a user and file
+	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	url = 'http://localhost:5006/training_progress?' + urlencode(params)
+	# send a GET request to the bokeh server
+	plot = requests.get(url).content.decode('ascii')
+
+	return render_template('show_file_training_progress.html', filename=filename, meta=meta, plot=plot)
 
 
 # define how to run a program using new processes
@@ -345,9 +354,6 @@ def run_upload(filename):
 	print('\n\nNew thread started for %s\n\n' % meta.path)
 
 	result_path = meta.path.replace(filename, 'results')
-
-	#if len(listdir(result_path) != 0):
-		# TODO: alert that files will be deleted
 
 	# remove results folder and all its files before creating a new, empty one
 	try:
@@ -373,8 +379,8 @@ def run_upload(filename):
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
 	db.session.commit()
 	
-	# redirect to file visualization view
-	return redirect(url_for('show_file_visualization', filename=filename))
+	# redirect to file training progress view
+	return redirect(url_for('show_file_training_progress', filename=filename))
 
 
 # define how to download a trained network

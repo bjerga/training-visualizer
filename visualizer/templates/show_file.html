@@ -11,6 +11,7 @@
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
                 <li id="code" role="presentation"><a href="{{ url_for('show_file_code', filename=meta.filename) }}">Code</a></li>
+                <li id="training-progress" role="presentation"><a href="{{ url_for('show_file_training_progress', filename=meta.filename) }}">Training Progress</a></li>
                 <li id="visualization" role="presentation"><a href="{{ url_for('show_file_visualization', filename=meta.filename) }}">Visualization</a></li>
             </ul>
         </nav>

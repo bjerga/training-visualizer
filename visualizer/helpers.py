@@ -1,6 +1,6 @@
-import subprocess as sub
+import subprocess
 from os import listdir, mkdir
-from os.path import join, relpath, basename
+from os.path import join, relpath, basename, dirname
 
 import sys
 
@@ -134,7 +134,8 @@ def run_python_shell(file_path):
 		python_path = ":".join(sys.path)[1:]
 		
 		# run program via command line
-		sub.run('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path})
+		with open(join(dirname(file_path), 'output.txt'), 'w') as f:
+			subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f).wait()
 
 		print('\nSubprocess finished\n')
 	else:

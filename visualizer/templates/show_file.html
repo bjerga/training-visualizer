@@ -24,8 +24,6 @@
     {% block script %}
         {{ super() }}
 
-        var check_network = true;
-
         // updates the label next to the filename saying if the file is running.
         function update_running_label() {
             // if the file is running (prev_running is inherited from the 'layout' parent-template)

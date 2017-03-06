@@ -225,7 +225,7 @@ def upload_file():
 				
 				# redirect to file view for uploaded file
 				flash('File was successfully uploaded', 'success')
-				return redirect(url_for('show_file_code', filename=filename))
+				return redirect(url_for('show_file_overview', filename=filename))
 
 			else:
 				flash('Filename already exists', 'danger')
@@ -257,16 +257,19 @@ def show_all_files():
 	return render_template('show_all_files.html', search_form=search_form, metas=metas, running=get_running())
 
 
-# page for file code view
+# page for file overview
 @login_required
-@app.route('/uploads/<filename>/code', methods=['GET', 'POST'])
-def show_file_code(filename):
+@app.route('/uploads/<filename>/overview', methods=['GET', 'POST'])
+def show_file_overview(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	
+
 	# get file stored locally
-	file = send_from_directory(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]), filename)
-	
+	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+	file = send_from_directory(file_folder, filename)
+	# check whether the file has produced any results or networks
+	has_files = has_associated_files(file_folder)
+
 	# get content of file
 	file.direct_passthrough = False
 	content = str(file.data, 'utf-8')
@@ -283,7 +286,7 @@ def show_file_code(filename):
 			tag = Tag.query.filter_by(text=text).first()
 			meta.tags.remove(tag)
 			db.session.commit()
-			return redirect(url_for('show_file_code', filename=filename))
+			return redirect(url_for('show_file_overview', filename=filename))
 
 		# if not, tags should be added
 		for text in tag_form.tags.data:
@@ -291,9 +294,10 @@ def show_file_code(filename):
 		db.session.commit()
 		
 		# update current page
-		return redirect(url_for('show_file_code', filename=filename))
+		return redirect(url_for('show_file_overview', filename=filename))
 	
-	return render_template('show_file_code.html', form=RunForm(), tag_form=TagForm(), filename=filename, meta=meta, content=content)
+	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
+						   filename=filename, meta=meta, content=content, has_files=has_files)
 
 
 # page for file visualization view
@@ -301,7 +305,7 @@ def show_file_code(filename):
 @app.route('/uploads/<filename>/visualization', methods=['GET', 'POST'])
 def show_file_visualization(filename):
 
-	# get information about file and visualize
+	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# instantiate the form that is the dropdown menu for selecting visualization
@@ -323,13 +327,22 @@ def show_file_visualization(filename):
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
 
 
-# page for file history view
+# page for training progress view
 @login_required
-@app.route('/uploads/<filename>/history')
-def show_file_history(filename):
-	# get information about file and show history
+@app.route('/uploads/<filename>/training_progress')
+def show_file_training_progress(filename):
+
+	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	return render_template('show_file_history.html', filename=filename, meta=meta)
+
+	#TODO: save the url for the server in a config
+	# build the url for getting a certain visualization technique given a user and file
+	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	url = 'http://localhost:5006/training_progress?' + urlencode(params)
+	# send a GET request to the bokeh server
+	plot = requests.get(url).content.decode('ascii')
+
+	return render_template('show_file_training_progress.html', filename=filename, meta=meta, plot=plot)
 
 
 # define how to run a program using new processes
@@ -341,9 +354,6 @@ def run_upload(filename):
 	print('\n\nNew thread started for %s\n\n' % meta.path)
 
 	result_path = meta.path.replace(filename, 'results')
-
-	#if len(listdir(result_path) != 0):
-		# TODO: alert that files will be deleted
 
 	# remove results folder and all its files before creating a new, empty one
 	try:
@@ -369,8 +379,8 @@ def run_upload(filename):
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
 	db.session.commit()
 	
-	# redirect to file visualization view
-	return redirect(url_for('show_file_visualization', filename=filename))
+	# redirect to file training progress view
+	return redirect(url_for('show_file_training_progress', filename=filename))
 
 
 # define how to download a trained network

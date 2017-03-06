@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField, SelectField
+from wtforms import Field, StringField, PasswordField, TextAreaField, FileField, SubmitField, SelectField, RadioField
 from wtforms.validators import DataRequired, EqualTo, Length, Regexp
 from wtforms.widgets import TextInput
 
@@ -9,8 +9,7 @@ USERNAME_MAXIMUM_LENGTH = 20
 PASSWORD_MINIMUM_LENGTH = 8
 
 # options for visualization dropdown, value is the url corresponding to the visualization
-visualization_choices = [('/training_progress', 'Training Progress'),
-						 ('/layer_activations', 'Layer Activations')]
+visualization_choices = [('/layer_activations', 'Layer Activations')]
 
 
 # custom field for tag form
@@ -83,6 +82,7 @@ class FileForm(FlaskForm):
 
 # form for run button in file view
 class RunForm(FlaskForm):
+	image = FileField('Upload image', validators=[])
 	run = SubmitField('Run')
 
 

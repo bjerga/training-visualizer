@@ -1,41 +1,44 @@
 {% extends "layout.html" %}
 {% import 'macros.html' as macros %}
 {% block content %}
-    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content panel-warning">
-                <div class="modal-header panel-heading">
-                    <h4 class="modal-title">Are you sure you want to delete '{{ filename }}'?
-                        <span class="glyphicon glyphicon-warning-sign pull-right" aria-hidden="true"></span>
-                    </h4>
-                </div>
-                <div class="modal-body">
-                    <p>The file and all data associated with it, including visualizations, will be deleted.<br>
-                        This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                    <a class="btn btn-danger" href="{{ url_for('delete_file', filename=meta.filename) }}">Delete</a>
-                </div>
-            </div>
-        </div>
-    </div>
     <div class="container">
-        <div class="page-header"><h2>{{ meta.filename }}</h2></div>
+        <div class="page-header">
+            <h4>
+                <span class="h2">{{ meta.filename }}</span>
+                <span id="running-label" class="label label-warning pull-right" style="display:none;">Running</span>
+            </h4>
+        </div>
         <nav>
             <ul id="submenu1" class="nav nav-tabs">
-                <li id="code" role="presentation"><a href="{{ url_for('show_file_code', filename=meta.filename) }}">Code</a></li>
+                <li id="overview" role="presentation"><a href="{{ url_for('show_file_overview', filename=meta.filename) }}">Overview</a></li>
+                <li id="training-progress" role="presentation"><a href="{{ url_for('show_file_training_progress', filename=meta.filename) }}">Training Progress</a></li>
                 <li id="visualization" role="presentation"><a href="{{ url_for('show_file_visualization', filename=meta.filename) }}">Visualization</a></li>
-                <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#deleteModal">Delete File</button>
             </ul>
         </nav>
         <br>
         {% block subpage %}{% endblock %}
     </div>
 {% endblock %}
-{% block script %}
-    {{ super() }}
-    <script>
+
+<script>
+    {% block script %}
+        {{ super() }}
+
+        // updates the label next to the filename saying if the file is running.
+        function update_running_label() {
+            // if the file is running (prev_running is inherited from the 'layout' parent-template)
+            if ($.inArray("{{ filename }}", prev_running) != -1) {
+                $('#running-label').show();
+            }
+            // if the file is not running
+            else {
+                $('#running-label').hide();
+            }
+        }
+
+        update_running_label();
+        interval = setInterval(update_running_label, 1000);
+
         (function() {
             var nav = document.getElementById('submenu1'),
                     anchor = nav.getElementsByTagName('a'),
@@ -47,5 +50,6 @@
                 }
             }
         })();
-    </script>
-{% endblock %}
+
+    {% endblock %}
+</script>

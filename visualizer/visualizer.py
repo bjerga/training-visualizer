@@ -257,7 +257,7 @@ def show_file_overview(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# get file stored locally
-	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
 	file = send_from_directory(file_folder, filename)
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(file_folder)

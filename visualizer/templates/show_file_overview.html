@@ -100,9 +100,8 @@
             // if the file is running (prev_running is inherited from the 'layout' parent-template)
             if ($.inArray("{{ filename }}", prev_running) != -1) {
                 $('#run-button').attr({
-                    disabled: true,
-                    value: 'Running...'
-                });
+                    disabled: true
+                }).text('Running...');
                 // disable network download, to prevent partially trained networks to be downloaded
                 $('#download-button').attr('disabled', true);
                 // disable delete network when running
@@ -113,9 +112,8 @@
             // if the file is not running
             else {
                 $('#run-button').attr({
-                    disabled: false,
-                    value: 'Run'
-                });
+                    disabled: false
+                }).text('Run');
                 // if not running, check if networks can be downloaded and activate/deactivate download button
                 if (check_network) {
                     set_downloadability();

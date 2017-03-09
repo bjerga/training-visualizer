@@ -12,5 +12,7 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:///visualizer.db'
 # set to disable notifications of overhead when running
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-
+# URL to bokeh server
 BOKEH_SERVER='http://localhost:5006'
+
+

@@ -6,6 +6,7 @@ from bokeh.plotting import figure
 import pickle
 import numpy as np
 import math
+from visualizer.config import UPLOAD_FOLDER
 
 document = curdoc()
 
@@ -17,10 +18,7 @@ user = args['user'][0].decode('ascii')
 
 layer_activation_source = ColumnDataSource(data=dict())
 
-
-#TODO: get upload folder from a config file instead
-results_path = "/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/visualizer/visualizer/static/user_storage/" + \
-			   user + "/" + file + "/results"
+results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
 # read content of pickle file
 try:

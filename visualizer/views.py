@@ -5,37 +5,20 @@ from os.path import join, dirname
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
-from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory, jsonify
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user, abort
+from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify
+from flask_login import login_required, login_user, logout_user, current_user, abort
 import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
-import subprocess
+from visualizer.forms import *
+from visualizer.helpers import *
 
-from .modules.helpers import *
-from .modules.models import *
-from .modules.forms import *
-
-from visualizer import app
-
-# initialize database
-db.init_app(app)
-
-# initialize login manager
-login_manager = LoginManager()
-login_manager.init_app(app)
-
-# start bokeh server
-bokeh_process = subprocess.Popen(['bokeh', 'serve', '--allow-websocket-origin=localhost:5000',
-								  'visualizer/bokeh/training_progress.py',
-								  'visualizer/bokeh/layer_activations.py'],
-								 stdout=subprocess.PIPE)
-
+# Import the database, application, and login_manager object from the main visualizer module
+from visualizer import db, app, login_manager
 
 # dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
 processes = {}
-
 
 # define method necessary for login manager
 @login_manager.user_loader

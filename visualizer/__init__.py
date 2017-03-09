@@ -1,10 +1,28 @@
+# Import flask
 from flask import Flask
-# Create application and get config
+
+# Import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
+
+# Import LoginManager
+from flask_login import LoginManager
+
+# Define the WSGI application object
 app = Flask(__name__)
+
+# Configurations
 app.config.from_object('visualizer.config')
 
-from os.path import dirname
-import sys
-sys.path.insert(0, dirname(__file__))
+# Define the database object which is imported by modules
+db = SQLAlchemy(app)
 
-import visualizer.visualizer
+# Build the database:
+# This will create the database file using SQLAlchemy
+db.create_all()
+
+# Initialize login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+# Import views
+import visualizer.views

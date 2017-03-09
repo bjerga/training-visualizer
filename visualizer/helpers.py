@@ -10,7 +10,7 @@ from flask_login import current_user
 import numpy as np
 from PIL import Image
 
-from visualizer.modules.models import User, Tag, FileMeta
+from visualizer.models import User, Tag, FileMeta
 
 
 # allowed extension for upload files

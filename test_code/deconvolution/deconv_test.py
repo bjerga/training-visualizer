@@ -85,7 +85,11 @@ def deconv_example():
 		
 	# deconv_model = create_deconv_model(conv_model)
 
-	shape = (7, 7, 3)
+	if K.image_dim_ordering() == 'tf':
+		shape = (7, 7, 3)
+	else:
+		shape = (3, 7, 7)
+		
 	filters = 2
 	rows = 2
 	columns = 2
@@ -306,7 +310,7 @@ def unpool_with_mask(pool_input, pool_output, pool_size, strides=None, border_mo
 	# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
 	if border_mode == 'same':
 		
-		if K.image_dim_ordering() == 'tf':
+		if K.backend() == 'tensorflow':
 			# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
 			# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling will use upper- and
 			# leftmost entry of the possible center entries as the actual center, e.g. entry [1, 1] in a 4x4 region.
@@ -487,7 +491,7 @@ class Unpooling2D(Layer):
 		self.col_offset = 0
 		if self.border_mode == 'same':
 			
-			if K.image_dim_ordering() == 'tf':
+			if K.backend() == 'tensorflow':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
 				# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling will use upper- and
 				# leftmost entry of the possible center entries as the actual center, e.g. entry [1, 1] in a 4x4 region.
@@ -546,14 +550,7 @@ class Unpooling2D(Layer):
 					# compute pooling region column indices
 					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
 					
-					if K.image_dim_ordering() == 'tf':
-						# use tensorflow dimensions
-						indices.extend(self.get_indices(sample_no, start_row, end_row, start_col, end_col, i, j))
-
-					else:
-						# use theano dimensions
-						# TODO: implement
-						pass
+					indices.extend(self.get_indices(sample_no, start_row, end_row, start_col, end_col, i, j))
 						
 		if K.backend() == 'tensorflow':
 			recreated_input = tf.scatter_nd(indices=indices,
@@ -563,7 +560,11 @@ class Unpooling2D(Layer):
 		else:
 			# use theano
 			# TODO: implement
-			pass
+			recreated_input = np.zeros(self.pool_input.shape)
+			# TODO: find better (numpy) way to do this (maybe list comp.?)
+			for (index, value) in indices:
+				recreated_input[index] = value
+			recreated_input = th.tensor.as_tensor_variable(recreated_input, name=self.name + '_output', ndim=None)
 		
 		return recreated_input
 
@@ -596,41 +597,26 @@ class Unpooling2D(Layer):
 		return func([self.pool_input, 0])[0]
 	
 	def get_indices(self, sample_no, start_row, end_row, start_col, end_col, i, j):
-		# TODO: might remove outer sample-loop and instead add to list comp.
-		return [[sample_no, row, col, fil]
-					   for fil in range(self.pool_output.shape[self.filt_dim])
+		
+		# TODO: rename indices
+		
+		if K.image_dim_ordering() == 'tf':
+			# use tensorflow dimensions
+			indices = [(sample_no, row, col, filt)
+					   for filt in range(self.pool_output.shape[self.filt_dim])
 					   for row in range(start_row, end_row)
 					   for col in range(start_col, end_col)
-					   if self.pool_input[sample_no, row, col, fil] == self.pool_output[sample_no, i, j, fil]
+					   if self.pool_input[sample_no, row, col, filt] == self.pool_output[sample_no, i, j, filt]
 					   ]
-
-	# TODO: delete if deprecated
-	def compute_row_interval(self, i):
-		start_row = i * self.strides[0] - self.row_offset
-		end_row = start_row + self.pool_size[0]
-		
-		# we ignore padded parts, so if offset makes start row smaller than first row
-		# or end row larger than last row, correct
-		if start_row < 0:
-			start_row = 0
-		if end_row > self.pool_input.shape[self.row_dim]:
-			end_row = self.pool_input.shape[self.row_dim]
-		
-		return start_row, end_row
-	
-	# TODO: delete if deprecated
-	def compute_column_interval(self, j):
-		start_column = j * self.strides[1] - self.col_offset
-		end_column = start_column + self.pool_size[1]
-
-		# we ignore padded parts, so if offset makes start column smaller than first column
-		# or end column larger than last column, correct
-		if start_column < 0:
-			start_column = 0
-		if end_column > self.pool_input.shape[self.col_dim]:
-			end_column = self.pool_input.shape[self.col_dim]
-		
-		return start_column, end_column
+		else:
+			# use theano dimensions
+			indices = [((sample_no, filt, row, col), self.pool_input[sample_no, filt, row, col])
+					   for filt in range(self.pool_output.shape[self.filt_dim])
+					   for row in range(start_row, end_row)
+					   for col in range(start_col, end_col)
+					   if self.pool_input[sample_no, filt, row, col] == self.pool_output[sample_no, filt, i, j]
+					   ]
+		return indices
 	
 	# computes index intervals for pooling regions, and is applicable for both row and column indices
 	# considering pooling regions as entries in a traditional matrix, the region_index describes either a row or column

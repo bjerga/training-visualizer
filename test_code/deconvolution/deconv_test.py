@@ -1,10 +1,14 @@
 import numpy as np
+import tensorflow as tf
+import theano as th
+
+from time import time
 
 import keras.backend as K
 from keras.engine.topology import Layer
 from keras.models import Sequential, Model
 from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D, ZeroPadding2D, Input, Flatten, Dense, Dropout, \
-	Activation, Lambda
+	Activation
 from keras.applications.vgg16 import VGG16
 
 
@@ -53,6 +57,7 @@ def create_deconv_model(conv_model, original_img):
 	return Model(input=dc_input, output=x)
 
 
+# TODO: delete if deprecated
 # NOTE: MIGHT NOT BE NECESSARY AS THE DECONVOLUTION LAYER TRANSPOSES THE KERNEL ITSELF
 def flip_weights(convolution_weights):
 	# TODO: test flip and transpose for theano
@@ -80,22 +85,22 @@ def deconv_example():
 		
 	# deconv_model = create_deconv_model(conv_model)
 
-	shape = (6, 6, 3)
+	shape = (7, 7, 3)
 	filters = 2
-	rows = 3
-	columns = 3
+	rows = 2
+	columns = 2
 	
 	np.random.seed(1337)
 	img = np.random.randint(0, 10, (1,) + shape)
 	
 	# TODO: test how convolution uses weights and test against how deconvolution uses them
-	predictable_weights = np.arange(rows*columns*shape[2]*filters) + 1
-	predictable_weights = np.reshape(predictable_weights, (rows, columns, shape[2], filters))
+	# predictable_weights = np.arange(rows*columns*shape[2]*filters) + 1
+	# predictable_weights = np.reshape(predictable_weights, (rows, columns, shape[2], filters))
 	# print('\nPredictable weights, with shape', predictable_weights.shape)
 	# print(predictable_weights)
 	
 	# add biases
-	predictable_weights = [predictable_weights, np.zeros(predictable_weights.shape[3])]
+	# predictable_weights = [predictable_weights, np.zeros(predictable_weights.shape[3])]
 	
 	# print original info
 	if do_print != 'n':
@@ -106,14 +111,19 @@ def deconv_example():
 
 	conv_model = Sequential()
 	conv_model.add(Convolution2D(filters, rows, columns, input_shape=shape))
-	# conv_model.add(Convolution2D(filters-2, rows, columns, input_shape=shape))
 	# conv_model.add(Convolution2D(filters, rows, columns, weights=predictable_weights, input_shape=shape))
 	# conv_model.add(Activation('relu'))
-	conv_model.add(MaxPooling2D((2, 2)))
+	# conv_model.add(MaxPooling2D((3, 3), input_shape=shape))
+	conv_model.add(MaxPooling2D((3, 3)))
 	
 	conv_pred = conv_model.predict(img)
+	# start_time = time()
+	# for _ in range(100000):
+	# 	conv_pred = conv_model.predict(img)
+	# print('Time to do max pooling: %.4f sec' % (time() - start_time))
+	# return
 	
-	get_inter_pred = K.function([conv_model.input, K.learning_phase()], [conv_model.layers[0].output])
+	get_inter_pred = K.function([conv_model.input, K.learning_phase()], [conv_model.layers[-1].input])
 	conv_inter_pred = get_inter_pred([img, 0])[0]
 	
 	# conv_weights = conv_model.layers[0].get_weights()
@@ -170,6 +180,11 @@ def deconv_example():
 
 	# deconv_pred = deconv_model.predict(img)
 	deconv_pred = deconv_model.predict(conv_pred)
+	# start_time = time()
+	# for _ in range(100000):
+	# 	deconv_pred = deconv_model.predict(conv_pred)
+	# print('Time to do unpooling: %.4f sec' % (time() - start_time))
+	# return
 
 	deconv_weights = deconv_model.layers[-1].get_weights()
 
@@ -217,7 +232,7 @@ def unpool_example():
 		model.add(Convolution2D(filters, 2, 2, input_shape=shape))
 		model.add(MaxPooling2D((4, 4), strides=(5, 5), border_mode='same'))
 	
-		get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
+		get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[1].input])
 		pool_input = get_activation_tensor([img, 0])[0]
 		# print('\n', model.layers[0].name, '\nShape:', pool_input.shape)
 		# array_print(pool_input)
@@ -241,7 +256,7 @@ def unpool_example():
 					for j in range(pool_output.shape[3]):
 						max_pattern += np.transpose(pool_output[s, :, i, j] == np.transpose(pool_input, axes=(0, 2, 3, 1)), axes=(0, 3, 1, 2))
 				
-	get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[0].output])
+	get_activation_tensor = K.function([model.input, K.learning_phase()], [model.layers[1].input])
 	pool_input = get_activation_tensor([img, 0])[0]
 	print('\n', model.layers[0].name, '\nShape:', pool_input.shape)
 	array_print(pool_input)
@@ -408,73 +423,69 @@ def array_print(np_array):
 
 
 def main():
-	print('Deconvolution example')
+	
+	# print('\nSCATTER TEST:')
+	# indices = tf.constant([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [0, 2, 2], [1, 1, 0], [1, 2, 0], [1, 2, 2]])
+	# updates = tf.constant([[1.0, 2.0], [3.0, 4.0], [7.0, 8.0], [9.0, 10.0], [17.0, 18.0], [25.0, 26.0], [31.0, 32.0], [35.0, 36.0]])
+	# shape = tf.constant([2, 3, 3, 2])
+	# scatter = tf.scatter_nd(indices, updates, shape)
+	# with tf.Session() as sess:
+	# 	print('\nOriginal tensor:\n', sess.run(scatter))
+	# 	print('\nReshaped tensor:\n', sess.run(tf.reshape(scatter, [-1])))
+	
+	print('\n\nDeconvolution example')
 	deconv_example()
-
+	
 	# print('\n\nUnpooling example')
 	# unpool_example()
-	
+
 
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
 class Unpooling2D(Layer):
 	
+	#########################################################
+	### these three initial methods are required by Layer ###
+	#########################################################
+	
 	def __init__(self, link_model, link_layer_no, link_model_input, **kwargs):
 		
-		# TODO: what happens if link_layer_no = 0?
+		# check backend to detect dimensions used
+		if K.image_dim_ordering() == 'tf':
+			# tensorflow is used, dimension are (samples, rows, columns, filters)
+			self.row_dim = 1
+			self.col_dim = 2
+			self.filt_dim = 3
+		else:
+			# theano is used, dimension are (samples, filters, rows, columns)
+			self.row_dim = 2
+			self.col_dim = 3
+			self.filt_dim = 1
 		
+		# information about linked model and layer
 		self.link_model = link_model
 		self.link_layer_no = link_layer_no
-		# self.link_layer = link_model.layers[link_layer_no]
 		
+		# chosen input to linked model
 		self.link_model_input = link_model_input
 		
-		# TODO: test å returnere uten []
-		self.get_pooling_input = K.function([self.link_model.input, K.learning_phase()],
-											[self.link_model.layers[link_layer_no-1].output])
+		# generate pooling input and output based on linked model input
+		self.pool_input = self.get_pooling_input()
+		self.pool_output = self.get_pooling_output()
 		
-		self.get_pooling_output = K.function([self.link_model.layers[link_layer_no].input, K.learning_phase()],
-											 [self.link_model.layers[link_layer_no].output])
-		
-		super(Unpooling2D, self).__init__(**kwargs)
-
-	# def build(self, input_shape):
-	# 	# Create a trainable weight variable for this layer.
-	# 	self.W = self.add_weight(shape=(input_shape[1], self.output_dim),
-	# 							 initializer='random_uniform',
-	# 							 trainable=True)
-	# 	super(MyLayer, self).build()  # Be sure to call this somewhere!
-
-	def call(self, input_tensor, mask=None):
-		
-		# TODO: check K.backend() and use tensorflow/theano function to accomplish what the unpooling method did previsouly
-		
+		# information about original pooling behaviour
 		# pool size and strides are both (rows, columns)-tuples
+		self.pool_size = link_model.layers[link_layer_no].pool_size
+		self.strides = link_model.layers[link_layer_no].strides
 		# border mode is either 'valid' or 'same'
-		
-		pool_input = self.get_pooling_input([self.link_model_input, 0])[0]
-		pool_output = self.get_pooling_output([pool_input, 0])[0]
-		pool_size = self.link_model.layers[self.link_layer_no].pool_size
-		strides = self.link_model.layers[self.link_layer_no].strides
-		border_mode = self.link_model.layers[self.link_layer_no].border_mode
-		
-		# check backend used to detect dimensions used
-		if K.image_dim_ordering() == 'tf':
-			# tensorflow is used, dimension are (samples, rows, columns, feature maps/channels)
-			row_dim = 1
-			column_dim = 2
-		else:
-			# theano is used, dimension are (samples, feature maps/channels, rows, columns)
-			row_dim = 2
-			column_dim = 3
-		
-		# initialize offset to 0, as it is not needed when border mode is valid
-		row_offset = 0
-		column_offset = 0
+		self.border_mode = link_model.layers[link_layer_no].border_mode
 		
 		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
-		if border_mode == 'same':
+		# initialize offset to 0, as it is not needed when border mode is valid
+		self.row_offset = 0
+		self.col_offset = 0
+		if self.border_mode == 'same':
 			
 			if K.image_dim_ordering() == 'tf':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
@@ -487,17 +498,17 @@ class Unpooling2D(Layer):
 				
 				# find offset (to simulate padding) by computing total region space that falls outside of original tensor
 				# and divide by two to distribute to top-bottom/left-right of original tensor
-				row_offset = (((pool_output.shape[row_dim] - 1) * strides[0] + pool_size[0]) - pool_input.shape[
-					row_dim]) // 2
-				column_offset = (((pool_output.shape[column_dim] - 1) * strides[1] + pool_size[1]) - pool_input.shape[
-					column_dim]) // 2
+				self.row_offset = ((self.pool_output.shape[self.row_dim] - 1) * self.strides[0] +
+								   self.pool_size[0] - self.pool_input.shape[self.row_dim]) // 2
+				self.col_offset = ((self.pool_output.shape[self.col_dim] - 1) * self.strides[1] +
+								   self.pool_size[1] - self.pool_input.shape[self.col_dim]) // 2
 				
 				# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
 				# computed offset can be negative, but this equals no offset
-				if row_offset < 0:
-					row_offset = 0
-				if column_offset < 0:
-					column_offset = 0
+				if self.row_offset < 0:
+					self.row_offset = 0
+				if self.col_offset < 0:
+					self.col_offset = 0
 			else:
 				# when using theano, padding is always added, and a pooling region center is never in the padding.
 				# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling
@@ -508,78 +519,135 @@ class Unpooling2D(Layer):
 				# in a 3X4 region.
 				
 				# set offset (to simulate padding) to lowermost and rightmost entries by default
-				row_offset = pool_size[0] - 1
-				column_offset = pool_size[1] - 1
+				self.row_offset = self.pool_size[0] - 1
+				self.col_offset = self.pool_size[1] - 1
 				
 				# if rows have a clear center, update offset
-				if pool_size[0] % 2 == 1:
-					row_offset //= 2
+				if self.pool_size[0] % 2 == 1:
+					self.row_offset //= 2
 				
 				# if columns have a clear center, update offset
-				if pool_size[1] % 2 == 1:
-					column_offset //= 2
+				if self.pool_size[1] % 2 == 1:
+					self.col_offset //= 2
 		
-		# create initial mask with all zero (False) entries in pooling input shape
-		recreated_input = np.zeros(pool_input.shape)
-		unpool_mask = np.zeros(pool_input.shape)
+		super(Unpooling2D, self).__init__(**kwargs)
+
+	def call(self, recreated_output, mask=None):
 		
+		indices = []
 		# for every sample
-		for sample_no in range(pool_output.shape[0]):
+		for sample_no in range(self.pool_output.shape[0]):
 			# for every element in pooling output
-			for i in range(pool_output.shape[row_dim]):
+			for i in range(self.pool_output.shape[self.row_dim]):
 				# compute pooling region row indices
-				start_row = i * strides[0] - row_offset
-				end_row = start_row + pool_size[0]
+				start_row, end_row = self.compute_index_interval(i, 0, self.row_offset, self.row_dim)
 				
-				# we ignore padded parts, so if offset makes start row negative, correct
-				# no correction of end row is required, as list[start:end+positive num] is equivalent to list[start:end]
-				if start_row < 0:
-					start_row = 0
-				
-				for j in range(pool_output.shape[column_dim]):
+				for j in range(self.pool_output.shape[self.col_dim]):
 					# compute pooling region column indices
-					start_column = j * strides[1] - column_offset
-					end_column = start_column + pool_size[1]
-					
-					# we ignore padded parts, as with rows
-					if start_column < 0:
-						start_column = 0
+					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
 					
 					if K.image_dim_ordering() == 'tf':
 						# use tensorflow dimensions
-						
-						# find which elements in the original pooling area that match the pooling output for that area
-						output_matches = pool_output[sample_no, i, j, :] == pool_input[sample_no, start_row:end_row,
-																			start_column:end_column, :]
-						
-						# update corresponding area in unpooling mask with the output matches
-						unpool_mask[sample_no, start_row:end_row, start_column:end_column, :] += output_matches
-						
-						# TODO: test this approach, and then XOR approach
-						# recreated_input[sample_no, start_row:end_row, start_column:end_column, :] += output_matches * input_tensor[sample_no, i, j, :]
-						
+						indices.extend(self.get_indices(sample_no, start_row, end_row, start_col, end_col, i, j))
+
 					else:
 						# use theano dimensions
+						# TODO: implement
+						pass
 						
-						# as with tf, but transpose original pooling input to find values equal to max for all filters
-						output_matches = pool_output[sample_no, :, i, j] == np.transpose(
-							pool_input[sample_no, :, start_row:end_row, start_column:end_column], axes=(1, 2, 0))
-						
-						# as with tf, but transpose back to original form before addition
-						unpool_mask[sample_no, :, start_row:end_row, start_column:end_column] += np.transpose(
-							output_matches, axes=(2, 0, 1))
+		if K.backend() == 'tensorflow':
+			recreated_input = tf.scatter_nd(indices=indices,
+											updates=tf.reshape(recreated_output, [-1]),
+											shape=self.pool_input.shape,
+											name=self.name + '_output')
+		else:
+			# use theano
+			# TODO: implement
+			pass
 		
-		# generate True/False-mask from all entries that have matched at least once
-		# unpool_mask = unpool_mask > 0
-		
-		# TODO: test alternate: recreated[recreated != 0] = recreated[recreated != 0] / unpool[unpool != 0]
-		unpool_mask[unpool_mask == 0] = 1.0
-		recreated_input /= unpool_mask
-		
-		# apply mask to the input tensor to generate the desired, recreated input
-		return K.variable(recreated_input, name=self.name + '_output')
+		return recreated_input
 
 	def get_output_shape_for(self, input_shape):
 		return (input_shape[0],) + self.link_model.layers[self.link_layer_no].input_shape[1:]
+
+	##############################################
+	### what follows are custom helper methods ###
+	##############################################
+	
+	# TODO: could be improved to update pooling input and output directly, and have deconvolution network call a single
+	# TODO: predict of original network, where it collects pooling input and output from and feeds to every unpooling
+	# TODO: layer. this way, only one predict from original is needed, instead of N, for N unpooling layers
+	def update_input(self, new_link_model_input):
+		self.link_model_input = new_link_model_input
+		
+		# after update, pooling input and output must also be updated
+		self.pool_input = self.get_pooling_input()
+		self.pool_output = self.get_pooling_output()
+	
+	def get_pooling_input(self):
+		func = K.function([self.link_model.input, K.learning_phase()],
+						  [self.link_model.layers[self.link_layer_no].input])
+		return func([self.link_model_input, 0])[0]
+	
+	# note that this method uses pool_input, and therefore pool_output must always be updated after pool_input
+	def get_pooling_output(self):
+		func = K.function([self.link_model.layers[self.link_layer_no].input, K.learning_phase()],
+						  [self.link_model.layers[self.link_layer_no].output])
+		return func([self.pool_input, 0])[0]
+	
+	def get_indices(self, sample_no, start_row, end_row, start_col, end_col, i, j):
+		# TODO: might remove outer sample-loop and instead add to list comp.
+		return [[sample_no, row, col, fil]
+					   for fil in range(self.pool_output.shape[self.filt_dim])
+					   for row in range(start_row, end_row)
+					   for col in range(start_col, end_col)
+					   if self.pool_input[sample_no, row, col, fil] == self.pool_output[sample_no, i, j, fil]
+					   ]
+
+	# TODO: delete if deprecated
+	def compute_row_interval(self, i):
+		start_row = i * self.strides[0] - self.row_offset
+		end_row = start_row + self.pool_size[0]
+		
+		# we ignore padded parts, so if offset makes start row smaller than first row
+		# or end row larger than last row, correct
+		if start_row < 0:
+			start_row = 0
+		if end_row > self.pool_input.shape[self.row_dim]:
+			end_row = self.pool_input.shape[self.row_dim]
+		
+		return start_row, end_row
+	
+	# TODO: delete if deprecated
+	def compute_column_interval(self, j):
+		start_column = j * self.strides[1] - self.col_offset
+		end_column = start_column + self.pool_size[1]
+
+		# we ignore padded parts, so if offset makes start column smaller than first column
+		# or end column larger than last column, correct
+		if start_column < 0:
+			start_column = 0
+		if end_column > self.pool_input.shape[self.col_dim]:
+			end_column = self.pool_input.shape[self.col_dim]
+		
+		return start_column, end_column
+	
+	# computes index intervals for pooling regions, and is applicable for both row and column indices
+	# considering pooling regions as entries in a traditional matrix, the region_index describes either a row or column
+	# index for the region entry in such a matrix
+	# tuple_num describes where in the strides and pool size tuples one should get values from, with row values at tuple
+	# index 0 and column values are at tuple index 1
+	def compute_index_interval(self, region_index, tuple_num, offset, dim):
+		start_index = region_index * self.strides[tuple_num] - offset
+		end_index = start_index + self.pool_size[tuple_num]
+		
+		# we ignore padded parts, so if offset makes start index smaller than smallest index in original pooling input
+		# or end index larger than largest index in original pooling input, correct
+		if start_index < 0:
+			start_index = 0
+		if end_index > self.pool_input.shape[dim]:
+			end_index = self.pool_input.shape[dim]
+		
+		return start_index, end_index
 
 main()

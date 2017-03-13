@@ -81,7 +81,7 @@
                         var diff = $(prev_running).not(running).get();
                         var htmlArray = [];
                         for (var i = 0; i < diff.length; i++) {
-                            var url = '/uploads/' + diff[i] + '/code';
+                            var url = '/uploads/' + diff[i] + '/overview';
                             htmlArray.push('<div class="alert alert-success alert-dismissable" role="alert">');
                             htmlArray.push('<button type="button" class="close" data-dismiss="alert">&times;</button>');
                             htmlArray.push('The file <a href="' + url + '">' + diff[i] + '</a> has finished running.');

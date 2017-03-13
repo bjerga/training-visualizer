@@ -1,14 +1,8 @@
-import pickle
 import subprocess as sub
-from time import time, sleep
-from os import listdir, mkdir, remove
-from os.path import join, getmtime
-from shutil import move
+from os import listdir, mkdir
+from os.path import join
 
 from flask_login import current_user
-
-import numpy as np
-from PIL import Image
 
 from visualizer.models import User, Tag, FileMeta
 
@@ -92,52 +86,6 @@ def run_python_shell(file_path, shared_bool):
 	
 	# make sure process ends (not certain this is needed)
 	return
-
-
-# TODO: currently only works for black and white images, must also work for RGB
-# create activation images for all layers
-def visualize_activations(pickle_file, results_path, activations_path):
-
-	# remove old visualization files before creating new ones
-	for old_file in listdir(activations_path):
-		remove(join(activations_path, old_file))
-
-	# need time of creation to ensure unique filename
-	creation_time = time()
-
-	# read content of pickle file
-	with open(join(results_path, pickle_file), 'rb') as f:
-		content_list = pickle.load(f)
-
-	# for all layers
-	for layer_no in range(len(content_list)):
-		layer_name, layer_activation = content_list[layer_no]
-
-		# print('\nLength of activation shape', layer_activation.shape, 'is', len(layer_activation.shape), '\n')
-
-		# scale to fit between [0.0, 255.0]
-		layer_activation += max(-np.min(layer_activation), 0.0)
-		la_max = np.max(layer_activation)
-		if la_max != 0.0:
-			layer_activation /= la_max
-		layer_activation *= 255.0
-
-		# remove unnecessary outer list for everything but one-dimensional arrays
-		# 1D arrays needs the extra dimension to be accepted by Image.fromarray(...)
-		if len(layer_activation[0].shape) != 1:
-			layer_activation = layer_activation[0]
-
-		# if activation has no channels
-		if len(layer_activation.shape) < 3:
-			img = Image.fromarray(layer_activation.astype('uint8'), 'L')
-			img.save(join(activations_path, 'ln%d_%s_%d.png' % (layer_no, layer_name, creation_time)))
-		# if activation has channels (typically activations from convolution layers)
-		else:
-			for channel in range(layer_activation.shape[2]):
-				img = Image.fromarray(layer_activation[:, :, channel].astype('uint8'), 'L')
-				img.save(join(activations_path, 'ln%d_%s_ch%d_%d.png' % (layer_no, layer_name, channel, creation_time)))
-
-		# print('\n\n\n', layer_name, 'has shape', layer_activation.shape, '\n\n\n')
 
 
 # create all folders in list at the specified base path

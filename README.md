@@ -1,5 +1,5 @@
 # training-visualizer
-A website application for visualizing data produced while training an artificial neural networks.
+A website application for visualizing data produced while training artificial neural networks.
 
 ## Installation
 To install all requirement packages:

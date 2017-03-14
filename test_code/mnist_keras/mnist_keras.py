@@ -26,11 +26,8 @@ class AccuracyListSaver(Callback):
     from os.path import dirname, join
     results_path = join(dirname(__file__), 'results')
 
-    model_no = None
-
-    def __init__(self, model_no):
+    def __init__(self):
         super(AccuracyListSaver, self).__init__()
-        self.model_no = model_no
 
     def on_train_begin(self, logs={}):
         # ensure file creation
@@ -52,11 +49,8 @@ class LossListSaver(Callback):
     from os.path import dirname, join
     results_path = join(dirname(__file__), 'results')
 
-    model_no = None
-
-    def __init__(self, model_no):
+    def __init__(self):
         super(LossListSaver, self).__init__()
-        self.model_no = model_no
 
     def on_train_begin(self, logs={}):
         # ensure file creation
@@ -78,14 +72,12 @@ class ActivationTupleListSaver(Callback):
     from os.path import dirname, join
     results_path = join(dirname(__file__), 'results')
 
-    model_no = None
     input_tensor = None
 
-    def __init__(self, model_no):
+    def __init__(self):
         import numpy as np
 
         super(ActivationTupleListSaver, self).__init__()
-        self.model_no = model_no
 
         # get one random image from training data to use as input
         training_data, _, _, _ = load_data()
@@ -130,22 +122,21 @@ def create_model(with_save=True):
     model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # save model
-    model_no = None
     if with_save:
-        model_no = save_to_disk(model)
+        save_to_disk(model)
 
     print('\nModel successfully created')
 
-    return model, model_no
+    return model
 
 
-def train(model, model_no, no_of_epochs=10):
+def train(model, no_of_epochs=10):
 
     # train top layers of model (self-defined layers)
     print('\n\nCommence MNIST model training\n')
 
     # initialize custom callbacks
-    custom_callbacks = [AccuracyListSaver(model_no), LossListSaver(model_no), ActivationTupleListSaver(model_no)]
+    custom_callbacks = [AccuracyListSaver(), LossListSaver(), ActivationTupleListSaver()]
     
     # get data
     training_data, training_targets, test_data, test_targets = load_data()
@@ -155,7 +146,7 @@ def train(model, model_no, no_of_epochs=10):
               verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
 
     # save after training
-    save_to_disk(model, model_no)
+    save_to_disk(model)
 
     print('\nCompleted MNIST model training\n')
 
@@ -211,7 +202,7 @@ def load_data():
     return training_data, training_targets, test_data, test_targets
 
 
-def save_to_disk(model, model_no=None):
+def save_to_disk(model):
 
     # make path, if not exists
     try:
@@ -221,25 +212,13 @@ def save_to_disk(model, model_no=None):
         # file exists, which is want we want
         pass
 
-    # find model number, if not specified
-    if model_no is None:
-        model_no = len(listdir(save_path))
-
     model.save('%s/mnist_model.h5' % (save_path))
 
     print('\nModel saved as mnist_model.h5')
 
-    return model_no
-
 
 def load_from_disk():
-    
-    # load chosen model number
-    model = load_model('%s/mnist_model.h5' % (save_path))
-
-    print('\nModel loaded from mnist_model.h5')
-
-    return model
+    return load_model('%s/mnist_model.h5' % save_path)
 
 
 def main():
@@ -248,9 +227,9 @@ def main():
 
     start_time = time()
 
-    model, model_no = create_model()
+    model = create_model()
 
-    model = train(model, model_no)
+    model = train(model)
 
     test(model, 1000, True)
 

@@ -14,6 +14,4 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:///visualizer.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # URL to bokeh server
-BOKEH_SERVER='http://localhost:5006'
-
-
+BOKEH_SERVER = 'http://localhost:5006'

@@ -1,10 +1,8 @@
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# define database to use SQLAlchemy
-db = SQLAlchemy()
+from visualizer import db
 
 
 # model for user

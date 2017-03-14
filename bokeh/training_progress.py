@@ -3,6 +3,12 @@ from bokeh.models import ColumnDataSource, Line, Div
 from bokeh.plotting import figure, curdoc
 from bokeh.layouts import layout
 
+import sys
+from os.path import dirname
+sys.path.insert(0, dirname(dirname((__file__))))
+
+from visualizer.config import UPLOAD_FOLDER
+
 document = curdoc()
 
 args = document.session_context.request.arguments
@@ -11,12 +17,7 @@ args = document.session_context.request.arguments
 file = args['file'][0].decode('ascii')
 user = args['user'][0].decode('ascii')
 
-layer_activation_source = ColumnDataSource(data=dict())
-
-
-#TODO: get upload folder from a config file instead
-results_path = "/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/visualizer/visualizer/static/user_storage/" + \
-			   user + "/programs/" + file + "/results"
+results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
 accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=600, plot_height=300)
 accuracy_fig.title.text = ('Accuracy over Batch')

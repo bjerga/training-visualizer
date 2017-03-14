@@ -5,58 +5,30 @@ from os.path import join, dirname
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
-from flask import Flask, request, redirect, url_for, render_template, flash, send_from_directory, jsonify
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user, abort
+from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify
+from flask_login import login_required, login_user, logout_user, current_user, abort
 import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
-import subprocess
+from visualizer.forms import *
+from visualizer.helpers import *
 
-from .modules.helpers import *
-from .modules.models import *
-from .modules.forms import *
+# Import the database, application, and login_manager object from the main visualizer module
+from visualizer import db, app, login_manager
 
-# Create application
-app = Flask(__name__)
-app.config.from_object(__name__)
-
-# temporary secret key
-app.secret_key = 'thisissupersecretestkeyintheworld'
-
-# entry to hold path to upload folder
-app.config['UPLOAD_FOLDER'] = join(dirname(__file__), 'static', 'user_storage')
-
-# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
-app.config['processes'] = {}
-
-# entry to hold database connection
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///visualizer.db'
-
-# set to disable notifications of overhead when running
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# initialize database
-db.init_app(app)
-
-# initialize login manager
-login_manager = LoginManager()
-login_manager.init_app(app)
-
-# start bokeh server
-bokeh_process = subprocess.Popen(['bokeh', 'serve', '--allow-websocket-origin=localhost:5000',
-								  'visualizer/bokeh/training_progress.py',
-								  'visualizer/bokeh/layer_activations.py'],
-								 stdout=subprocess.PIPE)
-
+# dict to hold {username-key: dict-value{filename-key: process}}
+processes = {}
 
 # define method necessary for login manager
 @login_manager.user_loader
 def load_user(username):
 	return User.query.filter_by(username=username).first()
 
-# load default config and override config from an environment variable
-app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)
+
+# not sure if this is needed
+'''# load default config and override config from an environment variable
+app.config.from_envvar('VISUALIZER_SETTINGS', silent=True)'''
 
 
 # remove old database and create new
@@ -105,9 +77,8 @@ def create_user():
 			db.session.add(User(form.username.data, form.password.data))
 			db.session.commit()
 			
-			# create folders for user to save data in
-			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data, form.username.data + '/programs',
-														 form.username.data + '/data'])
+			# create folders for user to save programs in
+			create_folders(app.config['UPLOAD_FOLDER'], [form.username.data])
 			
 			# display success message and route to login page
 			flash('User successfully created', 'success')
@@ -198,14 +169,14 @@ def upload_file():
 			if unique_filename(filename):
 				
 				# create folder for program
-				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
 				try:
 					mkdir(folder_path)
 				except FileExistsError:
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['results', 'networks', 'old_results', 'plots', 'old_plots', 'activations', 'old_activations'])
+				create_folders(folder_path, ['networks', 'results'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -217,7 +188,7 @@ def upload_file():
 					file_meta.tags.append(get_existing_tag(text))
 				
 				# add file name as a tag automatically
-				file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
+				file_meta.tags.append(get_existing_tag(get_wo_ext(filename)))
 				
 				# add file meta to database
 				db.session.add(file_meta)
@@ -265,7 +236,7 @@ def show_file_overview(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# get file stored locally
-	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0])
+	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
 	file = send_from_directory(file_folder, filename)
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(file_folder)
@@ -319,8 +290,8 @@ def show_file_visualization(filename):
 
 	#TODO: save the url for the server in a config
 	# build the url for getting a certain visualization technique given a user and file
-	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
-	url = 'http://localhost:5006' + visualization_path + '?' + urlencode(params)
+	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
+	url = app.config['BOKEH_SERVER'] + visualization_path + '?' + urlencode(params)
 	# send a GET request to the bokeh server
 	plot = requests.get(url).content.decode('ascii')
 
@@ -337,7 +308,7 @@ def show_file_training_progress(filename):
 
 	#TODO: save the url for the server in a config
 	# build the url for getting a certain visualization technique given a user and file
-	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
 	url = 'http://localhost:5006/training_progress?' + urlencode(params)
 	# send a GET request to the bokeh server
 	plot = requests.get(url).content.decode('ascii')
@@ -349,6 +320,8 @@ def show_file_training_progress(filename):
 @login_required
 @app.route('/uploads/<filename>/run', methods=['POST'])
 def run_upload(filename):
+	global processes
+
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 	print('\n\nNew thread started for %s\n\n' % meta.path)
@@ -363,17 +336,15 @@ def run_upload(filename):
 	finally:
 		mkdir(result_path)
 
-	# clear process-list for filename
+	# remove process for filename
 	prevent_process_key_error(filename)
-	app.config['processes'][get_current_user()][filename] = []
-	
-	# shared boolean denoting if run_python_shell-process is writing
-	shared_bool = Value('i', True)
+	processes[get_current_user()][filename] = None
 	
 	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
+	p = Process(target=run_python_shell, args=meta.path)
 	p.start()
-	app.config['processes'][get_current_user()][filename].append(p)
+
+	processes[get_current_user()][filename] = p
 
 	# update last run column in database
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -387,11 +358,8 @@ def run_upload(filename):
 @login_required
 @app.route('/uploads/<filename>/download')
 def download_network(filename):
-
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
-
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
 	network_name = listdir(network_folder)[-1]
-
 	return send_from_directory(network_folder, network_name, as_attachment=True)
 
 
@@ -406,8 +374,7 @@ def delete_file(filename):
 	db.session.commit()
 
 	# delete the folder of the file to be deleted
-	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0]),
-		   ignore_errors=True)
+	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename)), ignore_errors=True)
 
 	# redirect to file list view
 	flash(filename + ' was deleted', 'danger')
@@ -434,7 +401,7 @@ def search(query):
 def check_networks_exist(filename):
 	networks_exist = False
 
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), 'programs', filename.rsplit('.', 1)[0], 'networks')
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
 	if listdir(network_folder):
 		networks_exist = True
 
@@ -454,15 +421,12 @@ def check_running(filename):
 def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_file_running = False
+	# if the process for the file is still alive, return true
 
-	# if any process for the file is still alive, return true
-	for process in app.config['processes'][get_current_user()][filename]:
-		if process.is_alive():
-			is_file_running = True
-			break
+	if processes[get_current_user()][filename] is not None:
+		return processes[get_current_user()][filename].is_alive()
 
-	return is_file_running
+	return False
 
 
 @login_required
@@ -475,14 +439,14 @@ def get_running_json():
 def get_running():
 	running = set()
 	try:
-		processes = app.config['processes'][get_current_user()]
+		user_processes = processes[get_current_user()]
 	except KeyError:
-		processes = {}
+		user_processes = {}
 
-	for filename in processes:
-		for process in processes[filename]:
-			if process.is_alive():
-				running.add(filename)
+	for filename in user_processes:
+		p = processes[get_current_user()][filename]
+		if p is not None and p.is_alive():
+			running.add(filename)
 
 	return running
 
@@ -490,16 +454,17 @@ def get_running():
 # helper method dependent on app
 # used to prevent key errors for process dict
 def prevent_process_key_error(filename):
+	global processes
 	try:
 		# test if username is in process dict
-		app.config['processes'][get_current_user()]
+		processes[get_current_user()]
 	except KeyError:
 		# if not, add it
-		app.config['processes'][get_current_user()] = {}
+		processes[get_current_user()] = {}
 
 	try:
 		# test if filename in user-process dict
-		app.config['processes'][get_current_user()][filename]
+		processes[get_current_user()][filename]
 	except KeyError:
 		# if not, add it
-		app.config['processes'][get_current_user()][filename] = []
+		processes[get_current_user()][filename] = None

@@ -1,25 +1,29 @@
 # training-visualizer
-A website application for visualizing the training progress of neural networks. Application is meant to run on a Linux machine.
+A website application for visualizing data produced while training artificial neural networks.
 
 ## Installation
+To install all requirement packages:
 ```
 pip3 install -r visualizer/requirements.txt
 ```
 
-## Running
-To create a database and run the application, execute:
+## Setup
+To initialize the application and set up a database.
 ```
 export FLASK_APP=visualizer
 python3 -m flask initdb
-python3 -m flask run
 ```
-
-If a database is already created, run the application by executing:
-```
-export FLASK_APP=visualizer
-python3 -m flask run
-```
-
 For Windows you need to use 'set' instead of 'export'. 
-If computer only has Python 3.x installed, use 'python' instead of 'python3'. Similar code alterations may need to be applied.
-Mac OS machines cannot run application due to error when plotting outside main process. 
+
+## Running
+To run the application server, execute this in one terminal:
+```
+python3 -m flask run
+```
+
+Execute this in another terminal window or tab to run the visualization server:
+```
+bash bokeh.sh
+```
+
+This application assumes that Python 3.x is run from the terminal using 'python3'.

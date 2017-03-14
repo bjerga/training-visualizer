@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import theano as th
+import theano.tensor as tht
 
 from time import time
 
@@ -428,15 +429,6 @@ def array_print(np_array):
 
 def main():
 	
-	# print('\nSCATTER TEST:')
-	# indices = tf.constant([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [0, 2, 2], [1, 1, 0], [1, 2, 0], [1, 2, 2]])
-	# updates = tf.constant([[1.0, 2.0], [3.0, 4.0], [7.0, 8.0], [9.0, 10.0], [17.0, 18.0], [25.0, 26.0], [31.0, 32.0], [35.0, 36.0]])
-	# shape = tf.constant([2, 3, 3, 2])
-	# scatter = tf.scatter_nd(indices, updates, shape)
-	# with tf.Session() as sess:
-	# 	print('\nOriginal tensor:\n', sess.run(scatter))
-	# 	print('\nReshaped tensor:\n', sess.run(tf.reshape(scatter, [-1])))
-	
 	print('\n\nDeconvolution example')
 	deconv_example()
 	
@@ -553,19 +545,18 @@ class Unpooling2D(Layer):
 					indices.extend(self.get_indices(sample_no, start_row, end_row, start_col, end_col, i, j))
 						
 		if K.backend() == 'tensorflow':
+			# use tensorflow
 			recreated_input = tf.scatter_nd(indices=indices,
 											updates=tf.reshape(recreated_output, [-1]),
 											shape=self.pool_input.shape,
 											name=self.name + '_output')
 		else:
 			# use theano
-			# TODO: implement
-			recreated_input = np.zeros(self.pool_input.shape)
-			# TODO: find better (numpy) way to do this (maybe list comp.?)
-			for (index, value) in indices:
-				recreated_input[index] = value
-			recreated_input = th.tensor.as_tensor_variable(recreated_input, name=self.name + '_output', ndim=None)
-		
+			# very ineffective
+			recreated_input = tht.zeros(self.pool_input.shape)
+			for (input_index, output_index) in indices:
+				recreated_input = tht.set_subtensor(recreated_input[input_index], recreated_output[output_index])
+			
 		return recreated_input
 
 	def get_output_shape_for(self, input_shape):
@@ -600,7 +591,7 @@ class Unpooling2D(Layer):
 		
 		# TODO: rename indices
 		
-		if K.image_dim_ordering() == 'tf':
+		if K.backend() == 'tensorflow':
 			# use tensorflow dimensions
 			indices = [(sample_no, row, col, filt)
 					   for filt in range(self.pool_output.shape[self.filt_dim])
@@ -610,7 +601,7 @@ class Unpooling2D(Layer):
 					   ]
 		else:
 			# use theano dimensions
-			indices = [((sample_no, filt, row, col), self.pool_input[sample_no, filt, row, col])
+			indices = [((sample_no, filt, row, col), (sample_no, filt, i, j))
 					   for filt in range(self.pool_output.shape[self.filt_dim])
 					   for row in range(start_row, end_row)
 					   for col in range(start_col, end_col)

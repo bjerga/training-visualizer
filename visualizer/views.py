@@ -188,7 +188,7 @@ def upload_file():
 					file_meta.tags.append(get_existing_tag(text))
 				
 				# add file name as a tag automatically
-				file_meta.tags.append(get_existing_tag(filename.split('.')[0]))
+				file_meta.tags.append(get_existing_tag(get_wo_ext(filename)))
 				
 				# add file meta to database
 				db.session.add(file_meta)
@@ -290,7 +290,7 @@ def show_file_visualization(filename):
 
 	#TODO: save the url for the server in a config
 	# build the url for getting a certain visualization technique given a user and file
-	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
 	url = app.config['BOKEH_SERVER'] + visualization_path + '?' + urlencode(params)
 	# send a GET request to the bokeh server
 	plot = requests.get(url).content.decode('ascii')
@@ -308,7 +308,7 @@ def show_file_training_progress(filename):
 
 	#TODO: save the url for the server in a config
 	# build the url for getting a certain visualization technique given a user and file
-	params = {'user': get_current_user(), 'file': filename.split('.')[0]}
+	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
 	url = 'http://localhost:5006/training_progress?' + urlencode(params)
 	# send a GET request to the bokeh server
 	plot = requests.get(url).content.decode('ascii')
@@ -358,7 +358,7 @@ def run_upload(filename):
 @login_required
 @app.route('/uploads/<filename>/download')
 def download_network(filename):
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0], 'networks')
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
 	network_name = listdir(network_folder)[-1]
 	return send_from_directory(network_folder, network_name, as_attachment=True)
 
@@ -374,7 +374,7 @@ def delete_file(filename):
 	db.session.commit()
 
 	# delete the folder of the file to be deleted
-	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0]), ignore_errors=True)
+	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename)), ignore_errors=True)
 
 	# redirect to file list view
 	flash(filename + ' was deleted', 'danger')
@@ -401,7 +401,7 @@ def search(query):
 def check_networks_exist(filename):
 	networks_exist = False
 
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0], 'networks')
+	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
 	if listdir(network_folder):
 		networks_exist = True
 

@@ -36,6 +36,10 @@ def unique_filename(filename):
 	return True
 
 
+def get_wo_ext(filename):
+	return filename.rsplit('.', 1)[0]
+
+
 # check if file extension is allowed
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS

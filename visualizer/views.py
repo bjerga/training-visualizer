@@ -17,7 +17,7 @@ from visualizer.helpers import *
 # Import the database, application, and login_manager object from the main visualizer module
 from visualizer import db, app, login_manager
 
-# dict to hold {username-key: dict-value{filename-key: list-value[processes]}}
+# dict to hold {username-key: dict-value{filename-key: process}}
 processes = {}
 
 # define method necessary for login manager
@@ -336,15 +336,15 @@ def run_upload(filename):
 	finally:
 		mkdir(result_path)
 
-	# clear process-list for filename
+	# remove process for filename
 	prevent_process_key_error(filename)
-	processes[get_current_user()][filename] = []
+	processes[get_current_user()][filename] = None
 	
 	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=(meta.path))
+	p = Process(target=run_python_shell, args=meta.path)
 	p.start()
 
-	processes[get_current_user()][filename].append(p)
+	processes[get_current_user()][filename] = p
 
 	# update last run column in database
 	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -421,15 +421,12 @@ def check_running(filename):
 def is_running(filename):
 	prevent_process_key_error(filename)
 
-	is_file_running = False
+	# if the process for the file is still alive, return true
 
-	# if any process for the file is still alive, return true
-	for process in processes[get_current_user()][filename]:
-		if process.is_alive():
-			is_file_running = True
-			break
+	if processes[get_current_user()][filename] is not None:
+		return processes[get_current_user()][filename].is_alive()
 
-	return is_file_running
+	return False
 
 
 @login_required
@@ -447,9 +444,9 @@ def get_running():
 		user_processes = {}
 
 	for filename in user_processes:
-		for process in user_processes[filename]:
-			if process.is_alive():
-				running.add(filename)
+		p = processes[get_current_user()][filename]
+		if p is not None and p.is_alive():
+			running.add(filename)
 
 	return running
 
@@ -470,4 +467,4 @@ def prevent_process_key_error(filename):
 		processes[get_current_user()][filename]
 	except KeyError:
 		# if not, add it
-		processes[get_current_user()][filename] = []
+		processes[get_current_user()][filename] = None

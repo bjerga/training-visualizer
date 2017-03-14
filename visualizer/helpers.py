@@ -69,7 +69,7 @@ def has_associated_files(file_folder):
 
 
 # run a python program via command line
-def run_python_shell(file_path, shared_bool):
+def run_python_shell(file_path):
 	if file_path:
 		
 		print('\nSubprocess started\n')
@@ -80,9 +80,6 @@ def run_python_shell(file_path, shared_bool):
 		print('\nSubprocess finished\n')
 	else:
 		print('\n\nNo file found\n\n')
-	
-	# mark via shared boolean that process is no longer writing
-	shared_bool.value = False
 	
 	# make sure process ends (not certain this is needed)
 	return

@@ -339,12 +339,9 @@ def run_upload(filename):
 	# clear process-list for filename
 	prevent_process_key_error(filename)
 	processes[get_current_user()][filename] = []
-
-	# shared boolean denoting if run_python_shell-process is writing
-	shared_bool = Value('i', True)
 	
 	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=(meta.path, shared_bool))
+	p = Process(target=run_python_shell, args=(meta.path))
 	p.start()
 
 	processes[get_current_user()][filename].append(p)

@@ -17,9 +17,6 @@ args = document.session_context.request.arguments
 file = args['file'][0].decode('ascii')
 user = args['user'][0].decode('ascii')
 
-layer_activation_source = ColumnDataSource(data=dict())
-
-
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
 accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=600, plot_height=300)

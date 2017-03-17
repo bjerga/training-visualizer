@@ -341,7 +341,7 @@ def run_upload(filename):
 	processes[get_current_user()][filename] = None
 	
 	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=meta.path)
+	p = Process(target=run_python_shell, args=(meta.path,))
 	p.start()
 
 	processes[get_current_user()][filename] = p

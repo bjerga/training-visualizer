@@ -24,5 +24,9 @@ db.create_all()
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+import sys
+from os.path import dirname
+sys.path.insert(0, dirname(__file__))
+
 # Import views
 import visualizer.views

@@ -2,6 +2,8 @@ import subprocess as sub
 from os import listdir, mkdir
 from os.path import join
 
+import sys
+
 from flask_login import current_user
 
 from visualizer.models import User, Tag, FileMeta
@@ -77,9 +79,12 @@ def run_python_shell(file_path):
 	if file_path:
 		
 		print('\nSubprocess started\n')
+
+		# get PYTHONPATH to send to subprocess so that it has visualizer registered as a module
+		python_path = ":".join(sys.path)[1:]
 		
 		# run program via command line
-		sub.run('python3 ' + file_path, shell=True)
+		sub.run('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path})
 
 		print('\nSubprocess finished\n')
 	else:

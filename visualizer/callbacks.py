@@ -1,13 +1,9 @@
 from keras.callbacks import Callback
+import keras.backend as K
 
-from keras.datasets import mnist
+import numpy as np
+import pickle
 
-
-# saves accuracy at each finished training batch
-from keras.utils.np_utils import to_categorical
-
-
-# saves network after each batch
 from os import mkdir
 from os.path import join
 
@@ -77,7 +73,6 @@ class ActivationTupleListSaver(Callback):
 	input_tensor = None
 
 	def __init__(self, save_path):
-		import numpy as np
 
 		super(ActivationTupleListSaver, self).__init__()
 		self.results_path = join(save_path, 'results')
@@ -87,8 +82,6 @@ class ActivationTupleListSaver(Callback):
 		self.input_tensor = training_data[np.random.randint(len(training_data))].reshape(1, 28, 28, 1)
 
 	def on_epoch_end(self, batch, logs={}):
-		import keras.backend as K
-		import pickle
 
 		# initialize layer tuple list with image
 		layer_tuples = []
@@ -107,6 +100,11 @@ class ActivationTupleListSaver(Callback):
 
 
 # TODO: this is specific for mnist, and should therefore not be in this script
+
+from keras.datasets import mnist
+from keras.utils.np_utils import to_categorical
+
+
 def load_data():
 	# load
 	(training_data, training_targets), (test_data, test_targets) = mnist.load_data()

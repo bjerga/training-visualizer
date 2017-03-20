@@ -2,8 +2,11 @@ import numpy as np
 import tensorflow as tf
 import theano as th
 import theano.tensor as tht
+import scipy.misc
 
 from time import time
+from os import mkdir
+from os.path import dirname, join
 
 import keras.backend as K
 from keras.engine.topology import Layer
@@ -11,21 +14,75 @@ from keras.models import Sequential, Model
 from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D, ZeroPadding2D, Input, Flatten, Dense, Dropout, \
 	Activation
 from keras.applications.vgg16 import VGG16
+from keras.preprocessing import image
+
+
+def load_and_process(img_path):
+	img = image.load_img(join(dirname(__file__), 'input', img_path), target_size=(224, 224))
+	img = image.img_to_array(img)
+	
+	if K.image_dim_ordering() == 'th':
+		img = img.transpose((2, 0, 1))
+	
+	img = np.expand_dims(img, axis=0)
+	return img
+
+
+# utility function used to convert a tensor into a savable image
+def deprocess(vis_tensor):
+	
+	if K.image_dim_ordering() == 'tf':
+		color_axis = 3
+	else:
+		color_axis = 1
+		
+	# remove batch dimension, and alter color axis accordingly
+	img = vis_tensor[0]
+	color_axis -= 1
+	
+	if color_axis == 0:
+		# alter dimensions from (color, height, width) to (height, width, color)
+		img = img.transpose((1, 2, 0))
+	
+	img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
+	
+	return img
+
+
+# saves the visualization and a txt-file describing its creation environment
+def save_visualization(img):
+	
+	# deprocess before save
+	img = deprocess(img)
+	
+	# define output path and make folder
+	output_path = join(dirname(__file__), 'output')
+	try:
+		mkdir(output_path)
+	except FileExistsError:
+		# folder exists, which is what we wanted
+		pass
+	
+	image_name = 'deconv_test'
+	
+	# save the resulting image to disk
+	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
+	# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
+	
+	print('\nImage has been saved as %s.png\n' % image_name)
 
 
 # creates a model to generate gradients from
-def create_conv_model():
-	base_model = VGG16(include_top=False, weights='imagenet')
-	
-	vgg_model = Sequential()
-	
-	for layer in base_model.layers:
-		vgg_model.add(layer)
-	
-	return vgg_model
+def create_conv_model(input_shape):
+	return VGG16(include_top=False, weights='imagenet', input_shape=input_shape)
 
 
 def create_deconv_model(conv_model, original_img):
+	
+	if K.image_dim_ordering() == 'tf':
+		filt_dim = 3
+	else:
+		filt_dim = 1
 	
 	# add first layer with input shape
 	dc_input = Input(shape=conv_model.output_shape[1:])
@@ -34,14 +91,15 @@ def create_deconv_model(conv_model, original_img):
 	x = dc_input
 	for i in range(len(conv_model.layers)-1, -1, -1):
 		layer = conv_model.layers[i]
-		print(i, layer.name)
 		if 'conv' in layer.name:
 			x = Activation(layer.activation)(x)
-			x = Deconvolution2D(nb_filter=layer.input_shape[3],
+			x = Deconvolution2D(nb_filter=layer.input_shape[filt_dim],
 								nb_row=layer.nb_row,
 								nb_col=layer.nb_col,
 								# TODO: test alternatives
-								output_shape=(1,) + layer.input_shape[1:],
+								# may only need output_shape that start with (1,) as we can require only one image at a time be passed to deconv. net
+								# output_shape=(1,) + layer.input_shape[1:],
+								output_shape=layer.input_shape,
 								# output_shape=(None,) + layer.input_shape[1:],
 								weights=flip_weights(layer.get_weights()),
 								# weights=layer.get_weights(),
@@ -53,18 +111,195 @@ def create_deconv_model(conv_model, original_img):
 							link_layer_no=i,
 							link_model_input=original_img)(x)
 		else:
-			print('\nFound layer in original model which is neither convolutional or pooling')
+			print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
 	
 	return Model(input=dc_input, output=x)
 
 
+def custom_deconv_model(conv_model, original_img):
+	
+	deconv_model = Sequential()
+
+	# block 5
+	deconv_model.add(Activation('linear', input_shape=conv_model.output_shape[1:]))
+	deconv_model.add(Unpooling2D(link_model=conv_model,
+								 link_layer_no=18,
+								 link_model_input=original_img))
+	layer = conv_model.layers[17]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 17:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[16]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 16:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[15]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 15:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	
+	# block 4
+	deconv_model.add(Unpooling2D(link_model=conv_model,
+								 link_layer_no=14,
+								 link_model_input=original_img))
+	layer = conv_model.layers[13]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 13:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[12]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 12:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[11]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 11:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	
+	# block 3
+	deconv_model.add(Unpooling2D(link_model=conv_model,
+								 link_layer_no=10,
+								 link_model_input=original_img))
+	layer = conv_model.layers[9]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 9:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[8]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 8:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[7]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 7:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	
+	# block 2
+	deconv_model.add(Unpooling2D(link_model=conv_model,
+								 link_layer_no=6,
+								 link_model_input=original_img))
+	layer = conv_model.layers[5]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 5:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[4]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 4:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	
+	# block 1
+	deconv_model.add(Unpooling2D(link_model=conv_model,
+								 link_layer_no=3,
+								 link_model_input=original_img))
+	layer = conv_model.layers[2]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 2:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	layer = conv_model.layers[1]
+	deconv_model.add(Activation(layer.activation))
+	print('Input shape for layer 1:', layer.input_shape)
+	deconv_model.add(Deconvolution2D(nb_filter=layer.input_shape[3],
+									 nb_row=layer.nb_row,
+									 nb_col=layer.nb_col,
+									 output_shape=layer.input_shape,
+									 weights=flip_weights(layer.get_weights()),
+									 border_mode=layer.border_mode,
+									 subsample=layer.subsample,
+									 bias=layer.bias))
+	
+	return deconv_model
+
+
 # TODO: delete if deprecated
 # NOTE: MIGHT NOT BE NECESSARY AS THE DECONVOLUTION LAYER TRANSPOSES THE KERNEL ITSELF
+# NOTE2: OR DOES IT? THE PLOT THICKENS
 def flip_weights(convolution_weights):
 	# TODO: test flip and transpose for theano
 	# weights have dimensions (rows, columns, channels, filters)
 	# flip across rows (axis=0) and then columns (axis=1)
-	transformed_weights = np.flip(np.flip(convolution_weights[0], axis=0), axis=1)
+	transformed_weights = np.fliplr(np.flipud(convolution_weights[0]))
 	
 	# switch RGB channels at dim. 2 with filter channels at dim. 3
 	# creates three deconv. filters, R, G, and B, to apply to the feature map output of the previous conv. filters
@@ -75,145 +310,143 @@ def flip_weights(convolution_weights):
 
 
 def deconv_example():
-	# do_print = 'f'  # full print
-	do_print = 'l'  # limited print
-	# do_print = 'n'  # no print
-
-	# conv_model = create_conv_model()
-	
-	# for layer in conv_model.layers:
-	# 	print(layer.name)
-		
-	# deconv_model = create_deconv_model(conv_model)
+	print_original = False
+	print_meta = True
+	print_weights = False
+	print_bias = False
+	print_pred = False
 
 	if K.image_dim_ordering() == 'tf':
-		shape = (7, 7, 3)
+		shape = (50, 50, 3)
+		# shape = (8, 8, 3)
 	else:
-		shape = (3, 7, 7)
+		shape = (3, 50, 50)
 		
 	filters = 2
-	rows = 2
+	rows = 3
 	columns = 2
 	
-	np.random.seed(1337)
-	img = np.random.randint(0, 10, (1,) + shape)
+	# np.random.seed(1337)
+	# img = np.random.randint(0, 10, (1,) + shape)
+	img = load_and_process('dog.jpg')
+
+	conv_model = create_conv_model(img.shape[1:])
+
+	print('\nLayers in conv. model:')
+	for layer in conv_model.layers:
+		print(layer.name)
+		
+	deconv_model = create_deconv_model(conv_model, img)
+	# deconv_model = custom_deconv_model(conv_model, img)
 	
-	# TODO: test how convolution uses weights and test against how deconvolution uses them
-	# predictable_weights = np.arange(rows*columns*shape[2]*filters) + 1
-	# predictable_weights = np.reshape(predictable_weights, (rows, columns, shape[2], filters))
-	# print('\nPredictable weights, with shape', predictable_weights.shape)
-	# print(predictable_weights)
-	
-	# add biases
-	# predictable_weights = [predictable_weights, np.zeros(predictable_weights.shape[3])]
+	print('\nLayers in deconv. model:')
+	for layer in deconv_model.layers:
+		print(layer.name)
 	
 	# print original info
-	if do_print != 'n':
+	if print_meta:
 		print('\n***ORIGINAL INFO***')
 		print('Original, with shape', img.shape)
-		if do_print == 'f':
+		if print_original:
 			array_print(img)
 
-	conv_model = Sequential()
-	conv_model.add(Convolution2D(filters, rows, columns, input_shape=shape))
+	# conv_model = Sequential()
+	# conv_model.add(Convolution2D(filters, rows, columns, input_shape=shape))
 	# conv_model.add(Convolution2D(filters, rows, columns, weights=predictable_weights, input_shape=shape))
 	# conv_model.add(Activation('relu'))
 	# conv_model.add(MaxPooling2D((3, 3), input_shape=shape))
-	conv_model.add(MaxPooling2D((3, 3)))
+	# conv_model.add(MaxPooling2D((3, 3)))
 	
 	conv_pred = conv_model.predict(img)
 	# start_time = time()
-	# for _ in range(100000):
+	# for _ in range(1000):
 	# 	conv_pred = conv_model.predict(img)
 	# print('Time to do max pooling: %.4f sec' % (time() - start_time))
 	# return
 	
-	get_inter_pred = K.function([conv_model.input, K.learning_phase()], [conv_model.layers[-1].input])
-	conv_inter_pred = get_inter_pred([img, 0])[0]
+	# get_inter_pred = K.function([conv_model.input, K.learning_phase()], [conv_model.layers[-1].input])
+	# conv_inter_pred = get_inter_pred([img, 0])[0]
 	
-	# conv_weights = conv_model.layers[0].get_weights()
-	conv_weights = [np.zeros(0), np.zeros(0)]
-	
+	# conv_weights = conv_model.layers[1].get_weights()
 	# transformed_weights = flip_weights(conv_weights)
+	
+	conv_weights = [np.zeros(0), np.zeros(0)]
 	transformed_weights = [np.zeros(0), np.zeros(0)]
 	
 	# print('\nConv. config:', conv_model.layers[-1].get_config())
 	
 	# print conv info
-	if do_print != 'n':
+	if print_meta:
 		print('\n***CONVOLUTIONAL MODEL INFO***')
 		print('Conv. input shape:', conv_model.input_shape)
 		print('Conv. output shape:', conv_model.output_shape)
 		
-		if do_print == 'f':
+		if print_weights:
 			print('\nConv. weights, with shape', conv_weights[0].shape)
 			print(conv_weights[0])
 		
-		# is this the bias?
-		if do_print == 'f':
-			print('\nBias:\n', conv_weights[1])
+			if print_bias:
+				print('\nBias:\n', conv_weights[1])
 		
-		if do_print == 'f':
 			print('\nTransformed weights, with shape', transformed_weights[0].shape)
 			print(transformed_weights[0])
 		
-		print('\nConv. inter. pred., with shape', conv_inter_pred.shape)
-		array_print(conv_inter_pred)
-		if do_print == 'f':
-			pass
-		
-		print('\nConv. pred., with shape', conv_pred.shape)
-		array_print(conv_pred)
-		if do_print == 'f':
-			pass
+		if print_pred:
+			print('\nConv. inter. pred., with shape', conv_inter_pred.shape)
+			array_print(conv_inter_pred)
+			print('\nConv. pred., with shape', conv_pred.shape)
+			array_print(conv_pred)
 
-	deconv_model = Sequential()
+	if K.image_dim_ordering() == 'tf':
+		dc_filters = shape[2]
+	else:
+		dc_filters = shape[0]
+
+	# deconv_model = Sequential()
 	# TODO: before relu, unpool
 	# deconv_model.add(Activation('relu'))
-	deconv_model.add(Unpooling2D(conv_model, 1, img, input_shape=conv_model.output_shape[1:]))
+	# deconv_model.add(Unpooling2D(conv_model, 1, img, input_shape=conv_model.output_shape[1:]))
 	# deconv_model.add(Convolution2D(filters, rows, columns, weights=conv_weights, input_shape=conv_model.input_shape[1:]))
 	# TODO: test creating three 5x5x7 super-filters for deconv., each consisting of the R-, G-, or B-parts of the seven original 5x5x3 filters
-	# deconv_model.add(Deconvolution2D(shape[2], rows, columns, weights=transformed_weights,
+	# deconv_model.add(Deconvolution2D(dc_filters, rows, columns,
+	# 								 weights=transformed_weights,
 	# 								 output_shape=(1,) + conv_model.input_shape[1:],
 	# 								 input_shape=conv_model.output_shape[1:]))
 
-	# deconv_model = create_deconv_model(conv_model, img)
-
-	# print('\nLayers in deconv. model:')
-	# for layer in deconv_model.layers:
-	# 	print(layer.name)
-
-	# deconv_pred = deconv_model.predict(img)
+	print('\nReady for deconv. pred.')
 	deconv_pred = deconv_model.predict(conv_pred)
 	# start_time = time()
-	# for _ in range(100000):
+	# for _ in range(1000):
 	# 	deconv_pred = deconv_model.predict(conv_pred)
 	# print('Time to do unpooling: %.4f sec' % (time() - start_time))
 	# return
+	
+	save_visualization(deconv_pred)
 
 	deconv_weights = deconv_model.layers[-1].get_weights()
 
-	# print('\nDeconv. config:', deconv_model.layers[-1].get_config())
-
 	# print deconv info
-	if do_print != 'n':
+	if print_meta:
 		print('\n***DECONVOLUTIONAL MODEL INFO***')
 		print('Deconv. input shape:', deconv_model.input_shape)
 		print('Deconv. output shape:', deconv_model.output_shape)
 
-		if do_print == 'f':
+		if print_weights:
 			print('\nDeconv. weights:', deconv_weights[0].shape)
 			print(deconv_weights[0])
+			
+			if print_bias:
+				print('\nBias:\n', deconv_weights[1])
 
-		print('\nDeconv. pred., with shape', deconv_pred.shape)
-		array_print(deconv_pred)
-		if do_print == 'f':
+		if print_pred:
+			print('\nDeconv. pred., with shape', deconv_pred.shape)
+			array_print(deconv_pred)
 
-			print('\n0-9 scaled deconv. pred.')
-			array_print(np.rint(deconv_pred * (9.0/np.amax(deconv_pred))))
-
-			print('\nOriginal again:')
-			array_print(img)
+			# print('\n0-9 scaled deconv. pred.')
+			# array_print(np.rint(deconv_pred * (9.0/np.amax(deconv_pred))))
+			#
+			# print('\nOriginal again:')
+			# array_print(img)
 
 
 def unpool_example():
@@ -542,17 +775,22 @@ class Unpooling2D(Layer):
 					# compute pooling region column indices
 					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
 					
-					indices.extend(self.get_indices(sample_no, start_row, end_row, start_col, end_col, i, j))
+					indices.extend([self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, filt)
+									for filt in range(self.pool_output.shape[self.filt_dim])])
 						
 		if K.backend() == 'tensorflow':
 			# use tensorflow
+			# print(indices)
+			# fix this. consider only returning the first match in get_indices
+			# recreated_input = tf.scatter_nd(indices=[i for i, _ in indices],
 			recreated_input = tf.scatter_nd(indices=indices,
 											updates=tf.reshape(recreated_output, [-1]),
+											# updates=[recreated_output[i] for _, i in indices],
 											shape=self.pool_input.shape,
 											name=self.name + '_output')
 		else:
 			# use theano
-			# very ineffective
+			# very inefficient
 			recreated_input = tht.zeros(self.pool_input.shape)
 			for (input_index, output_index) in indices:
 				recreated_input = tht.set_subtensor(recreated_input[input_index], recreated_output[output_index])
@@ -587,27 +825,37 @@ class Unpooling2D(Layer):
 						  [self.link_model.layers[self.link_layer_no].output])
 		return func([self.pool_input, 0])[0]
 	
-	def get_indices(self, sample_no, start_row, end_row, start_col, end_col, i, j):
-		
-		# TODO: rename indices
+	def get_region_max_index(self, sample_no, start_row, end_row, start_col, end_col, i, j, filt):
 		
 		if K.backend() == 'tensorflow':
 			# use tensorflow dimensions
-			indices = [(sample_no, row, col, filt)
-					   for filt in range(self.pool_output.shape[self.filt_dim])
-					   for row in range(start_row, end_row)
-					   for col in range(start_col, end_col)
-					   if self.pool_input[sample_no, row, col, filt] == self.pool_output[sample_no, i, j, filt]
-					   ]
+			for row in range(start_row, end_row):
+				for col in range(start_col, end_col):
+					if self.pool_input[sample_no, row, col, filt] == self.pool_output[sample_no, i, j, filt]:
+						return (sample_no, row, col, filt)
 		else:
 			# use theano dimensions
-			indices = [((sample_no, filt, row, col), (sample_no, filt, i, j))
-					   for filt in range(self.pool_output.shape[self.filt_dim])
-					   for row in range(start_row, end_row)
-					   for col in range(start_col, end_col)
-					   if self.pool_input[sample_no, filt, row, col] == self.pool_output[sample_no, filt, i, j]
-					   ]
-		return indices
+			for row in range(start_row, end_row):
+				for col in range(start_col, end_col):
+					if self.pool_input[sample_no, filt, row, col] == self.pool_output[sample_no, filt, i, j]:
+						return ((sample_no, filt, row, col), (sample_no, filt, i, j))
+	
+	def get_region_max_index_alt(self, sample_no, start_row, end_row, start_col, end_col, filt):
+		
+		row_size = end_row - start_row
+		col_size = end_col - start_col
+
+		if K.backend() == 'tensorflow':
+			# use tensorflow dimensions
+			region_max = np.argmax(self.pool_input[sample_no, start_row:end_row, start_col:end_col, filt])
+			index = (sample_no, start_row + region_max // row_size, start_col + region_max % col_size, filt)
+		else:
+			# use theano dimensions
+			region_max = np.argmax(self.pool_input[sample_no, filt, start_row:end_row, start_col:end_col])
+			# TODO: theano requires two indices, an additional one for pool_output's equivalent index
+			index = (sample_no, filt, start_row + region_max // row_size, start_col + region_max % col_size)
+			
+		return index
 	
 	# computes index intervals for pooling regions, and is applicable for both row and column indices
 	# considering pooling regions as entries in a traditional matrix, the region_index describes either a row or column

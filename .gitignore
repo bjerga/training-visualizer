@@ -5,3 +5,5 @@ visualizer/static/user_storage/
 test_code/deep_dream/output
 test_code/deep_dream/old_output
 test_code/deconvolution/found-online
+test_code/deconvolution/input
+test_code/deconvolution/output

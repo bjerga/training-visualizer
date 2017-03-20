@@ -322,36 +322,57 @@ def show_file_training_progress(filename):
 def run_upload(filename):
 	global processes
 
-	# get information about file
-	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	print('\n\nNew thread started for %s\n\n' % meta.path)
+	form = RunForm()
 
-	result_path = meta.path.replace(filename, 'results')
+	if form.validate_on_submit():
 
-	# remove results folder and all its files before creating a new, empty one
-	try:
-		rmtree(result_path, ignore_errors=True)
-	except FileNotFoundError:
-		pass
-	finally:
-		mkdir(result_path)
+		# get information about file
+		meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
-	# remove process for filename
-	prevent_process_key_error(filename)
-	processes[get_current_user()][filename] = None
-	
-	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=(meta.path,))
-	p.start()
+		# get image from form
+		img = form.image.data
 
-	processes[get_current_user()][filename] = p
+		# check if an image was actually chosen
+		if img.filename is not '':
 
-	# update last run column in database
-	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
-	db.session.commit()
-	
-	# redirect to file training progress view
-	return redirect(url_for('show_file_training_progress', filename=filename))
+			# make sure the format is allowed
+			if not allowed_image(img.filename):
+				flash('File type is not allowed', 'danger')
+				return redirect(url_for('show_file_overview', filename=filename))
+
+			# save image as 'image' with the correct ending and make name secure
+			img_name = secure_filename(img.filename.replace(get_wo_ext(img.filename), 'image'))
+			img.save(meta.path.replace(filename, img_name))
+
+		result_path = meta.path.replace(filename, 'results')
+
+		# remove results folder and all its files before creating a new, empty one
+		try:
+			rmtree(result_path, ignore_errors=True)
+		except FileNotFoundError:
+			pass
+		finally:
+			mkdir(result_path)
+
+		# remove process for filename
+		prevent_process_key_error(filename)
+		processes[get_current_user()][filename] = None
+
+		print('\n\nNew thread started for %s\n\n' % meta.path)
+		# start and save a new process for running the program
+		p = Process(target=run_python_shell, args=(meta.path,))
+		p.start()
+
+		processes[get_current_user()][filename] = p
+
+		# update last run column in database
+		meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
+		db.session.commit()
+
+		# redirect to file training progress view
+		return redirect(url_for('show_file_training_progress', filename=filename))
+
+	return redirect(url_for('show_file_overview', filename=filename))
 
 
 # define how to download a trained network

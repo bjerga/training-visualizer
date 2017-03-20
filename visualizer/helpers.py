@@ -9,8 +9,10 @@ from flask_login import current_user
 from visualizer.models import User, Tag, FileMeta
 
 
-# allowed extension for upload files
-ALLOWED_EXTENSIONS = {'py'}
+# allowed extensions for uploading files
+ALLOWED_FILE_EXTENSIONS = {'py'}
+# allowed extensions for uploading images to use for visualization
+ALLOWED_IMAGE_EXTENSIONS = {'jpeg', 'jpg', 'png'}
 
 
 # get current user in form of string
@@ -44,7 +46,12 @@ def get_wo_ext(filename):
 
 # check if file extension is allowed
 def allowed_file(filename):
-	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+
+
+# check if file extension is allowed for image
+def allowed_image(filename):
+	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 # TODO: might be possible to manage this directly in the query

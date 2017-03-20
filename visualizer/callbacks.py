@@ -7,13 +7,41 @@ from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 
+# saves network after each batch
+from os import mkdir
+from os.path import join
+
+
+# saves the network at correct path when starting training and after each epoch
+class NetworkSaver(Callback):
+
+	def __init__(self, save_path):
+		super(NetworkSaver, self).__init__()
+		self.networks_path = join(save_path, 'networks')
+
+		self.name = save_path.rsplit('/')[-1]
+
+	def on_train_begin(self, logs={}):
+		# make path, if not exists
+		try:
+			mkdir(self.networks_path)
+			print('networks-folder created')
+		except FileExistsError:
+			# file exists, which is what we want
+			pass
+
+		self.model.save('%s/%s.h5' % (self.networks_path, self.name))
+
+	def on_epoch_end(self, batch, logs={}):
+		self.model.save('%s/%s.h5' % (self.networks_path, self.name))
+
+
 # saves accuracy at each finished training batch
 class AccuracyListSaver(Callback):
-	# NOTE: all imports in class could be performed globally
 
-	def __init__(self, results_path):
+	def __init__(self, save_path):
 		super(AccuracyListSaver, self).__init__()
-		self.results_path = results_path
+		self.results_path = join(save_path, 'results')
 
 	def on_train_begin(self, logs={}):
 		# ensure file creation
@@ -27,11 +55,10 @@ class AccuracyListSaver(Callback):
 
 
 class LossListSaver(Callback):
-	# NOTE: all imports in class could be performed globally
 
-	def __init__(self, results_path):
+	def __init__(self, save_path):
 		super(LossListSaver, self).__init__()
-		self.results_path = results_path
+		self.results_path = join(save_path, 'results')
 
 	def on_train_begin(self, logs={}):
 		# ensure file creation
@@ -46,15 +73,14 @@ class LossListSaver(Callback):
 
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class ActivationTupleListSaver(Callback):
-	# NOTE: all imports in class could be performed globally
 
 	input_tensor = None
 
-	def __init__(self, results_path):
+	def __init__(self, save_path):
 		import numpy as np
 
 		super(ActivationTupleListSaver, self).__init__()
-		self.results_path = results_path
+		self.results_path = join(save_path, 'results')
 
 		# get one random image from training data to use as input
 		training_data, _, _, _ = load_data()

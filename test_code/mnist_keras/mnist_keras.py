@@ -1,16 +1,15 @@
 from time import time
-from os import mkdir, listdir
 from os.path import join, dirname
 
 import numpy as np
 
-from keras.models import Model, load_model
+from keras.models import Model
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, Dropout, Flatten
 from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
-from visualizer.callbacks import AccuracyListSaver, LossListSaver, ActivationTupleListSaver
+from visualizer.callbacks import NetworkSaver, AccuracyListSaver, LossListSaver, ActivationTupleListSaver
 
 # find path to save networks and results
 save_path = dirname(__file__)
@@ -18,7 +17,7 @@ networks_path = join(save_path, 'networks')
 results_path = join(save_path, 'results')
 
 
-def create_model(with_save=True):
+def create_model():
 	# define model
 	inputs = Input(shape=(28, 28, 1))
 	x = Convolution2D(32, 3, 3, activation='relu', border_mode='valid')(inputs)
@@ -35,10 +34,6 @@ def create_model(with_save=True):
 	model = Model(input=inputs, output=predictions)
 	model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
-	# save model
-	if with_save:
-		save_to_disk(model)
-
 	print('\nModel successfully created')
 
 	return model
@@ -49,7 +44,8 @@ def train(model, no_of_epochs=10):
 	print('\n\nCommence MNIST model training\n')
 
 	# initialize custom callbacks
-	custom_callbacks = [AccuracyListSaver(results_path), LossListSaver(results_path), ActivationTupleListSaver(results_path)]
+	custom_callbacks = [NetworkSaver(save_path), AccuracyListSaver(save_path), LossListSaver(save_path),
+						ActivationTupleListSaver(save_path)]
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()
@@ -57,9 +53,6 @@ def train(model, no_of_epochs=10):
 	# train with chosen hyperparameters
 	model.fit(training_data, training_targets, nb_epoch=no_of_epochs, batch_size=128, shuffle=True,
 			  verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
-
-	# save after training
-	save_to_disk(model)
 
 	print('\nCompleted MNIST model training\n')
 
@@ -111,24 +104,6 @@ def load_data():
 	test_targets = to_categorical(test_targets, 10)
 
 	return training_data, training_targets, test_data, test_targets
-
-
-def save_to_disk(model):
-	# make path, if not exists
-	try:
-		mkdir(networks_path)
-		print('networks-folder created')
-	except FileExistsError:
-		# file exists, which is want we want
-		pass
-
-	model.save('%s/mnist_model.h5' % networks_path)
-
-	print('\nModel saved as mnist_model.h5')
-
-
-def load_from_disk():
-	return load_model('%s/mnist_model.h5' % networks_path)
 
 
 def main():

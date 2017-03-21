@@ -33,8 +33,7 @@
                         {{ run_form.image }}<br>
                         {% if vis_img %}
                             <p class="help-block"> If no image is selected, this previously uploaded image will be used:</p>
-                            <img src="{{ vis_img }}"
-                            style="max-width: 100px; max-height: 100px"><br>
+                            <img src="{{ vis_img|autoversion }}" style="display: block; margin: 0 auto; max-width: 200px; max-height: 200px; width: 200px; height:auto"><br>
                         {% endif %}
                         {% if has_files %}
                             <div class="alert alert-danger" role="alert">

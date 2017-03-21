@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir
-from os.path import join, dirname
+from os.path import join, dirname, getmtime
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
@@ -48,6 +48,19 @@ def initdb_command():
 	except FileExistsError:
 		pass
 	print('Initialized the database')
+
+
+# used to overcome browser caching static images
+@app.template_filter('autoversion')
+def autoversion_filter(filename):
+	# determining fullpath might be project specific
+	full_path = join('visualizer/', filename[1:])
+	try:
+		timestamp = str(getmtime(full_path))
+	except OSError:
+		return filename
+	new_filename = "{0}?v={1}".format(filename, timestamp)
+	return new_filename
 
 
 # define default home page

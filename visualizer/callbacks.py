@@ -4,7 +4,9 @@ import keras.backend as K
 import numpy as np
 import pickle
 
-from os import mkdir
+from PIL import Image
+
+from os import mkdir, listdir
 from os.path import join, basename
 
 
@@ -76,10 +78,23 @@ class ActivationTupleListSaver(Callback):
 		super(ActivationTupleListSaver, self).__init__()
 		self.results_path = join(save_path, 'results')
 
-		# TODO: Should get image from folder here instead of random
+		# get visualization image corresponding to the file
+		img = None
+		for name in listdir(save_path):
+			if 'image' in name:
+				img = Image.open(join(save_path, name))
+
+		if img is None:
+			raise RuntimeError('Cannot find visualization image')
+
+		# set input tensor and reshape to (1, width, height, 1)
+		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
+
 		# get one random image from training data to use as input
-		training_data, _, _, _ = load_data()
-		self.input_tensor = training_data[np.random.randint(len(training_data))].reshape(1, 28, 28, 1)
+		'''training_data, _, _, _ = load_data()
+		sample = Image.fromarray(np.uint8(training_data[2][:, :, 0]*255), 'L')
+		sample.save('test.png')'''
+
 
 	def on_epoch_end(self, batch, logs={}):
 

@@ -169,7 +169,7 @@ def upload_file():
 			if unique_filename(filename):
 				
 				# create folder for program
-				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
+				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename))
 				try:
 					mkdir(folder_path)
 				except FileExistsError:
@@ -241,7 +241,7 @@ def show_file_overview(filename):
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(file_folder)
 	# get relative path of visualization image associated with the file, if there is one
-	img_path = get_rel_path_vis_img(file_folder, get_current_user(), filename)
+	img_path = get_visualization_img_rel_path(filename)
 
 	# get content of file
 	file.direct_passthrough = False
@@ -334,10 +334,16 @@ def run_upload(filename):
 		# get image from form
 		img = form.image.data
 
-		# check if an image was actually chosen
-		if img.filename is not '':
+		img_path = get_visualization_img_rel_path(filename)
 
-			# make sure the format is allowed
+		# flask error if no image is selected and there is no previously uploaded image
+		if img.filename is '' and img_path is None:
+			flash('You need to select an image', 'danger')
+			return redirect(url_for('show_file_overview', filename=filename))
+
+		# if a new image has been uploaded
+		if img.filename is not '':
+			# flash error if image format is not allowed
 			if not allowed_image(img.filename):
 				flash('File type is not allowed', 'danger')
 				return redirect(url_for('show_file_overview', filename=filename))

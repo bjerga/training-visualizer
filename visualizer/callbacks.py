@@ -76,6 +76,7 @@ class ActivationTupleListSaver(Callback):
 		super(ActivationTupleListSaver, self).__init__()
 		self.results_path = join(save_path, 'results')
 
+		# TODO: Should get image from folder here instead of random
 		# get one random image from training data to use as input
 		training_data, _, _, _ = load_data()
 		self.input_tensor = training_data[np.random.randint(len(training_data))].reshape(1, 28, 28, 1)

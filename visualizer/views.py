@@ -240,6 +240,8 @@ def show_file_overview(filename):
 	file = send_from_directory(file_folder, filename)
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(file_folder)
+	# get relative path of visualization image associated with the file, if there is one
+	img_path = get_rel_path_vis_img(file_folder, get_current_user(), filename)
 
 	# get content of file
 	file.direct_passthrough = False
@@ -268,7 +270,7 @@ def show_file_overview(filename):
 		return redirect(url_for('show_file_overview', filename=filename))
 	
 	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
-						   filename=filename, meta=meta, content=content, has_files=has_files)
+						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path)
 
 
 # page for file visualization view

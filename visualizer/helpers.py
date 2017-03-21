@@ -4,6 +4,7 @@ from os.path import join
 
 import sys
 
+from flask import url_for
 from flask_login import current_user
 
 from visualizer.models import User, Tag, FileMeta
@@ -79,6 +80,23 @@ def has_associated_files(file_folder):
 	network_folder = join(file_folder, 'networks')
 	result_folder = join(file_folder, 'results')
 	return listdir(network_folder) or listdir(result_folder)
+
+
+# return path of visualization image, or none if no image has been uploaded
+def get_visualization_img_name(file_folder):
+	for name in listdir(file_folder):
+		if 'image' in name:
+			#return join(file_folder, name)
+			return name
+	return None
+
+
+# return relative path of visualization image, or none if no image has been uploaded
+def get_rel_path_vis_img(file_folder, user, filename):
+	for name in listdir(file_folder):
+		if 'image' in name:
+			return url_for('static', filename=join('user_storage', user, get_wo_ext(filename), name))
+	return None
 
 
 # run a python program via command line

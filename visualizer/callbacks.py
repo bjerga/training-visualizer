@@ -90,12 +90,6 @@ class ActivationTupleListSaver(Callback):
 		# set input tensor and reshape to (1, width, height, 1)
 		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
-		# get one random image from training data to use as input
-		'''training_data, _, _, _ = load_data()
-		sample = Image.fromarray(np.uint8(training_data[2][:, :, 0]*255), 'L')
-		sample.save('test.png')'''
-
-
 	def on_epoch_end(self, batch, logs={}):
 
 		# initialize layer tuple list with image
@@ -112,30 +106,3 @@ class ActivationTupleListSaver(Callback):
 
 		with open(join(self.results_path, 'layer_activations.pickle'), 'wb') as f:
 			pickle.dump(layer_tuples, f)
-
-
-# TODO: this is specific for mnist, and should therefore not be in this script
-
-from keras.datasets import mnist
-from keras.utils.np_utils import to_categorical
-
-
-def load_data():
-	# load
-	(training_data, training_targets), (test_data, test_targets) = mnist.load_data()
-
-	# reshape data
-	training_data = training_data.reshape(training_data.shape[0], 28, 28, 1)
-	test_data = test_data.reshape(test_data.shape[0], 28, 28, 1)
-
-	# normalize data
-	training_data = training_data.astype('float32')
-	test_data = test_data.astype('float32')
-	training_data /= 255.0
-	test_data /= 255.0
-
-	# make targets categorical
-	training_targets = to_categorical(training_targets, 10)
-	test_targets = to_categorical(test_targets, 10)
-
-	return training_data, training_targets, test_data, test_targets

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from shutil import rmtree
-from os import mkdir, listdir
+from os import mkdir, listdir, remove
 from os.path import join, dirname, getmtime
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
@@ -356,6 +356,11 @@ def run_upload(filename):
 
 		# if a new image has been uploaded
 		if img.filename is not '':
+
+			# make sure the old image is deleted (will cause problems if it has a different format than the new one)
+			if img_path is not None:
+				remove(get_visualization_img_abs_path(filename))
+
 			# flash error if image format is not allowed
 			if not allowed_image(img.filename):
 				flash('File type is not allowed', 'danger')

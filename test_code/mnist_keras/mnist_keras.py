@@ -13,8 +13,6 @@ from visualizer.callbacks import NetworkSaver, AccuracyListSaver, LossListSaver,
 
 # find path to save networks and results
 save_path = dirname(__file__)
-networks_path = join(save_path, 'networks')
-results_path = join(save_path, 'results')
 
 
 def create_model():

@@ -83,19 +83,30 @@ def create_conv_model(input_shape, include_top):
 	return VGG16(include_top=include_top, weights='imagenet', input_shape=input_shape)
 
 
-def create_deconv_model(conv_model, original_img):
+def create_deconv_model(conv_model, original_img, start_layer=None):
 	
 	if K.image_dim_ordering() == 'tf':
 		filt_dim = 3
 	else:
 		filt_dim = 1
+		
+	# if no start layer has been specified
+	if start_layer is None:
+		# use the last layer of the conv. model
+		start_layer = len(conv_model.layers) - 1
+		
+		# use output shape of whole model as input shape
+		dc_input_shape = conv_model.output_shape[1:]
+	else:
+		# use output shape of start layer as input shape
+		dc_input_shape = conv_model.layers[start_layer].output_shape[1:]
 	
 	# add first layer with input shape
-	dc_input = Input(shape=conv_model.output_shape[1:])
+	dc_input = Input(shape=dc_input_shape)
 	
 	# add other layers
 	x = dc_input
-	for i in range(len(conv_model.layers)-1, -1, -1):
+	for i in range(start_layer, -1, -1):
 		layer = conv_model.layers[i]
 		if 'conv' in layer.name:
 			x = Activation(layer.activation)(x)
@@ -140,14 +151,17 @@ def deconv_example():
 
 	conv_model = create_conv_model(img.shape[1:], False)
 
-	print('\nLayers in conv. model:')
-	for layer in conv_model.layers:
-		print(layer.name)
+	# print('\nLayers in conv. model:')
+	# for layer in conv_model.layers:
+	# 	print(layer.name)
+
+	# note that layers are zero indexed
+	feat_map_layer = 5
 
 	# TODO: test other (lower) layers
-	conv_pred = conv_model.predict(img)
+	conv_feat_maps = produce_feat_maps(conv_model, img, feat_map_layer)
 	
-	max_feature_maps = get_max_feature_map_indices(conv_pred, 10)
+	max_feature_maps = get_max_feature_map_indices(conv_feat_maps, 10)
 	print('\nMax feature maps are:', max_feature_maps)
 	
 	# print conv info
@@ -157,10 +171,10 @@ def deconv_example():
 		print('Conv. output shape:', conv_model.output_shape)
 		
 		if print_pred:
-			print('\nConv. pred., with shape', conv_pred.shape)
-			array_print(conv_pred)
+			print('\nConv. pred., with shape', conv_feat_maps.shape)
+			array_print(conv_feat_maps)
 		
-	deconv_model = create_deconv_model(conv_model, img)
+	deconv_model = create_deconv_model(conv_model, img, feat_map_layer)
 	
 	print('\nLayers in deconv. model:')
 	for layer in deconv_model.layers:
@@ -170,7 +184,7 @@ def deconv_example():
 		print('\nReady for deconv. pred.')
 		start_time = time()
 		# TODO: check other feature maps
-		deconv_pred = deconv_model.predict(preprocess_prediction(conv_pred, i))
+		deconv_viz = deconv_model.predict(preprocess_prediction(conv_feat_maps, i))
 		print('Deconv. pred finished, took %.4f seconds' % (time() - start_time))
 	
 		# print deconv info
@@ -180,18 +194,32 @@ def deconv_example():
 			print('Deconv. output shape:', deconv_model.output_shape)
 	
 			if print_pred:
-				print('\nDeconv. pred., with shape', deconv_pred.shape)
-				array_print(deconv_pred)
+				print('\nDeconv. pred., with shape', deconv_viz.shape)
+				array_print(deconv_viz)
 				
-		save_visualization(deconv_pred, i)
-		save_visualization(deconv_model.predict(ppp_alt(conv_pred, i)), i, True)
+		save_visualization(deconv_viz, i)
+		save_visualization(deconv_model.predict(ppp_alt(conv_feat_maps, i)), i, True)
 	
 	
+def produce_feat_maps(conv_model, img, end_layer=None):
+	
+	if end_layer is None:
+		feat_maps = conv_model.predict(img)
+	else:
+		func = K.function([conv_model.input, K.learning_phase()],
+						  [conv_model.layers[end_layer].output])
+		feat_maps = func([img, 0])[0]
+		
+	return feat_maps
+
+
+# TODO: delete when done with testing
 def ppp_alt(pred, feat_map_no):
 	old = pred[:, :, :, feat_map_no]
 	pred = np.zeros(pred.shape)
 	pred[:, :, :, feat_map_no] = old
 	return pred
+
 
 def preprocess_prediction(pred, feat_map_no):
 
@@ -233,7 +261,9 @@ def get_max_feature_map_indices(pred, amount):
 		feat_map_maxes = np.array([np.amax(pred[:, :, :, feat_map_no]) for feat_map_no in range(pred.shape[3])])
 		max_feat_maps = feat_map_maxes.argsort()[-amount:]
 	else:
-		# TODO: implement for theano
+		# TODO: test for theano
+		feat_map_maxes = np.array([np.amax(pred[:, feat_map_no, :, :]) for feat_map_no in range(pred.shape[1])])
+		max_feat_maps = feat_map_maxes.argsort()[-amount:]
 		pass
 
 	return max_feat_maps

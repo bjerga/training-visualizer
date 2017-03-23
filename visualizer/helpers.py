@@ -46,14 +46,18 @@ def get_wo_ext(filename):
 	return filename.rsplit('.', 1)[0]
 
 
+def get_ext(filename):
+	return filename.rsplit('.', 1)[1]
+
+
 # check if file extension is allowed
 def allowed_file(filename):
-	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+	return '.' in filename and get_ext(filename).lower() in ALLOWED_FILE_EXTENSIONS
 
 
 # check if file extension is allowed for image
 def allowed_image(filename):
-	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+	return '.' in filename and get_ext(filename).lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 # TODO: might be possible to manage this directly in the query

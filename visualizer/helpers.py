@@ -1,14 +1,20 @@
 import subprocess as sub
 from os import listdir, mkdir
-from os.path import join
+from os.path import join, relpath, basename
 
+import sys
+
+from flask import url_for
 from flask_login import current_user
 
 from visualizer.models import User, Tag, FileMeta
+from visualizer.config import UPLOAD_FOLDER
 
 
-# allowed extension for upload files
-ALLOWED_EXTENSIONS = {'py'}
+# allowed extensions for uploading files
+ALLOWED_FILE_EXTENSIONS = {'py'}
+# allowed extensions for uploading images to use for visualization
+ALLOWED_IMAGE_EXTENSIONS = {'jpeg', 'jpg', 'png'}
 
 
 # get current user in form of string
@@ -40,9 +46,18 @@ def get_wo_ext(filename):
 	return filename.rsplit('.', 1)[0]
 
 
+def get_ext(filename):
+	return filename.rsplit('.', 1)[1]
+
+
 # check if file extension is allowed
 def allowed_file(filename):
-	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+	return '.' in filename and get_ext(filename).lower() in ALLOWED_FILE_EXTENSIONS
+
+
+# check if file extension is allowed for image
+def allowed_image(filename):
+	return '.' in filename and get_ext(filename).lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 # TODO: might be possible to manage this directly in the query
@@ -66,10 +81,47 @@ def get_form_errors(form):
 
 
 # check if a network has any files associated with it, i.e. networks or visualization data
-def has_associated_files(file_folder):
-	network_folder = join(file_folder, 'networks')
-	result_folder = join(file_folder, 'results')
-	return listdir(network_folder) or listdir(result_folder)
+def has_associated_files(filename):
+	return listdir(get_networks_folder(filename)) or listdir(get_results_folder(filename))
+
+
+# get path of the folder of a certain file
+def get_file_folder(filename):
+	return join(UPLOAD_FOLDER, get_current_user(), get_wo_ext(filename))
+
+
+# get path of the results folder of a certain file
+def get_results_folder(filename):
+	return join(get_file_folder(filename), 'results')
+
+
+# get path of the networks folder of a certain file
+def get_networks_folder(filename):
+	return join(get_file_folder(filename), 'networks')
+
+
+# get path of the images folder of a certain file
+def get_images_folder(filename):
+	return join(get_file_folder(filename), 'images')
+
+
+# return relative path of visualization image, or none if no image has been uploaded
+def get_visualization_img_rel_path(filename):
+	abs_image_path = get_visualization_img_abs_path(filename)
+	if abs_image_path:
+		rel_image_path = relpath(abs_image_path, UPLOAD_FOLDER)
+		# needs to add 'static' and 'user_storage' to the path
+		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path))
+	return None
+
+
+# return absolute path of visualization image, or none if no image has been uploaded
+def get_visualization_img_abs_path(filename):
+	images_folder = get_images_folder(filename)
+	images = listdir(images_folder)
+	if images:
+		return join(images_folder, images[-1])
+	return None
 
 
 # run a python program via command line
@@ -77,9 +129,12 @@ def run_python_shell(file_path):
 	if file_path:
 		
 		print('\nSubprocess started\n')
+
+		# get PYTHONPATH to send to subprocess so that it has visualizer registered as a module
+		python_path = ":".join(sys.path)[1:]
 		
 		# run program via command line
-		sub.run('python3 ' + file_path, shell=True)
+		sub.run('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path})
 
 		print('\nSubprocess finished\n')
 	else:

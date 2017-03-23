@@ -26,12 +26,15 @@
                 <div class="modal-header">
                     <h4 class="modal-title">Select an image for visualization during training</h4>
                 </div>
-                {% call macros.render_form(run_form, url_for("run_upload", filename=filename), button=false) %}
+                {% call macros.render_form(run_form, url_for("run_upload", filename=filename), button=false, enctype_="multipart/form-data") %}
                     <div class="modal-body">
                         <p>This image will be used throughout the training for the different visualization techniques.
                             Make sure that it is of correct format given your network requirements.</p>
-                        <p class="help-block"> If no image is selected, a random image from the training data will be used.</p><br>
                         {{ run_form.image }}<br>
+                        {% if vis_img %}
+                            <p class="help-block"> If no image is selected, this previously uploaded image will be used:</p>
+                            <img src="{{ vis_img|autoversion }}" style="display: block; margin: 0 auto; max-width: 200px; max-height: 200px; width: 200px; height:auto"><br>
+                        {% endif %}
                         {% if has_files %}
                             <div class="alert alert-danger" role="alert">
                                 <span class="glyphicon glyphicon-warning-sign" aria-hidden="true"></span>

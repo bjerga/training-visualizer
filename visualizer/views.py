@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from shutil import rmtree
-from os import mkdir, listdir
-from os.path import join, dirname
+from os import mkdir, listdir, remove
+from os.path import join, dirname, getmtime
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
@@ -48,6 +48,19 @@ def initdb_command():
 	except FileExistsError:
 		pass
 	print('Initialized the database')
+
+
+# used to overcome browser caching static images
+@app.template_filter('autoversion')
+def get_with_timestamp(rel_file_path):
+	#TODO: get name of app (visualizer) from somewhere
+	full_path = join('visualizer', rel_file_path[1:])
+	try:
+		timestamp = str(getmtime(full_path))
+	except OSError:
+		return rel_file_path
+	new_rel_file_path = "{0}?v={1}".format(rel_file_path, timestamp)
+	return new_rel_file_path
 
 
 # define default home page
@@ -169,14 +182,14 @@ def upload_file():
 			if unique_filename(filename):
 				
 				# create folder for program
-				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
+				folder_path = get_file_folder(filename)
 				try:
 					mkdir(folder_path)
 				except FileExistsError:
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['networks', 'results'])
+				create_folders(folder_path, ['networks', 'results', 'images'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -236,10 +249,11 @@ def show_file_overview(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# get file stored locally
-	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
-	file = send_from_directory(file_folder, filename)
+	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
-	has_files = has_associated_files(file_folder)
+	has_files = has_associated_files(filename)
+	# get relative path of visualization image associated with the file, if there is one
+	img_path = get_visualization_img_rel_path(filename)
 
 	# get content of file
 	file.direct_passthrough = False
@@ -268,7 +282,7 @@ def show_file_overview(filename):
 		return redirect(url_for('show_file_overview', filename=filename))
 	
 	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
-						   filename=filename, meta=meta, content=content, has_files=has_files)
+						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path)
 
 
 # page for file visualization view
@@ -322,43 +336,75 @@ def show_file_training_progress(filename):
 def run_upload(filename):
 	global processes
 
-	# get information about file
-	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	print('\n\nNew thread started for %s\n\n' % meta.path)
+	form = RunForm()
 
-	result_path = meta.path.replace(filename, 'results')
+	if form.validate_on_submit():
 
-	# remove results folder and all its files before creating a new, empty one
-	try:
-		rmtree(result_path, ignore_errors=True)
-	except FileNotFoundError:
-		pass
-	finally:
-		mkdir(result_path)
+		# get information about file
+		meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
-	# remove process for filename
-	prevent_process_key_error(filename)
-	processes[get_current_user()][filename] = None
-	
-	# start and save a new process for running the program
-	p = Process(target=run_python_shell, args=(meta.path,))
-	p.start()
+		# get image from form
+		image = form.image.data
 
-	processes[get_current_user()][filename] = p
+		image_path = get_visualization_img_abs_path(filename)
 
-	# update last run column in database
-	meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
-	db.session.commit()
-	
-	# redirect to file training progress view
-	return redirect(url_for('show_file_training_progress', filename=filename))
+		# flask error if no image is selected and there is no previously uploaded image
+		if image.filename is '' and image_path is None:
+			flash('You need to select an image', 'danger')
+			return redirect(url_for('show_file_overview', filename=filename))
+
+		# if a new image has been uploaded
+		if image.filename is not '':
+
+			# make sure the old image is deleted (will cause problems if it has a different format than the new one)
+			if image_path is not None:
+				remove(image_path)
+
+			# flash error if image format is not allowed
+			if not allowed_image(image.filename):
+				flash('File type is not allowed', 'danger')
+				return redirect(url_for('show_file_overview', filename=filename))
+
+			# save image as 'image' with the correct ending and make name secure
+			image_name = secure_filename(image.filename)
+			image.save(join(get_images_folder(filename), image_name))
+
+		result_folder = get_results_folder(filename)
+
+		# remove results folder and all its files before creating a new, empty one
+		try:
+			rmtree(result_folder, ignore_errors=True)
+		except FileNotFoundError:
+			pass
+		finally:
+			mkdir(result_folder)
+
+		# remove process for filename
+		prevent_process_key_error(filename)
+		processes[get_current_user()][filename] = None
+
+		print('\n\nNew thread started for %s\n\n' % meta.path)
+		# start and save a new process for running the program
+		p = Process(target=run_python_shell, args=(meta.path,))
+		p.start()
+
+		processes[get_current_user()][filename] = p
+
+		# update last run column in database
+		meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
+		db.session.commit()
+
+		# redirect to file training progress view
+		return redirect(url_for('show_file_training_progress', filename=filename))
+
+	return redirect(url_for('show_file_overview', filename=filename))
 
 
 # define how to download a trained network
 @login_required
 @app.route('/uploads/<filename>/download')
 def download_network(filename):
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
+	network_folder = get_networks_folder(filename)
 	network_name = listdir(network_folder)[-1]
 	return send_from_directory(network_folder, network_name, as_attachment=True)
 
@@ -374,7 +420,7 @@ def delete_file(filename):
 	db.session.commit()
 
 	# delete the folder of the file to be deleted
-	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename)), ignore_errors=True)
+	rmtree(get_file_folder(filename), ignore_errors=True)
 
 	# redirect to file list view
 	flash(filename + ' was deleted', 'danger')
@@ -399,12 +445,7 @@ def search(query):
 @login_required
 @app.route('/uploads/<filename>/check_networks_exist')
 def check_networks_exist(filename):
-	networks_exist = False
-
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
-	if listdir(network_folder):
-		networks_exist = True
-
+	networks_exist = listdir(get_networks_folder(filename))
 	return jsonify(networks_exist=networks_exist)
 
 
@@ -422,7 +463,6 @@ def is_running(filename):
 	prevent_process_key_error(filename)
 
 	# if the process for the file is still alive, return true
-
 	if processes[get_current_user()][filename] is not None:
 		return processes[get_current_user()][filename].is_alive()
 

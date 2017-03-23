@@ -1,6 +1,6 @@
 import subprocess as sub
 from os import listdir, mkdir
-from os.path import join
+from os.path import join, relpath, basename
 
 import sys
 
@@ -81,27 +81,46 @@ def get_form_errors(form):
 
 
 # check if a network has any files associated with it, i.e. networks or visualization data
-def has_associated_files(file_folder):
-	network_folder = join(file_folder, 'networks')
-	result_folder = join(file_folder, 'results')
-	return listdir(network_folder) or listdir(result_folder)
+def has_associated_files(filename):
+	return listdir(get_networks_folder(filename)) or listdir(get_results_folder(filename))
+
+
+# get path of the folder of a certain file
+def get_file_folder(filename):
+	return join(UPLOAD_FOLDER, get_current_user(), get_wo_ext(filename))
+
+
+# get path of the results folder of a certain file
+def get_results_folder(filename):
+	return join(get_file_folder(filename), 'results')
+
+
+# get path of the networks folder of a certain file
+def get_networks_folder(filename):
+	return join(get_file_folder(filename), 'networks')
+
+
+# get path of the images folder of a certain file
+def get_images_folder(filename):
+	return join(get_file_folder(filename), 'images')
 
 
 # return relative path of visualization image, or none if no image has been uploaded
 def get_visualization_img_rel_path(filename):
-	file_folder = join(UPLOAD_FOLDER, get_current_user(), get_wo_ext(filename))
-	for name in listdir(file_folder):
-		if 'image' in name:
-			return url_for('static', filename=join('user_storage', get_current_user(), get_wo_ext(filename), name))
+	abs_image_path = get_visualization_img_abs_path(filename)
+	if abs_image_path:
+		rel_image_path = relpath(abs_image_path, UPLOAD_FOLDER)
+		# needs to add 'static' and 'user_storage' to the path
+		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path))
 	return None
 
 
 # return absolute path of visualization image, or none if no image has been uploaded
 def get_visualization_img_abs_path(filename):
-	file_folder = join(UPLOAD_FOLDER, get_current_user(), get_wo_ext(filename))
-	for name in listdir(file_folder):
-		if 'image' in name:
-			return join(file_folder, name)
+	images_folder = get_images_folder(filename)
+	images = listdir(images_folder)
+	if images:
+		return join(images_folder, images[-1])
 	return None
 
 

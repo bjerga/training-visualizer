@@ -52,7 +52,7 @@ def initdb_command():
 
 # used to overcome browser caching static images
 @app.template_filter('autoversion')
-def autoversion_filter(rel_file_path):
+def get_with_timestamp(rel_file_path):
 	#TODO: get name of app (visualizer) from somewhere
 	full_path = join('visualizer', rel_file_path[1:])
 	try:
@@ -182,14 +182,14 @@ def upload_file():
 			if unique_filename(filename):
 				
 				# create folder for program
-				folder_path = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename))
+				folder_path = get_file_folder(filename)
 				try:
 					mkdir(folder_path)
 				except FileExistsError:
 					pass
 				
 				# create necessary folders within program-folder
-				create_folders(folder_path, ['networks', 'results'])
+				create_folders(folder_path, ['networks', 'results', 'images'])
 				
 				# save program in folder and create file meta
 				file_path = join(folder_path, filename)
@@ -249,10 +249,9 @@ def show_file_overview(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# get file stored locally
-	file_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), filename.rsplit('.', 1)[0])
-	file = send_from_directory(file_folder, filename)
+	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
-	has_files = has_associated_files(file_folder)
+	has_files = has_associated_files(filename)
 	# get relative path of visualization image associated with the file, if there is one
 	img_path = get_visualization_img_rel_path(filename)
 
@@ -345,40 +344,40 @@ def run_upload(filename):
 		meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 		# get image from form
-		img = form.image.data
+		image = form.image.data
 
-		img_path = get_visualization_img_rel_path(filename)
+		image_path = get_visualization_img_abs_path(filename)
 
 		# flask error if no image is selected and there is no previously uploaded image
-		if img.filename is '' and img_path is None:
+		if image.filename is '' and image_path is None:
 			flash('You need to select an image', 'danger')
 			return redirect(url_for('show_file_overview', filename=filename))
 
 		# if a new image has been uploaded
-		if img.filename is not '':
+		if image.filename is not '':
 
 			# make sure the old image is deleted (will cause problems if it has a different format than the new one)
-			if img_path is not None:
-				remove(get_visualization_img_abs_path(filename))
+			if image_path is not None:
+				remove(image_path)
 
 			# flash error if image format is not allowed
-			if not allowed_image(img.filename):
+			if not allowed_image(image.filename):
 				flash('File type is not allowed', 'danger')
 				return redirect(url_for('show_file_overview', filename=filename))
 
 			# save image as 'image' with the correct ending and make name secure
-			img_name = secure_filename(img.filename.replace(get_wo_ext(img.filename), 'image'))
-			img.save(meta.path.replace(filename, img_name))
+			image_name = secure_filename(image.filename)
+			image.save(join(get_images_folder(filename), image_name))
 
-		result_path = meta.path.replace(filename, 'results')
+		result_folder = get_results_folder(filename)
 
 		# remove results folder and all its files before creating a new, empty one
 		try:
-			rmtree(result_path, ignore_errors=True)
+			rmtree(result_folder, ignore_errors=True)
 		except FileNotFoundError:
 			pass
 		finally:
-			mkdir(result_path)
+			mkdir(result_folder)
 
 		# remove process for filename
 		prevent_process_key_error(filename)
@@ -405,7 +404,7 @@ def run_upload(filename):
 @login_required
 @app.route('/uploads/<filename>/download')
 def download_network(filename):
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
+	network_folder = get_networks_folder(filename)
 	network_name = listdir(network_folder)[-1]
 	return send_from_directory(network_folder, network_name, as_attachment=True)
 
@@ -421,7 +420,7 @@ def delete_file(filename):
 	db.session.commit()
 
 	# delete the folder of the file to be deleted
-	rmtree(join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename)), ignore_errors=True)
+	rmtree(get_file_folder(filename), ignore_errors=True)
 
 	# redirect to file list view
 	flash(filename + ' was deleted', 'danger')
@@ -446,12 +445,7 @@ def search(query):
 @login_required
 @app.route('/uploads/<filename>/check_networks_exist')
 def check_networks_exist(filename):
-	networks_exist = False
-
-	network_folder = join(app.config['UPLOAD_FOLDER'], get_current_user(), get_wo_ext(filename), 'networks')
-	if listdir(network_folder):
-		networks_exist = True
-
+	networks_exist = listdir(get_networks_folder(filename))
 	return jsonify(networks_exist=networks_exist)
 
 
@@ -469,7 +463,6 @@ def is_running(filename):
 	prevent_process_key_error(filename)
 
 	# if the process for the file is still alive, return true
-
 	if processes[get_current_user()][filename] is not None:
 		return processes[get_current_user()][filename].is_alive()
 

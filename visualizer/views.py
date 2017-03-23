@@ -52,15 +52,15 @@ def initdb_command():
 
 # used to overcome browser caching static images
 @app.template_filter('autoversion')
-def autoversion_filter(filename):
-	# determining fullpath might be project specific
-	full_path = join('visualizer/', filename[1:])
+def autoversion_filter(rel_file_path):
+	#TODO: get name of app (visualizer) from somewhere
+	full_path = join('visualizer', rel_file_path[1:])
 	try:
 		timestamp = str(getmtime(full_path))
 	except OSError:
-		return filename
-	new_filename = "{0}?v={1}".format(filename, timestamp)
-	return new_filename
+		return rel_file_path
+	new_rel_file_path = "{0}?v={1}".format(rel_file_path, timestamp)
+	return new_rel_file_path
 
 
 # define default home page

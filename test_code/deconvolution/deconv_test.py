@@ -9,33 +9,60 @@ from os import mkdir, listdir
 from os.path import dirname, join
 
 import keras.backend as K
-from keras.engine.topology import Layer
 from keras.models import Sequential, Model
-from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D, ZeroPadding2D, Input, Flatten, Dense, Dropout, \
-	Activation
+from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D, Input, Activation
+from keras.layers.pooling import _Pooling2D
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
 
+# TODO: delete when done with testing
+# for images from URLs
+from PIL import Image
+import requests
+from io import BytesIO
+
+
+# for alternate preprocessing:
+alt = False
 
 # VGG16 mean values
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
 
-def load_and_process(img_path):
+# TODO: delete when done with testing
+def load_image_from_url(url):
+	
+	# print(url)
+	
+	response = requests.get(url)
+	try:
+		img = Image.open(BytesIO(response.content))
+		img = scipy.misc.imresize(image.img_to_array(img), (224, 224))
+		img = img.astype('float64')
+	
+		return preprocess_image(img)
+	except OSError:
+		return np.zeros((1, 224, 224, 3))
+
+
+def load_from_file(img_path):
 	img = image.load_img(join(dirname(__file__), 'input', img_path), target_size=(224, 224))
 	img = image.img_to_array(img)
-	
-	img -= MEAN_VALUES.reshape((1, 1, 3))
 
+	return preprocess_image(img)
+
+
+def preprocess_image(img):
+	img -= MEAN_VALUES.reshape((1, 1, 3))
+	
 	if K.image_dim_ordering() == 'th':
 		img = img.transpose((2, 0, 1))
 	
-	img = np.expand_dims(img, axis=0)
-	return img
+	return np.expand_dims(img, axis=0)
 
 
 # utility function used to convert a tensor into a savable image
-def deprocess(vis_tensor):
+def tensor_to_img(vis_tensor):
 
 	# remove batch dimension
 	img = vis_tensor[0]
@@ -52,10 +79,10 @@ def deprocess(vis_tensor):
 
 
 # saves the visualization and a txt-file describing its creation environment
-def save_visualization(img, feat_map_no, alt=False):
+def save_reconstruction(recon, feat_map_no, alt=False):
 	
-	# deprocess before save
-	img = deprocess(img)
+	# process before save
+	img = tensor_to_img(recon)
 	
 	# define output path and make folder
 	output_path = join(dirname(__file__), 'output')
@@ -83,31 +110,43 @@ def create_conv_model(input_shape, include_top):
 	return VGG16(include_top=include_top, weights='imagenet', input_shape=input_shape)
 
 
-def create_deconv_model(conv_model, original_img, start_layer=None):
+def create_deconv_model(conv_model, img):
+	
+	# create layer map between conv. layers and deconv. layers
+	layer_map = {}
+	
+	# log pooling layers from conv. model
+	pool_layers = []
 	
 	if K.image_dim_ordering() == 'tf':
 		filt_dim = 3
 	else:
 		filt_dim = 1
+	
+	# TODO: find efficient way to compute pooling input and output
+	unpool_info = {}
+	prev_layer_no = 0
+	prev_input = img
+	for layer_no in range(len(conv_model.layers)):
+		if 'pool' in conv_model.layers[layer_no].name:
+			pool_input, pool_output = compute_layer_input_and_output(conv_model, layer_no, prev_layer_no, prev_input)
+			
+			unpool_info[layer_no] = (pool_input, pool_output)
+			
+			prev_layer_no = layer_no + 1
+			prev_input = pool_output
 		
-	# if no start layer has been specified
-	if start_layer is None:
-		# use the last layer of the conv. model
-		start_layer = len(conv_model.layers) - 1
-		
-		# use output shape of whole model as input shape
-		dc_input_shape = conv_model.output_shape[1:]
-	else:
-		# use output shape of start layer as input shape
-		dc_input_shape = conv_model.layers[start_layer].output_shape[1:]
+	# use output shape of conv. model as input shape
+	dc_input_shape = conv_model.output_shape[1:]
 	
 	# add first layer with input shape
 	dc_input = Input(shape=dc_input_shape)
 	
 	# add other layers
+	dc_layer_count = 1
 	x = dc_input
-	for i in range(start_layer, -1, -1):
-		layer = conv_model.layers[i]
+	for layer_no in range(len(conv_model.layers) - 1, -1, -1):
+		layer = conv_model.layers[layer_no]
 		if 'conv' in layer.name:
 			x = Activation(layer.activation)(x)
 			x = Deconvolution2D(nb_filter=layer.input_shape[filt_dim],
@@ -118,14 +157,23 @@ def create_deconv_model(conv_model, original_img, start_layer=None):
 								border_mode=layer.border_mode,
 								subsample=layer.subsample,
 								bias=layer.bias)(x)
+			# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
+			layer_map[layer_no] = dc_layer_count + 1
+			dc_layer_count += 2
 		elif 'pool' in layer.name:
-			x = Unpooling2D(link_model=conv_model,
-							link_layer_no=i,
-							link_model_input=original_img)(x)
+			pool_input, pool_output = unpool_info[layer_no]
+			x = Unpooling2D(pool_input=pool_input,
+							pool_output=pool_output,
+							pool_size=layer.pool_size,
+							strides=layer.strides,
+							border_mode=layer.border_mode)(x)
+			layer_map[layer_no] = dc_layer_count
+			pool_layers.insert(0, layer_no)
+			dc_layer_count += 1
 		else:
 			print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
 	
-	return Model(input=dc_input, output=x)
+	return Model(input=dc_input, output=x), layer_map, pool_layers
 
 
 # flip weights to fit a deconvolution layer
@@ -145,24 +193,14 @@ def flip_weights(convolution_weights):
 
 def deconv_example():
 	print_meta = True
-	print_pred = False
 
-	img = load_and_process('dog.jpg')
+	img = load_from_file('dog.jpg')
 
 	conv_model = create_conv_model(img.shape[1:], False)
 
 	# print('\nLayers in conv. model:')
 	# for layer in conv_model.layers:
 	# 	print(layer.name)
-
-	# note that layers are zero indexed
-	feat_map_layer = 5
-
-	# TODO: test other (lower) layers
-	conv_feat_maps = produce_feat_maps(conv_model, img, feat_map_layer)
-	
-	max_feature_maps = get_max_feature_map_indices(conv_feat_maps, 10)
-	print('\nMax feature maps are:', max_feature_maps)
 	
 	# print conv info
 	if print_meta:
@@ -170,62 +208,144 @@ def deconv_example():
 		print('Conv. input shape:', conv_model.input_shape)
 		print('Conv. output shape:', conv_model.output_shape)
 		
-		if print_pred:
-			print('\nConv. pred., with shape', conv_feat_maps.shape)
-			array_print(conv_feat_maps)
-		
-	deconv_model = create_deconv_model(conv_model, img, feat_map_layer)
+	deconv_model, layer_map, pool_layers = create_deconv_model(conv_model, img)
 	
-	print('\nLayers in deconv. model:')
-	for layer in deconv_model.layers:
-		print(layer.name)
+	# print('\nLayers in deconv. model:')
+	# for layer in deconv_model.layers:
+	# 	print(layer.name)
+	
+	# print deconv info
+	if print_meta:
+		print('\n***DECONVOLUTIONAL MODEL INFO***')
+		print('Deconv. input shape:', deconv_model.input_shape)
+		print('Deconv. output shape:', deconv_model.output_shape)
 
-	for i in max_feature_maps:
-		print('\nReady for deconv. pred.')
+	# note that layers are zero indexed
+	#  TODO: test other (lower) layers
+	feat_map_layer = 18
+
+	print('\nReady for deconv. pred.')
+	# TODO: check other feature maps
+	# deconv_viz = deconv_model.predict(preprocess_prediction(conv_feat_maps, i))
+	# img = load_and_process('car.jpg')
+	# produce_reconstructions(deconv_model, conv_model, img, layer_map, pool_layers, feat_map_layer, True)
+	
+
+	np.random.seed(1337)
+	feat_map_random_subset = np.random.randint(0, conv_model.layers[feat_map_layer].output_shape[3], 3)
+	for feat_map_no in feat_map_random_subset:
 		start_time = time()
-		# TODO: check other feature maps
-		deconv_viz = deconv_model.predict(preprocess_prediction(conv_feat_maps, i))
-		print('Deconv. pred finished, took %.4f seconds' % (time() - start_time))
+		max_images = get_max_images(5, 5, conv_model, feat_map_layer, feat_map_no)
+		for max_img in max_images:
+			produce_reconstructions(deconv_model, conv_model, max_img, layer_map, pool_layers, feat_map_layer, feat_map_no, True)
+		print('Time to perform reconstructions for feat map no. %d was %.4f seconds' % (feat_map_no, time() - start_time))
 	
-		# print deconv info
-		if print_meta:
-			print('\n***DECONVOLUTIONAL MODEL INFO***')
-			print('Deconv. input shape:', deconv_model.input_shape)
-			print('Deconv. output shape:', deconv_model.output_shape)
+
+# TODO: currently produces several reconstructions based on N feature maps with the top N single activation strengths
+def produce_reconstructions(deconv_model, conv_model, img, layer_map, pool_layers, feat_map_layer, feat_map_no, alter_unpools=False):
 	
-			if print_pred:
-				print('\nDeconv. pred., with shape', deconv_viz.shape)
-				array_print(deconv_viz)
-				
-		save_visualization(deconv_viz, i)
-		save_visualization(deconv_model.predict(ppp_alt(conv_feat_maps, i)), i, True)
+	start_layer_no = 0
+	start_input = img
 	
-	
-def produce_feat_maps(conv_model, img, end_layer=None):
-	
-	if end_layer is None:
-		feat_maps = conv_model.predict(img)
-	else:
-		func = K.function([conv_model.input, K.learning_phase()],
-						  [conv_model.layers[end_layer].output])
-		feat_maps = func([img, 0])[0]
+	# if specified, update all unpooling layers (used when image input has changed)
+	if alter_unpools:
 		
-	return feat_maps
+		# dc_input = Input(shape=deconv_model.input_shape)
+		
+		# for all pooling layers in the conv. model
+		for layer_no in pool_layers:
+			# if layer is below or is in layer with desired feature map
+			if layer_no <= feat_map_layer:
+				unpool_no = layer_map[layer_no]
+				
+				# compute pooling input and output for current pooling layer
+				pool_input, pool_output = compute_layer_input_and_output(conv_model, layer_no, start_layer_no, start_input)
+				
+				# replace unpooling layer with new pooling input and output
+				old_layer = deconv_model.layers[unpool_no]
+				# TODO: ser ut til at modellen oppdateres til å ha en tensor her, ikke et faktisk lag. det er problematisk. fix asap.
+				print(old_layer.name)
+				deconv_model.layers[unpool_no] = Unpooling2D(pool_input=pool_input,
+															 pool_output=pool_output,
+															 pool_size=old_layer.pool_size,
+															 strides=old_layer.strides,
+															 # TODO: what if unpool is first?
+															 border_mode=old_layer.border_mode)(deconv_model.layers[unpool_no].input)
+				
+				# update values to start next layer computation at layer after current unpooling layer
+				start_layer_no = layer_no + 1
+				start_input = pool_output
+			
+				print(start_layer_no, pool_input.shape, pool_output.shape)
+		
+		# recompile model with updated unpooling layers
+		deconv_model = Model(input=deconv_model.layers[0].input, output=deconv_model.layers[-1].output)
+			
+		print('Pools updated')
+		
+	# get conv. model output (feat maps) for desired feature map layer
+	# if last layer was a pooling layer (is only ever true is unpooling layers are updated)
+	if start_layer_no == len(conv_model.layers):
+		feat_maps = start_input
+	else:
+		_, feat_maps = compute_layer_input_and_output(conv_model, feat_map_layer, start_layer_no, start_input)
+	
+	# print(np.array_equal(feat_maps, produce_feat_maps(conv_model, img, feat_map_layer)))
+	
+	# find the N feature maps with the N strongest single activations
+	# TODO: maybe not use N feature maps, but rather N variation of one feature map, each with one of N strongest activations
+	# max_feature_maps = get_max_feature_map_indices(feat_maps, 10)
+	# print('\nMax feature maps are:', max_feature_maps)
+	
+	# for all max feature maps
+	# for feat_map_no in max_feature_maps:
+	# TODO: delete alt. when done with testing
+	if not alt:
+		# preprocess feature maps with regard to chosen feature map
+		processed_feat_maps = preprocess_feat_maps(feat_maps, feat_map_no)
+		
+		# feed to deconv. model to produce reconstruction
+		_, reconstruction = compute_layer_input_and_output(deconv_model, -1, layer_map[feat_map_layer], processed_feat_maps)
+		
+		# save reconstruction to designated folder
+		save_reconstruction(reconstruction, feat_map_no)
+	else:
+		processed_feat_maps = ppp_alt(feat_maps, feat_map_no)
+		_, reconstruction = compute_layer_input_and_output(deconv_model, -1, layer_map[feat_map_layer], processed_feat_maps)
+		save_reconstruction(reconstruction, feat_map_no, True)
+	
+	
+def compute_layer_input_and_output(model, end_layer_no, start_layer_no, start_input):
+	input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
+							[model.layers[end_layer_no].input])
+	layer_input = input_func([start_input, 0])[0]
+
+	output_func = K.function([model.layers[end_layer_no].input, K.learning_phase()],
+							 [model.layers[end_layer_no].output])
+	layer_output = output_func([layer_input, 0])[0]
+	
+	return layer_input, layer_output
+
+	
+def produce_feat_maps(conv_model, img, end_layer=-1):
+	
+	func = K.function([conv_model.input, K.learning_phase()],
+					  [conv_model.layers[end_layer].output])
+	return func([img, 0])[0]
 
 
 # TODO: delete when done with testing
 def ppp_alt(pred, feat_map_no):
-	old = pred[:, :, :, feat_map_no]
-	pred = np.zeros(pred.shape)
-	pred[:, :, :, feat_map_no] = old
-	return pred
+	processed_pred = np.zeros(pred.shape)
+	processed_pred[:, :, :, feat_map_no] = pred[:, :, :, feat_map_no]
+	return processed_pred
 
 
-def preprocess_prediction(pred, feat_map_no):
+def preprocess_feat_maps(feat_maps, feat_map_no):
 
 	if K.image_dim_ordering() == 'tf':
 		# get selected feature map based on input
-		selected_feat_map = pred[:, :, :, feat_map_no]
+		selected_feat_map = feat_maps[:, :, :, feat_map_no]
 
 		# get index for max element in given feature map
 		max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
@@ -235,7 +355,7 @@ def preprocess_prediction(pred, feat_map_no):
 	else:
 		# TODO: test support for theano
 		# get selected feature map based on input
-		selected_feat_map = pred[:, feat_map_no, :, :]
+		selected_feat_map = feat_maps[:, feat_map_no, :, :]
 
 		# get index for max element in given feature map
 		max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
@@ -244,13 +364,13 @@ def preprocess_prediction(pred, feat_map_no):
 		max_activation_pos = (max_activation_pos[0], feat_map_no, max_activation_pos[1], max_activation_pos[2])
 
 	# save max activation
-	max_activation = pred[max_activation_pos]
+	max_activation = feat_maps[max_activation_pos]
 
 	# set all entries except max activation of chosen feature map to zero
-	pred = np.zeros(pred.shape)
-	pred[max_activation_pos] = max_activation
+	processed_feat_maps = np.zeros(feat_maps.shape)
+	processed_feat_maps[max_activation_pos] = max_activation
 
-	return pred
+	return processed_feat_maps
 
 
 def get_max_feature_map_indices(pred, amount):
@@ -267,6 +387,31 @@ def get_max_feature_map_indices(pred, amount):
 		pass
 
 	return max_feat_maps
+
+
+def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, feat_map_no):
+
+	urls = []
+	images = []
+	scores = []
+
+	with open(join(dirname(__file__), 'input', 'fall11_urls.txt'), 'r') as f:
+		for i in range(check_amount):
+			url = f.readline().split('\t')[1].rstrip()
+			urls.append(url)
+			images.append(load_image_from_url(url))
+			
+			_, pred = compute_layer_input_and_output(conv_model, feat_map_layer_no, 0, images[i])
+			
+			scores.append(np.amax(pred[:, :, :, feat_map_no]))
+		
+	scores = np.array(scores)
+	chosen_images = []
+	for index in scores.argsort()[-chose_amount:]:
+		print(urls[index])
+		chosen_images.append(images[index])
+		
+	return chosen_images
 
 
 def unpool_example():
@@ -492,13 +637,13 @@ def main():
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-class Unpooling2D(Layer):
+class Unpooling2D(_Pooling2D):
 	
 	#########################################################
 	### these three initial methods are required by Layer ###
 	#########################################################
 	
-	def __init__(self, link_model, link_layer_no, link_model_input, **kwargs):
+	def __init__(self, pool_input, pool_output, pool_size, strides, border_mode, **kwargs):
 		
 		# check backend to detect dimensions used
 		if K.image_dim_ordering() == 'tf':
@@ -512,23 +657,16 @@ class Unpooling2D(Layer):
 			self.col_dim = 3
 			self.filt_dim = 1
 		
-		# information about linked model and layer
-		self.link_model = link_model
-		self.link_layer_no = link_layer_no
-		
-		# chosen input to linked model
-		self.link_model_input = link_model_input
-		
-		# generate pooling input and output based on linked model input
-		self.pool_input = self.get_pooling_input()
-		self.pool_output = self.get_pooling_output()
+		# create placeholder values for pooling input and output
+		self.pool_input = pool_input
+		self.pool_output = pool_output
 		
 		# information about original pooling behaviour
 		# pool size and strides are both (rows, columns)-tuples
-		self.pool_size = link_model.layers[link_layer_no].pool_size
-		self.strides = link_model.layers[link_layer_no].strides
+		self.pool_size = pool_size
+		self.strides = strides
 		# border mode is either 'valid' or 'same'
-		self.border_mode = link_model.layers[link_layer_no].border_mode
+		self.border_mode = border_mode
 		
 		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
 		# initialize offset to 0, as it is not needed when border mode is valid
@@ -581,9 +719,11 @@ class Unpooling2D(Layer):
 		
 		super(Unpooling2D, self).__init__(**kwargs)
 
-	def call(self, recreated_output, mask=None):
+	def _pooling_function(self, inputs, pool_size, strides, border_mode, dim_ordering):
 		
 		indices = []
+		
+		# TODO: sample_no in potentially always 0, as deconv. model only ever receives one input image (images are switch specific in unpool, so >1 image for input makes no sense)
 		# for every sample
 		for sample_no in range(self.pool_output.shape[0]):
 			# for every element in pooling output
@@ -597,14 +737,14 @@ class Unpooling2D(Layer):
 					
 					indices.extend([self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, filt)
 									for filt in range(self.pool_output.shape[self.filt_dim])])
-						
+		
 		if K.backend() == 'tensorflow':
 			# use tensorflow
 			# print(indices)
 			# fix this. consider only returning the first match in get_indices
 			# recreated_input = tf.scatter_nd(indices=[i for i, _ in indices],
 			recreated_input = tf.scatter_nd(indices=indices,
-											updates=tf.reshape(recreated_output, [-1]),
+											updates=tf.reshape(inputs, [-1]),
 											# updates=[recreated_output[i] for _, i in indices],
 											shape=self.pool_input.shape,
 											name=self.name + '_output')
@@ -613,37 +753,13 @@ class Unpooling2D(Layer):
 			# very inefficient
 			recreated_input = tht.zeros(self.pool_input.shape)
 			for (input_index, output_index) in indices:
-				recreated_input = tht.set_subtensor(recreated_input[input_index], recreated_output[output_index])
+				recreated_input = tht.set_subtensor(recreated_input[input_index], inputs[output_index])
 			
 		return recreated_input
-
-	def get_output_shape_for(self, input_shape):
-		return (input_shape[0],) + self.link_model.layers[self.link_layer_no].input_shape[1:]
 
 	##############################################
 	### what follows are custom helper methods ###
 	##############################################
-	
-	# TODO: could be improved to update pooling input and output directly, and have deconvolution network call a single
-	# TODO: predict of original network, where it collects pooling input and output from and feeds to every unpooling
-	# TODO: layer. this way, only one predict from original is needed, instead of N, for N unpooling layers
-	def update_input(self, new_link_model_input):
-		self.link_model_input = new_link_model_input
-		
-		# after update, pooling input and output must also be updated
-		self.pool_input = self.get_pooling_input()
-		self.pool_output = self.get_pooling_output()
-	
-	def get_pooling_input(self):
-		func = K.function([self.link_model.input, K.learning_phase()],
-						  [self.link_model.layers[self.link_layer_no].input])
-		return func([self.link_model_input, 0])[0]
-	
-	# note that this method uses pool_input, and therefore pool_output must always be updated after pool_input
-	def get_pooling_output(self):
-		func = K.function([self.link_model.layers[self.link_layer_no].input, K.learning_phase()],
-						  [self.link_model.layers[self.link_layer_no].output])
-		return func([self.pool_input, 0])[0]
 	
 	def get_region_max_index(self, sample_no, start_row, end_row, start_col, end_col, i, j, filt):
 		
@@ -660,31 +776,14 @@ class Unpooling2D(Layer):
 					if self.pool_input[sample_no, filt, row, col] == self.pool_output[sample_no, filt, i, j]:
 						return ((sample_no, filt, row, col), (sample_no, filt, i, j))
 	
-	def get_region_max_index_alt(self, sample_no, start_row, end_row, start_col, end_col, filt):
-		
-		row_size = end_row - start_row
-		col_size = end_col - start_col
-
-		if K.backend() == 'tensorflow':
-			# use tensorflow dimensions
-			region_max = np.argmax(self.pool_input[sample_no, start_row:end_row, start_col:end_col, filt])
-			index = (sample_no, start_row + region_max // row_size, start_col + region_max % col_size, filt)
-		else:
-			# use theano dimensions
-			region_max = np.argmax(self.pool_input[sample_no, filt, start_row:end_row, start_col:end_col])
-			# TODO: theano requires two indices, an additional one for pool_output's equivalent index
-			index = (sample_no, filt, start_row + region_max // row_size, start_col + region_max % col_size)
-			
-		return index
-	
 	# computes index intervals for pooling regions, and is applicable for both row and column indices
 	# considering pooling regions as entries in a traditional matrix, the region_index describes either a row or column
 	# index for the region entry in such a matrix
-	# tuple_num describes where in the strides and pool size tuples one should get values from, with row values at tuple
+	# tuple_no describes where in the strides and pool size tuples one should get values from, with row values at tuple
 	# index 0 and column values are at tuple index 1
-	def compute_index_interval(self, region_index, tuple_num, offset, dim):
-		start_index = region_index * self.strides[tuple_num] - offset
-		end_index = start_index + self.pool_size[tuple_num]
+	def compute_index_interval(self, region_index, tuple_no, offset, dim):
+		start_index = region_index * self.strides[tuple_no] - offset
+		end_index = start_index + self.pool_size[tuple_no]
 		
 		# we ignore padded parts, so if offset makes start index smaller than smallest index in original pooling input
 		# or end index larger than largest index in original pooling input, correct

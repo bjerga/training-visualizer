@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-import theano as th
 import theano.tensor as tht
 import scipy.misc
 
@@ -9,8 +8,8 @@ from os import mkdir, listdir
 from os.path import dirname, join
 
 import keras.backend as K
-from keras.models import Sequential, Model
-from keras.layers import Convolution2D, MaxPooling2D, Deconvolution2D, Input, Activation
+from keras.models import Model
+from keras.layers import Input, Conv2DTranspose, Activation
 from keras.layers.pooling import _Pooling2D
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
@@ -59,7 +58,7 @@ def load_from_file(img_name):
 def preprocess_image(img):
 	img -= MEAN_VALUES.reshape((1, 1, 3))
 	
-	if K.image_dim_ordering() == 'th':
+	if K.image_data_format() == 'channels_first':
 		img = img.transpose((2, 0, 1))
 	
 	return np.expand_dims(img, axis=0)
@@ -71,7 +70,7 @@ def tensor_to_img(vis_tensor):
 	# remove batch dimension
 	img = vis_tensor[0]
 	
-	if K.image_dim_ordering() == 'th':
+	if K.image_data_format() == 'channels_first':
 		# alter dimensions from (color, height, width) to (height, width, color)
 		img = img.transpose((1, 2, 0))
 
@@ -105,7 +104,7 @@ def save_reconstruction(recon, feat_map_no, alt=False):
 	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
 	# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
 	
-	print('\nImage has been saved as %s.png\n' % image_name)
+	# print('\nImage has been saved as %s.png\n' % image_name)
 
 
 # creates a model to generate gradients from
@@ -120,15 +119,15 @@ def create_deconv_model(conv_model, img, img_name):
 	
 	try:
 		deconv_model, layer_map = model_map[img_name]
-		print('\nLoad model')
+		# print('\nLoad deconv. model')
 	except KeyError:
 		
-		print('\nCreate model')
+		# print('\nCreate deconv. model')
 		
 		# create layer map between conv. layers and deconv. layers
 		layer_map = {}
 		
-		if K.image_dim_ordering() == 'tf':
+		if K.image_data_format() == 'channels_last':
 			filt_dim = 3
 		else:
 			filt_dim = 1
@@ -159,14 +158,15 @@ def create_deconv_model(conv_model, img, img_name):
 			layer = conv_model.layers[layer_no]
 			if 'conv' in layer.name:
 				x = Activation(layer.activation)(x)
-				x = Deconvolution2D(nb_filter=layer.input_shape[filt_dim],
-									nb_row=layer.nb_row,
-									nb_col=layer.nb_col,
-									output_shape=layer.input_shape,
-									weights=flip_weights(layer.get_weights()),
-									border_mode=layer.border_mode,
-									subsample=layer.subsample,
-									bias=layer.bias)(x)
+				x = Conv2DTranspose(filters=layer.input_shape[filt_dim],
+									kernel_size=layer.kernel_size,
+									strides=layer.strides,
+									padding=layer.padding,
+									data_format=layer.data_format,
+									dilation_rate=layer.dilation_rate,
+									# weights=flip_weights(layer.get_weights()),
+									weights=[layer.get_weights()[0]],
+									use_bias=False)(x)
 				# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
 				layer_map[layer_no] = dc_layer_count + 1
 				dc_layer_count += 2
@@ -176,21 +176,23 @@ def create_deconv_model(conv_model, img, img_name):
 								pool_output=pool_output,
 								pool_size=layer.pool_size,
 								strides=layer.strides,
-								border_mode=layer.border_mode)(x)
+								padding=layer.padding)(x)
 				layer_map[layer_no] = dc_layer_count
 				dc_layer_count += 1
 			else:
-				print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
+				# print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
+				pass
 	
-		deconv_model = Model(input=dc_input, output=x)
+		deconv_model = Model(inputs=dc_input, outputs=x)
 		
 		model_map[img_name] = (deconv_model, layer_map)
 	
-	print('Time to create deconv. model was %.4f seconds' % (time() - start_time))
+	# print('\nTime to create deconv. model was %.4f seconds' % (time() - start_time))
 	
 	return deconv_model, layer_map
 
 
+# TODO: might not needed due to keras 2.0 changes
 # flip weights to fit a deconvolution layer
 def flip_weights(convolution_weights):
 	# TODO: add and test flip and transpose for theano
@@ -200,10 +202,11 @@ def flip_weights(convolution_weights):
 	
 	# switch RGB channels at dim. 2 with filter channels at dim. 3
 	# creates three deconv. filters, R, G, and B, to apply to the feature map output of the previous conv. filters
-	transformed_weights = np.transpose(transformed_weights, axes=(0, 1, 3, 2))
+	# TODO: in keras 2.0, this gives an error
+	# transformed_weights = np.transpose(transformed_weights, axes=(0, 1, 3, 2))
 	
-	# return list with added zero biases
-	return [transformed_weights, np.zeros(transformed_weights.shape[3])]
+	# wrap in list and return
+	return [transformed_weights]
 
 
 def deconv_example():
@@ -249,14 +252,14 @@ def deconv_example():
 	np.random.seed(1337)
 	feat_map_random_subset = np.random.randint(0, conv_model.layers[feat_map_layer].output_shape[3], 3)
 	for feat_map_no in feat_map_random_subset:
-		print('\nReconstruct for feature map %d in layer %d' % (feat_map_no, feat_map_layer))
+		print('\n***** Reconstruct for feature map %d in layer %d *****' % (feat_map_no, feat_map_layer))
 		start_time = time()
 		max_images, urls = get_max_images(10, 5, conv_model, feat_map_layer, feat_map_no)
 		for i in range(len(max_images)):
 			max_img = max_images[i]
 			max_img_name = urls[i]
 			produce_reconstructions(deconv_model, conv_model, max_img, max_img_name, layer_map, feat_map_layer, feat_map_no, True)
-		print('Time to perform reconstructions for feat map no. %d was %.4f seconds' % (feat_map_no, time() - start_time))
+		print('\nTime to perform reconstructions for feat map no. %d was %.4f seconds' % (feat_map_no, time() - start_time))
 	
 
 # TODO: currently produces several reconstructions based on N feature maps with the top N single activation strengths
@@ -324,7 +327,7 @@ def ppp_alt(pred, feat_map_no):
 
 def preprocess_feat_maps(feat_maps, feat_map_no):
 
-	if K.image_dim_ordering() == 'tf':
+	if K.image_data_format() == 'channels_last':
 		# get selected feature map based on input
 		selected_feat_map = feat_maps[:, :, :, feat_map_no]
 
@@ -358,7 +361,7 @@ def get_max_feature_map_indices(pred, amount):
 
 	# find feature maps with largest single element values
 
-	if K.image_dim_ordering() == 'tf':
+	if K.image_data_format() == 'channels_last':
 		feat_map_maxes = np.array([np.amax(pred[:, :, :, feat_map_no]) for feat_map_no in range(pred.shape[3])])
 		max_feat_maps = feat_map_maxes.argsort()[-amount:]
 	else:
@@ -390,6 +393,7 @@ def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, fe
 	chosen_urls = []
 	chosen_images = []
 	i = 0
+	print('\nChosen image URLs:')
 	for index in scores.argsort()[-chose_amount:]:
 		print(urls[index])
 		chosen_urls.append(urls[index])
@@ -398,7 +402,7 @@ def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, fe
 		# save max images for comparison
 		img = images[index][0]
 		img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
-		scipy.misc.toimage(img, cmin=0, cmax=255).save(join(dirname(__file__), 'max_images', 'image_%d_feat_map_%d.png' % (i, feat_map_no)))
+		scipy.misc.toimage(img, cmin=0, cmax=255).save(join(dirname(__file__), 'max_images', 'feat_map_%d_image_%d.png' % (feat_map_no, i)))
 		
 		i += 1
 		
@@ -406,7 +410,7 @@ def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, fe
 
 
 def array_print(np_array):
-	if K.image_dim_ordering() == 'tf':
+	if K.image_data_format() == 'channels_last':
 		# use tensorflow dimensions
 		row_dim = 1
 		column_dim = 2
@@ -423,7 +427,7 @@ def array_print(np_array):
 			for i in range(np_array.shape[row_dim]):
 				print_row = ''
 				for j in range(np_array.shape[column_dim]):
-					if K.image_dim_ordering() == 'tf':
+					if K.image_data_format() == 'channels_last':
 						print_row += ' ' + '%.5f' % np_array[s, i, j, f:f+1][0]
 					else:
 						print_row += ' ' + '%.5f' % np_array[s, f:f+1, i, j][0]
@@ -448,10 +452,10 @@ class Unpooling2D(_Pooling2D):
 	### these three initial methods are required by Layer ###
 	#########################################################
 	
-	def __init__(self, pool_input, pool_output, pool_size, strides, border_mode, **kwargs):
+	def __init__(self, pool_input, pool_output, pool_size, strides, padding, **kwargs):
 		
 		# check backend to detect dimensions used
-		if K.image_dim_ordering() == 'tf':
+		if K.image_data_format() == 'channels_last':
 			# tensorflow is used, dimension are (samples, rows, columns, filters)
 			self.row_dim = 1
 			self.col_dim = 2
@@ -471,13 +475,13 @@ class Unpooling2D(_Pooling2D):
 		self.pool_size = pool_size
 		self.strides = strides
 		# border mode is either 'valid' or 'same'
-		self.border_mode = border_mode
+		self.padding = padding
 		
 		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
 		# initialize offset to 0, as it is not needed when border mode is valid
 		self.row_offset = 0
 		self.col_offset = 0
-		if self.border_mode == 'same':
+		if self.padding == 'same':
 			
 			if K.backend() == 'tensorflow':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
@@ -524,7 +528,7 @@ class Unpooling2D(_Pooling2D):
 		
 		super(Unpooling2D, self).__init__(**kwargs)
 
-	def _pooling_function(self, inputs, pool_size, strides, border_mode, dim_ordering):
+	def _pooling_function(self, inputs, pool_size, strides, padding, data_format):
 		
 		indices = []
 		

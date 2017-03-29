@@ -6,6 +6,7 @@ import scipy.misc
 from time import time
 from os import mkdir, listdir
 from os.path import dirname, join
+from requests.exceptions import RequestException
 
 import keras.backend as K
 from keras.models import Model
@@ -32,19 +33,16 @@ model_map = {}
 
 
 # TODO: delete when done with testing
+# NOTE: throws RequestException, ValueError, OSError
 def load_image_from_url(url):
-	
-	# print(url)
-	
-	response = requests.get(url)
-	try:
-		img = Image.open(BytesIO(response.content))
-		img = scipy.misc.imresize(image.img_to_array(img), (224, 224))
-		img = img.astype('float64')
-	
-		return preprocess_image(img)
-	except OSError:
-		return np.zeros((1, 224, 224, 3))
+
+	response = requests.get(url, timeout=5)
+
+	img = Image.open(BytesIO(response.content))
+	img = scipy.misc.imresize(image.img_to_array(img), (224, 224))
+	img = img.astype('float64')
+
+	return preprocess_image(img)
 
 
 def load_from_file(img_name):
@@ -254,7 +252,7 @@ def deconv_example():
 	for feat_map_no in feat_map_random_subset:
 		print('\n***** Reconstruct for feature map %d in layer %d *****' % (feat_map_no, feat_map_layer))
 		start_time = time()
-		max_images, urls = get_max_images(10, 5, conv_model, feat_map_layer, feat_map_no)
+		max_images, urls = get_max_images(100, 5, conv_model, feat_map_layer, feat_map_no)
 		for i in range(len(max_images)):
 			max_img = max_images[i]
 			max_img_name = urls[i]
@@ -376,19 +374,32 @@ def get_max_feature_map_indices(pred, amount):
 def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, feat_map_no):
 
 	urls = []
-	images = []
 	scores = []
 
 	with open(join(dirname(__file__), 'input', 'fall11_urls.txt'), 'r') as f:
 		for i in range(check_amount):
 			url = f.readline().split('\t')[1].rstrip()
+
+			print('Check image ' + str(i) + ' at URL: ' + url)
+
+			try:
+				img = load_image_from_url(url)
+			except RequestException:
+				print('Error with request')
+				continue
+			except ValueError:
+				print('Image no longer exists')
+				continue
+			except OSError:
+				print('Error in opening image')
+				continue
+
 			urls.append(url)
-			images.append(load_image_from_url(url))
-			
-			_, pred = compute_layer_input_and_output(conv_model, feat_map_layer_no, 0, images[i])
-			
+
+			_, pred = compute_layer_input_and_output(conv_model, feat_map_layer_no, 0, img)
+
 			scores.append(np.amax(pred[:, :, :, feat_map_no]))
-		
+
 	scores = np.array(scores)
 	chosen_urls = []
 	chosen_images = []
@@ -397,15 +408,18 @@ def get_max_images(check_amount, chose_amount, conv_model, feat_map_layer_no, fe
 	for index in scores.argsort()[-chose_amount:]:
 		print(urls[index])
 		chosen_urls.append(urls[index])
-		chosen_images.append(images[index])
-		
+
+		# if image was safely loaded the first time, assume safe to load now
+		img = load_image_from_url(urls[index])
+		chosen_images.append(img)
+
 		# save max images for comparison
-		img = images[index][0]
+		img = img[0]
 		img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
 		scipy.misc.toimage(img, cmin=0, cmax=255).save(join(dirname(__file__), 'max_images', 'feat_map_%d_image_%d.png' % (feat_map_no, i)))
-		
+
 		i += 1
-		
+
 	return chosen_images, chosen_urls
 
 

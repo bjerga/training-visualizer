@@ -1,0 +1,28 @@
+{% extends "show_file.html" %}
+{% block subpage %}
+    <pre id="output-stream" class="pre-scrollable" style="height: 340px; background-color: black; color: white"></pre>
+{% endblock %}
+
+<script>
+    {% block script %}
+
+        {{ super() }}
+
+        function stream_output() {
+            $.ajax({
+                type: 'GET',
+                cache: false,
+                url: "{{ url_for('stream', user=meta.owner, filename=filename) }}",
+                success: function (response) {
+                    var pre = $('#output-stream');
+                    pre.text(response.output);
+                    pre.scrollTop(pre.prop("scrollHeight"));
+
+                }
+            });
+        }
+
+        setInterval(stream_output, 100);
+
+    {% endblock %}
+</script>

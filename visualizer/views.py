@@ -400,6 +400,22 @@ def run_upload(filename):
 	return redirect(url_for('show_file_overview', filename=filename))
 
 
+# page for file output view
+@login_required
+@app.route('/uploads/<filename>/output', methods=['GET', 'POST'])
+def show_file_output(filename):
+	# get information about file
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	return render_template('show_file_output.html', filename=filename, meta=meta)
+
+
+@app.route('/stream/<user>/<filename>')
+def stream(user, filename):
+	with open(get_output_file(user, filename), 'r') as f:
+		output = f.readlines()
+	return jsonify(output=output)
+
+
 # define how to download a trained network
 @login_required
 @app.route('/uploads/<filename>/download')

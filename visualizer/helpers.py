@@ -124,6 +124,10 @@ def get_visualization_img_abs_path(filename):
 	return None
 
 
+def get_output_file(user, filename):
+	return join(UPLOAD_FOLDER, user, get_wo_ext(filename), 'output.txt')
+
+
 # run a python program via command line
 def run_python_shell(file_path):
 	if file_path:
@@ -134,7 +138,7 @@ def run_python_shell(file_path):
 		python_path = ":".join(sys.path)[1:]
 		
 		# run program via command line
-		with open(join(dirname(file_path), 'output.txt'), 'w') as f:
+		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
 			subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f).wait()
 
 		print('\nSubprocess finished\n')

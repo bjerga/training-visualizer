@@ -11,6 +11,8 @@ import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
+from tailer import tail
+
 from visualizer.forms import *
 from visualizer.helpers import *
 
@@ -409,10 +411,11 @@ def show_file_output(filename):
 	return render_template('show_file_output.html', filename=filename, meta=meta)
 
 
+# returns the last x lines of output for a specific user's specific file, based on config value
+@login_required
 @app.route('/stream/<user>/<filename>')
 def stream(user, filename):
-	with open(get_output_file(user, filename), 'r') as f:
-		output = f.readlines()
+	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
 	return jsonify(output=output)
 
 

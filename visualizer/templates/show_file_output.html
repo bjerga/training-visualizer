@@ -1,5 +1,10 @@
 {% extends "show_file.html" %}
 {% block subpage %}
+    <p>This shows the 50 last lines of the output from the file.</p>
+    <div class="btn-toolbar" role="toolbar">
+        <button id="download-button" type="button" class="btn btn-primary">Download full output</button>
+    </div>
+    <br>
     <pre id="output-stream" class="pre-scrollable" style="height: 340px; background-color: black; color: white"></pre>
 {% endblock %}
 
@@ -9,20 +14,22 @@
         {{ super() }}
 
         function stream_output() {
+            var pre = $('#output-stream');
+            var isScrolledToBottom = pre.scrollHeight - pre.clientHeight <= pre.scrollTop + 1;
             $.ajax({
                 type: 'GET',
                 cache: false,
                 url: "{{ url_for('stream', user=meta.owner, filename=filename) }}",
                 success: function (response) {
-                    var pre = $('#output-stream');
                     pre.text(response.output);
-                    pre.scrollTop(pre.prop("scrollHeight"));
-
+                    if (isScrolledToBottom) {
+                        pre.scrollTop = pre.scrollHeight - pre.clientHeight;
+                    }
                 }
             });
         }
 
-        setInterval(stream_output, 100);
+        setInterval(stream_output, 1000);
 
     {% endblock %}
 </script>

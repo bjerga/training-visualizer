@@ -83,7 +83,7 @@ def save_reconstruction(recon, feat_map_no):
 		# folder exists, which is what we wanted
 		pass
 
-	image_name = 'test_%d_feat_map_%d' % (len(listdir(output_path)), feat_map_no)
+	image_name = 'feat_map_%d_recon_%d' % (feat_map_no, len(listdir(output_path)))
 
 	# save the resulting image to disk
 	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
@@ -113,10 +113,11 @@ def deconv_example():
 
 	print('\nReady for deconv. pred.')
 	np.random.seed(1337)
-	feat_map_random_subset = np.random.randint(0, conv_model.layers[feat_map_layer].output_shape[deconv_model.ch_dim], 3)
+	filter_amount = conv_model.layers[feat_map_layer].output_shape[deconv_model.ch_dim]
+	feat_map_random_subset = np.random.choice(filter_amount, 10, replace=False)
 	print('\nReconstruct for feature maps in layer %d:' % feat_map_layer, feat_map_random_subset)
 	start_time = time()
-	max_images_dict, urls_dict = deconv_model.get_max_images(100, 5, feat_map_layer, feat_map_random_subset)
+	max_images_dict, urls_dict = deconv_model.get_max_images(30000, 10, feat_map_layer, feat_map_random_subset)
 
 	for feat_map_no in feat_map_random_subset:
 		for i in range(len(max_images_dict[feat_map_no])):
@@ -336,7 +337,7 @@ class DeconvolutionModel:
 
 		return max_feat_maps
 
-	def get_max_images(self, check_amount, chose_amount, feat_map_layer_no, feat_map_nos):
+	def get_max_images(self, check_amount, choose_amount, feat_map_layer_no, feat_map_nos):
 
 		urls = []
 		scores = {}
@@ -346,10 +347,10 @@ class DeconvolutionModel:
 			scores[feat_map_no] = []
 
 		with open(join(dirname(__file__), 'input', 'fall11_urls.txt'), 'r') as f:
-			for count in range(check_amount):
+			for i in range(check_amount):
 				url = f.readline().split('\t')[1].rstrip()
 
-				# print('Check image ' + str(count) + ' at URL: ' + url)
+				# print('Check image ' + str(i) + ' at URL: ' + url)
 
 				try:
 					img = load_image_from_url(url)
@@ -377,7 +378,7 @@ class DeconvolutionModel:
 			chosen_images_dict[feat_map_no] = []
 			count = 0
 			print('\nChosen image URLs for feat. map no %d:' % feat_map_no)
-			for index in np.array(scores[feat_map_no]).argsort()[-chose_amount:]:
+			for index in np.array(scores[feat_map_no]).argsort()[-choose_amount:]:
 				print(urls[index])
 				chosen_urls_dict[feat_map_no].append(urls[index])
 
@@ -389,7 +390,7 @@ class DeconvolutionModel:
 				img = img[0]
 				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'max_images', 'feat_map_%d_image_%d.png' % (feat_map_no, count)))
+					join(dirname(__file__), 'max_images', 'feat_map_%d_image_%d_index_%d.png' % (feat_map_no, count, index)))
 
 				count += 1
 

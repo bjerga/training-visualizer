@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
-from os.path import join, dirname, getmtime
+from os.path import join, dirname, getmtime, split
 from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
@@ -417,6 +417,16 @@ def show_file_output(filename):
 def stream(user, filename):
 	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
 	return jsonify(output=output)
+
+
+# define how to download the whole output file
+@login_required
+@app.route('/stream/<user>/<filename>/download')
+def download_output_stream(user, filename):
+	output_folder, output_name = split(get_output_file(user, filename))
+	# give the output file a more descriptive name on the form 'filename_output.txt'
+	attachment_filename = '_'.join((get_wo_ext(filename), output_name))
+	return send_from_directory(output_folder, output_name, as_attachment=True, attachment_filename=attachment_filename)
 
 
 # define how to download a trained network

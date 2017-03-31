@@ -2,7 +2,8 @@
 {% block subpage %}
     <p>This shows the 50 last lines of the output from the file.</p>
     <div class="btn-toolbar" role="toolbar">
-        <button id="download-button" type="button" class="btn btn-primary">Download full output</button>
+        <a id="download-button" role="button" class="btn btn-primary"
+           href="{{ url_for('download_output_stream', user=meta.owner, filename=meta.filename) }}">Download full output</a>
     </div>
     <br>
     <pre id="output-stream" class="pre-scrollable" style="height: 340px; background-color: black; color: white"></pre>

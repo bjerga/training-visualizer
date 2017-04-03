@@ -2,7 +2,6 @@ from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
 from os.path import join, dirname, getmtime, split
-from multiprocessing import Process, Value
 from urllib.parse import urlencode
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify
@@ -386,10 +385,9 @@ def run_upload(filename):
 		processes[get_current_user()][filename] = None
 
 		print('\n\nNew thread started for %s\n\n' % meta.path)
-		# start and save a new process for running the program
-		p = Process(target=run_python_shell, args=(meta.path,))
-		p.start()
 
+		# start and save a new subprocess for running the program
+		p = run_python_shell(meta.path)
 		processes[get_current_user()][filename] = p
 
 		# update last run column in database
@@ -491,9 +489,11 @@ def check_running(filename):
 def is_running(filename):
 	prevent_process_key_error(filename)
 
+	p = processes[get_current_user()][filename]
+
 	# if the process for the file is still alive, return true
-	if processes[get_current_user()][filename] is not None:
-		return processes[get_current_user()][filename].is_alive()
+	if p is not None:
+		return p.poll() is None
 
 	return False
 
@@ -512,9 +512,10 @@ def get_running():
 	except KeyError:
 		user_processes = {}
 
+	# check which files are running and add them to the set of running files
 	for filename in user_processes:
 		p = processes[get_current_user()][filename]
-		if p is not None and p.is_alive():
+		if p is not None and p.poll() is None:
 			running.add(filename)
 
 	return running

@@ -139,9 +139,9 @@ def run_python_shell(file_path):
 		
 		# run program via command line
 		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
-			subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f).wait()
+			p = subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f)
 
-		print('\nSubprocess finished\n')
+		return p
 	else:
 		print('\n\nNo file found\n\n')
 	

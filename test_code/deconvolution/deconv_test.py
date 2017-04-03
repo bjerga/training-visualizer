@@ -31,7 +31,8 @@ def load_image_from_url(url):
 	response = requests.get(url, timeout=5)
 
 	img = Image.open(BytesIO(response.content))
-	img = scipy.misc.imresize(image.img_to_array(img), (224, 224))
+	img = image.img_to_array(img)
+	img = scipy.misc.imresize(img, (224, 224))
 	img = img.astype('float64')
 
 	return preprocess_image(img)
@@ -46,10 +47,11 @@ def load_image_from_file(img_name):
 
 
 def preprocess_image(img):
-	img -= MEAN_VALUES.reshape((1, 1, 3))
 
-	if K.image_data_format() == 'channels_first':
-		img = img.transpose((2, 0, 1))
+	if K.image_data_format() == 'channels_last':
+		img -= MEAN_VALUES.reshape((1, 1, 3))
+	else:
+		img -= MEAN_VALUES.reshape((3, 1, 1))
 
 	return np.expand_dims(img, axis=0)
 
@@ -109,7 +111,7 @@ def deconv_example():
 
 	# note that layers are zero indexed
 	#  TODO: test other (lower) layers
-	feat_map_layer = 18
+	feat_map_layer = 5
 
 	print('\nReady for deconv. pred.')
 	np.random.seed(1337)
@@ -117,7 +119,7 @@ def deconv_example():
 	feat_map_random_subset = np.random.choice(filter_amount, 10, replace=False)
 	print('\nReconstruct for feature maps in layer %d:' % feat_map_layer, feat_map_random_subset)
 	start_time = time()
-	max_images_dict, urls_dict = deconv_model.get_max_images(30000, 10, feat_map_layer, feat_map_random_subset)
+	max_images_dict, urls_dict = deconv_model.get_max_images(10000, 10, feat_map_layer, feat_map_random_subset)
 
 	for feat_map_no in feat_map_random_subset:
 		for i in range(len(max_images_dict[feat_map_no])):
@@ -368,8 +370,12 @@ class DeconvolutionModel:
 
 				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img)
 
-				for feat_map_no in feat_map_nos:
-					scores[feat_map_no].append(np.amax(feat_maps[:, :, :, feat_map_no]))
+				if K.image_data_format() == 'channels_last':
+					for feat_map_no in feat_map_nos:
+						scores[feat_map_no].append(np.amax(feat_maps[:, :, :, feat_map_no]))
+				else:
+					for feat_map_no in feat_map_nos:
+						scores[feat_map_no].append(np.amax(feat_maps[:, feat_map_no, :, :]))
 
 		chosen_urls_dict = {}
 		chosen_images_dict = {}

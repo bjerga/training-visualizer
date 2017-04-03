@@ -419,7 +419,8 @@ def stop_file(filename):
 def show_file_output(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-	return render_template('show_file_output.html', filename=filename, meta=meta)
+	running = is_running(filename)
+	return render_template('show_file_output.html', filename=filename, meta=meta, is_running=running)
 
 
 # returns the last x lines of output for a specific user's specific file, based on config value

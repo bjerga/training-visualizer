@@ -29,8 +29,10 @@
                 }
             });
         }
-
-        setInterval(stream_output, 1000);
+        stream_output();
+        {% if is_running %}
+            setInterval(stream_output, 1000);
+        {% endif %}
 
     {% endblock %}
 </script>

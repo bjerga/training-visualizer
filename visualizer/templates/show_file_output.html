@@ -3,7 +3,7 @@
     <p>This shows the 50 last lines of the output from the file.</p>
     <div class="btn-toolbar" role="toolbar">
         <a id="download-button" role="button" class="btn btn-primary"
-           href="{{ url_for('download_output_stream', user=meta.owner, filename=meta.filename) }}">Download full output</a>
+           href="{{ url_for('download_cli_output', user=meta.owner, filename=meta.filename) }}">Download full output</a>
     </div>
     <br>
     <pre id="output-stream" class="pre-scrollable" style="height: 340px; background-color: black; color: white"></pre>
@@ -20,7 +20,7 @@
             $.ajax({
                 type: 'GET',
                 cache: false,
-                url: "{{ url_for('stream', user=meta.owner, filename=filename) }}",
+                url: "{{ url_for('get_cli_output', user=meta.owner, filename=filename) }}",
                 success: function (response) {
                     pre.text(response.output);
                     if (isScrolledToBottom) {

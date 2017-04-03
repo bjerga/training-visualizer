@@ -423,18 +423,18 @@ def show_file_output(filename):
 	return render_template('show_file_output.html', filename=filename, meta=meta, is_running=running)
 
 
-# returns the last x lines of output for a specific user's specific file, based on config value
+# returns the last x lines of CLI output for a specific user's specific file, based on config value
 @login_required
-@app.route('/stream/<user>/<filename>')
-def stream(user, filename):
+@app.route('/cli_output/<user>/<filename>')
+def get_cli_output(user, filename):
 	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
 	return jsonify(output=output)
 
 
-# define how to download the whole output file
+# define how to download the whole CLI output file
 @login_required
-@app.route('/stream/<user>/<filename>/download')
-def download_output_stream(user, filename):
+@app.route('/cli_output/<user>/<filename>/download')
+def download_cli_output(user, filename):
 	output_folder, output_name = split(get_output_file(user, filename))
 	# give the output file a more descriptive name on the form 'filename_output.txt'
 	attachment_filename = '_'.join((get_wo_ext(filename), output_name))

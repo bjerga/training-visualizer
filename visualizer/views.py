@@ -70,7 +70,9 @@ def get_with_timestamp(rel_file_path):
 def home():
 	if current_user.is_authenticated:
 		running = get_running()
-		metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
+		metas = []
+		if running:
+			metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
 		return render_template('home.html', metas=metas)
 	return redirect(url_for('login'))
 

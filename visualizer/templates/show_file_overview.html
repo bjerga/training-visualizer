@@ -20,6 +20,24 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="stopModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content panel-warning">
+                <div class="modal-header panel-heading">
+                    <h4 class="modal-title">Are you sure you want to stop '{{ filename }}' from running?
+                        <span class="glyphicon glyphicon-warning-sign pull-right" aria-hidden="true"></span>
+                    </h4>
+                </div>
+                <div class="modal-body">
+                    <p>This will kill the process, and you will not be able to continue execution.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <a class="btn btn-danger" href="{{ url_for('stop_file', filename=meta.filename) }}">Stop</a>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="modal fade" id="runModal" tabindex="-1" role="dialog">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
@@ -90,6 +108,7 @@
     <br>
     <pre class="pre-scrollable">{{ content }}</pre><br>
     <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
+    <button id="stop-button" type="button" class="btn btn-danger btn-lg btn-block" data-toggle="modal" data-target="#stopModal">Stop</button>
 {% endblock %}
 
 <script>
@@ -102,9 +121,10 @@
         function update_buttons() {
             // if the file is running (prev_running is inherited from the 'layout' parent-template)
             if ($.inArray("{{ filename }}", prev_running) != -1) {
-                $('#run-button').attr({
-                    disabled: true
-                }).text('Running...');
+
+                $('#run-button').hide();
+                $('#stop-button').show();
+
                 // disable network download, to prevent partially trained networks to be downloaded
                 $('#download-button').attr('disabled', true);
                 // disable delete network when running
@@ -114,9 +134,10 @@
             }
             // if the file is not running
             else {
-                $('#run-button').attr({
-                    disabled: false
-                }).text('Run');
+
+                $('#run-button').show();
+                $('#stop-button').hide();
+
                 // if not running, check if networks can be downloaded and activate/deactivate download button
                 if (check_network) {
                     set_downloadability();

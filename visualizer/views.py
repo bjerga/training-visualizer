@@ -402,6 +402,18 @@ def run_upload(filename):
 	return redirect(url_for('show_file_overview', filename=filename))
 
 
+@login_required
+@app.route('/uploads/<filename>/stop')
+def stop_file(filename):
+	# get process and kill and remove it if it is running
+	p = processes[get_current_user()][filename]
+	if p is not None:
+		p.kill()
+		processes[get_current_user()][filename] = None
+		flash(filename + ' was stopped', 'danger')
+	return redirect(url_for('show_file_overview', filename=filename))
+
+
 # page for file output view
 @login_required
 @app.route('/uploads/<filename>/output', methods=['GET', 'POST'])

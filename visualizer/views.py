@@ -251,6 +251,8 @@ def show_file_overview(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
+	running = is_running(filename)
+
 	# get file stored locally
 	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
@@ -284,7 +286,7 @@ def show_file_overview(filename):
 		# update current page
 		return redirect(url_for('show_file_overview', filename=filename))
 	
-	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
+	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(), is_running=running,
 						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path)
 
 

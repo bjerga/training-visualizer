@@ -107,8 +107,11 @@
     </div>
     <br>
     <pre class="pre-scrollable">{{ content }}</pre><br>
-    <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
-    <button id="stop-button" type="button" class="btn btn-danger btn-lg btn-block" data-toggle="modal" data-target="#stopModal">Stop</button>
+    {% if is_running %}
+        <button id="stop-button" type="button" class="btn btn-danger btn-lg btn-block" data-toggle="modal" data-target="#stopModal">Stop</button>
+    {% else %}
+        <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
+    {% endif %}
 {% endblock %}
 
 <script>

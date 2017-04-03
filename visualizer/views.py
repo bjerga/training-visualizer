@@ -385,14 +385,13 @@ def run_upload(filename):
 			mkdir(result_folder)
 
 		# remove process for filename
-		prevent_process_key_error(filename)
-		processes[get_current_user()][filename] = None
+		remove_process(filename)
 
 		print('\n\nNew thread started for %s\n\n' % meta.path)
 
 		# start and save a new subprocess for running the program
 		p = run_python_shell(meta.path)
-		processes[get_current_user()][filename] = p
+		add_process(filename, p)
 
 		# update last run column in database
 		meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -405,10 +404,10 @@ def run_upload(filename):
 @app.route('/uploads/<filename>/stop')
 def stop_file(filename):
 	# get process and kill and remove it if it is running
-	p = processes[get_current_user()][filename]
+	p = get_process(filename)
 	if p is not None:
 		p.kill()
-		processes[get_current_user()][filename] = None
+		remove_process(filename)
 		flash(filename + ' was stopped', 'danger')
 	return redirect(url_for('show_file_overview', filename=filename))
 
@@ -501,14 +500,10 @@ def check_running(filename):
 # helper method dependent on app
 # check if file is running
 def is_running(filename):
-	prevent_process_key_error(filename)
-
-	p = processes[get_current_user()][filename]
-
+	p = get_process(filename)
 	# if the process for the file is still alive, return true
 	if p is not None:
 		return p.poll() is None
-
 	return False
 
 
@@ -528,7 +523,7 @@ def get_running():
 
 	# check which files are running and add them to the set of running files
 	for filename in user_processes:
-		p = processes[get_current_user()][filename]
+		p = get_process(filename)
 		if p is not None and p.poll() is None:
 			running.add(filename)
 
@@ -552,3 +547,18 @@ def prevent_process_key_error(filename):
 	except KeyError:
 		# if not, add it
 		processes[get_current_user()][filename] = None
+
+
+def add_process(filename, p):
+	prevent_process_key_error(filename)
+	processes[get_current_user()][filename] = p
+
+
+def remove_process(filename):
+	prevent_process_key_error(filename)
+	processes[get_current_user()][filename] = None
+
+
+def get_process(filename):
+	prevent_process_key_error(filename)
+	return processes[get_current_user()][filename]

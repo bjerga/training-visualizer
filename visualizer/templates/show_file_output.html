@@ -1,0 +1,38 @@
+{% extends "show_file.html" %}
+{% block subpage %}
+    <p>This shows the 50 last lines of the output from the file.</p>
+    <div class="btn-toolbar" role="toolbar">
+        <a id="download-button" role="button" class="btn btn-primary"
+           href="{{ url_for('download_cli_output', user=meta.owner, filename=meta.filename) }}">Download full output</a>
+    </div>
+    <br>
+    <pre id="output-stream" class="pre-scrollable" style="height: 340px; background-color: black; color: white"></pre>
+{% endblock %}
+
+<script>
+    {% block script %}
+
+        {{ super() }}
+
+        function stream_output() {
+            var pre = $('#output-stream');
+            var isScrolledToBottom = pre.scrollHeight - pre.clientHeight <= pre.scrollTop + 1;
+            $.ajax({
+                type: 'GET',
+                cache: false,
+                url: "{{ url_for('get_cli_output', user=meta.owner, filename=filename) }}",
+                success: function (response) {
+                    pre.text(response.output);
+                    if (isScrolledToBottom) {
+                        pre.scrollTop = pre.scrollHeight - pre.clientHeight;
+                    }
+                }
+            });
+        }
+        stream_output();
+        {% if is_running %}
+            setInterval(stream_output, 1000);
+        {% endif %}
+
+    {% endblock %}
+</script>

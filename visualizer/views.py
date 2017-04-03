@@ -1,8 +1,7 @@
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
-from os.path import join, dirname, getmtime
-from multiprocessing import Process, Value
+from os.path import join, dirname, getmtime, split
 from urllib.parse import urlencode
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify
@@ -10,6 +9,8 @@ from flask_login import login_required, login_user, logout_user, current_user, a
 import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
+
+from tailer import tail
 
 from visualizer.forms import *
 from visualizer.helpers import *
@@ -69,7 +70,9 @@ def get_with_timestamp(rel_file_path):
 def home():
 	if current_user.is_authenticated:
 		running = get_running()
-		metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
+		metas = []
+		if running:
+			metas = FileMeta.query.filter_by(owner=get_current_user()).filter(FileMeta.filename.in_(running)).all()
 		return render_template('home.html', metas=metas)
 	return redirect(url_for('login'))
 
@@ -248,6 +251,8 @@ def show_file_overview(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
+	running = is_running(filename)
+
 	# get file stored locally
 	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
@@ -281,7 +286,7 @@ def show_file_overview(filename):
 		# update current page
 		return redirect(url_for('show_file_overview', filename=filename))
 	
-	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(),
+	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(), is_running=running,
 						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path)
 
 
@@ -380,24 +385,59 @@ def run_upload(filename):
 			mkdir(result_folder)
 
 		# remove process for filename
-		prevent_process_key_error(filename)
-		processes[get_current_user()][filename] = None
+		remove_process(filename)
 
 		print('\n\nNew thread started for %s\n\n' % meta.path)
-		# start and save a new process for running the program
-		p = Process(target=run_python_shell, args=(meta.path,))
-		p.start()
 
-		processes[get_current_user()][filename] = p
+		# start and save a new subprocess for running the program
+		p = run_python_shell(meta.path)
+		add_process(filename, p)
 
 		# update last run column in database
 		meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
 		db.session.commit()
 
-		# redirect to file training progress view
-		return redirect(url_for('show_file_training_progress', filename=filename))
-
 	return redirect(url_for('show_file_overview', filename=filename))
+
+
+@login_required
+@app.route('/uploads/<filename>/stop')
+def stop_file(filename):
+	# get process and kill and remove it if it is running
+	p = get_process(filename)
+	if p is not None:
+		p.kill()
+		remove_process(filename)
+		flash(filename + ' was stopped', 'danger')
+	return redirect(url_for('show_file_overview', filename=filename))
+
+
+# page for file output view
+@login_required
+@app.route('/uploads/<filename>/output', methods=['GET', 'POST'])
+def show_file_output(filename):
+	# get information about file
+	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
+	running = is_running(filename)
+	return render_template('show_file_output.html', filename=filename, meta=meta, is_running=running)
+
+
+# returns the last x lines of CLI output for a specific user's specific file, based on config value
+@login_required
+@app.route('/cli_output/<user>/<filename>')
+def get_cli_output(user, filename):
+	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
+	return jsonify(output=output)
+
+
+# define how to download the whole CLI output file
+@login_required
+@app.route('/cli_output/<user>/<filename>/download')
+def download_cli_output(user, filename):
+	output_folder, output_name = split(get_output_file(user, filename))
+	# give the output file a more descriptive name on the form 'filename_output.txt'
+	attachment_filename = '_'.join((get_wo_ext(filename), output_name))
+	return send_from_directory(output_folder, output_name, as_attachment=True, attachment_filename=attachment_filename)
 
 
 # define how to download a trained network
@@ -446,7 +486,7 @@ def search(query):
 @app.route('/uploads/<filename>/check_networks_exist')
 def check_networks_exist(filename):
 	networks_exist = listdir(get_networks_folder(filename))
-	return jsonify(networks_exist=networks_exist)
+	return jsonify(networks_exist=bool(networks_exist))
 
 
 # define how to check if file is running
@@ -460,12 +500,10 @@ def check_running(filename):
 # helper method dependent on app
 # check if file is running
 def is_running(filename):
-	prevent_process_key_error(filename)
-
+	p = get_process(filename)
 	# if the process for the file is still alive, return true
-	if processes[get_current_user()][filename] is not None:
-		return processes[get_current_user()][filename].is_alive()
-
+	if p is not None:
+		return p.poll() is None
 	return False
 
 
@@ -483,9 +521,10 @@ def get_running():
 	except KeyError:
 		user_processes = {}
 
+	# check which files are running and add them to the set of running files
 	for filename in user_processes:
-		p = processes[get_current_user()][filename]
-		if p is not None and p.is_alive():
+		p = get_process(filename)
+		if p is not None and p.poll() is None:
 			running.add(filename)
 
 	return running
@@ -508,3 +547,18 @@ def prevent_process_key_error(filename):
 	except KeyError:
 		# if not, add it
 		processes[get_current_user()][filename] = None
+
+
+def add_process(filename, p):
+	prevent_process_key_error(filename)
+	processes[get_current_user()][filename] = p
+
+
+def remove_process(filename):
+	prevent_process_key_error(filename)
+	processes[get_current_user()][filename] = None
+
+
+def get_process(filename):
+	prevent_process_key_error(filename)
+	return processes[get_current_user()][filename]

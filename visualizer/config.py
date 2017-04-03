@@ -7,6 +7,8 @@ SECRET_KEY = 'thisissupersecretestkeyintheworld'
 
 # entry to hold path to upload folder
 UPLOAD_FOLDER = os.path.join(_basedir, 'static', 'user_storage')
+# number of lines to print of the script output
+NO_OF_OUTPUT_LINES = 50
 
 # entry to hold database connection
 SQLALCHEMY_DATABASE_URI = 'sqlite:///visualizer.db'

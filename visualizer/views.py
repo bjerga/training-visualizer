@@ -398,9 +398,6 @@ def run_upload(filename):
 		meta.last_run_date = datetime.now().strftime("%d/%m/%y %H:%M")
 		db.session.commit()
 
-		# redirect to file training progress view
-		return redirect(url_for('show_file_training_progress', filename=filename))
-
 	return redirect(url_for('show_file_overview', filename=filename))
 
 
@@ -489,7 +486,7 @@ def search(query):
 @app.route('/uploads/<filename>/check_networks_exist')
 def check_networks_exist(filename):
 	networks_exist = listdir(get_networks_folder(filename))
-	return jsonify(networks_exist=networks_exist)
+	return jsonify(networks_exist=bool(networks_exist))
 
 
 # define how to check if file is running

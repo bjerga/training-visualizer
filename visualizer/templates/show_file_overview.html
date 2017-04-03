@@ -102,16 +102,15 @@
     <p><strong>Uploaded:</strong> {{ meta.upload_date }} <br>
         <strong>Last run:</strong> {{ meta.last_run_date }}</p>
     <div class="btn-toolbar" role="toolbar">
-        <a id="download-button" role="button" class="btn btn-primary" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
-        <button id="delete-button" type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#deleteModal">Delete File</button>
+        <a disabled="true" id="download-button" role="button" class="btn btn-primary" href="{{ url_for('download_network', filename=meta.filename) }}">Download Network</a>
+        <button {% if is_running %}disabled="true"{% endif %} id="delete-button" type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#deleteModal">Delete File</button>
     </div>
     <br>
     <pre class="pre-scrollable">{{ content }}</pre><br>
-    {% if is_running %}
-        <button id="stop-button" type="button" class="btn btn-danger btn-lg btn-block" data-toggle="modal" data-target="#stopModal">Stop</button>
-    {% else %}
-        <button id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
-    {% endif %}
+
+    <button {% if is_running %}style="display: none;"{% endif %} id="run-button" type="button" class="btn btn-success btn-lg btn-block" data-toggle="modal" data-target="#runModal">Run</button>
+    <button {% if not is_running %}style="display: none;"{% endif %} id="stop-button" type="button" class="btn btn-danger btn-lg btn-block" data-toggle="modal" data-target="#stopModal">Stop</button>
+
 {% endblock %}
 
 <script>
@@ -150,7 +149,6 @@
             }
         }
 
-        update_buttons();
         interval = setInterval(update_buttons, 1000);
 
         // check if there exists any saved networks for current file, and set download button to be active or not

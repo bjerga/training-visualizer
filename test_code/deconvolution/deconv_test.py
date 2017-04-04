@@ -24,6 +24,16 @@ from io import BytesIO
 # VGG16 mean values
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
+# define output path and make folder
+output_path = join(dirname(__file__), 'output')
+try:
+	mkdir(output_path)
+except FileExistsError:
+	# folder exists, which is what we wanted
+	pass
+
+# define path to image URLS
+urls_path = join(dirname(__file__), 'input', 'fall11_urls.txt')
 
 # TODO: delete when done with testing
 # NOTE: throws requests.exceptions.RequestException, ValueError, OSError
@@ -77,14 +87,6 @@ def save_reconstruction(recon, feat_map_no):
 	# process before save
 	img = tensor_to_img(recon)
 
-	# define output path and make folder
-	output_path = join(dirname(__file__), 'output')
-	try:
-		mkdir(output_path)
-	except FileExistsError:
-		# folder exists, which is what we wanted
-		pass
-
 	image_name = 'feat_map_%d_recon_%d' % (feat_map_no, len(listdir(output_path)))
 
 	# save the resulting image to disk
@@ -111,43 +113,54 @@ def deconv_example():
 
 	# note that layers are zero indexed
 	#  TODO: test other (lower) layers
-	feat_map_layer = 5
+	feat_map_layer_no = 18
+
+	choose_max_images = False
 
 	print('\nReady for deconv. pred.')
-	np.random.seed(1337)
-	filter_amount = conv_model.layers[feat_map_layer].output_shape[deconv_model.ch_dim]
-	feat_map_random_subset = np.random.choice(filter_amount, 10, replace=False)
-	print('\nReconstruct for feature maps in layer %d:' % feat_map_layer, feat_map_random_subset)
 	start_time = time()
-	max_images_dict, urls_dict = deconv_model.get_max_images(10000, 10, feat_map_layer, feat_map_random_subset)
-
-	for feat_map_no in feat_map_random_subset:
-		for i in range(len(max_images_dict[feat_map_no])):
-			max_img = max_images_dict[feat_map_no][i]
-			max_img_name = urls_dict[feat_map_no][i]
-			deconv_model.produce_reconstruction(feat_map_layer, feat_map_no, max_img, max_img_name)
-
+	
+	if choose_max_images:
+		np.random.seed(1337)
+		filter_amount = conv_model.layers[feat_map_layer_no].output_shape[deconv_model.ch_dim]
+		feat_map_random_subset = np.random.choice(filter_amount, 10, replace=False)
+		print('\nReconstruct for feature maps in layer %d:' % feat_map_layer_no, feat_map_random_subset)
+		max_images_dict, urls_dict = deconv_model.get_max_images(10000, 10, feat_map_layer_no, feat_map_random_subset)
+	
+		for feat_map_no in feat_map_random_subset:
+			for i in range(len(max_images_dict[feat_map_no])):
+				max_img = max_images_dict[feat_map_no][i]
+				max_img_name = urls_dict[feat_map_no][i]
+				deconv_model.produce_reconstruction(feat_map_layer_no, feat_map_no, max_img, max_img_name)
+	else:
+		counter = 0
+		max_feat_maps = deconv_model.get_max_feature_maps(feat_map_layer_no, 10)
+		for feat_map_no, processed_feat_maps in max_feat_maps:
+			print(counter, feat_map_no)
+			deconv_model.produce_reconstruction_alt(feat_map_layer_no, feat_map_no, processed_feat_maps)
+			counter += 1
+			
 	print('\nTime to perform reconstructions for feat maps was %.4f seconds' % (time() - start_time))
 
 
 class DeconvolutionModel:
 	def __init__(self, link_model, input_img, input_img_name):
-
+		
 		# TODO: test with img-model map
 		self.model_map = {}
-
+		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
 			self.ch_dim = 3
 		else:
 			self.ch_dim = 1
-
+		
 		self.link_model = link_model
 		self.input_img = input_img
 		self.input_img_name = input_img_name
-
+		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
-
+	
 		# print deconv info
 		# print('\n***DECONVOLUTIONAL MODEL INFO***')
 		# print('Deconv. input shape:', self.deconv_model.input_shape)
@@ -155,36 +168,36 @@ class DeconvolutionModel:
 		# print('\nLayers in deconv. model:')
 		# for layer in self.deconv_model.layers:
 		# 	print(layer.name)
-
+	
 	def create_deconv_model(self):
-
+		
 		start_time = time()
-
+		
 		try:
 			deconv_model, layer_map = self.model_map[self.input_img_name]
 		except KeyError:
-
+			
 			# create layer map between conv. layers and deconv. layers
 			layer_map = {}
-
+			
 			# get info used to create unpooling layers
 			unpool_info = self.get_unpool_info()
-
+			
 			# add first layer with output shape of conv. model as input shape
 			dc_input = Input(shape=self.link_model.output_shape[1:])
-
+			
 			# examine linked model from the top down and add appropriate layers
 			dc_layer_count = 1
 			x = dc_input
 			for layer_no in range(len(self.link_model.layers) - 1, -1, -1):
-
+				
 				layer = self.link_model.layers[layer_no]
-
+				
 				# if convolution layer in linked model
 				if 'conv' in layer.name:
 					# add activation before deconvolution layer
 					x = Activation(layer.activation)(x)
-
+					
 					# add deconvolution layer (called Conv2DTranspose in Keras)
 					x = Conv2DTranspose(filters=layer.input_shape[self.ch_dim],
 										kernel_size=layer.kernel_size,
@@ -195,165 +208,224 @@ class DeconvolutionModel:
 										# weights=flip_weights(layer.get_weights()),
 										weights=[layer.get_weights()[0]],
 										use_bias=False)(x)
-
+					
 					# update layer map
 					# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
 					layer_map[layer_no] = dc_layer_count + 1
 					dc_layer_count += 2
-
+				
 				# if pooling layer in linked model
 				elif 'pool' in layer.name:
 					# get previously computed input and output for pooling layer in linked model
 					pool_input, pool_output = unpool_info[layer_no]
-
+					
 					# add unpooling layer (custom)
 					x = MaxUnpooling2D(pool_input=pool_input,
 									   pool_output=pool_output,
 									   pool_size=layer.pool_size,
 									   strides=layer.strides,
 									   padding=layer.padding)(x)
-
+					
 					# update layer map
 					layer_map[layer_no] = dc_layer_count
 					dc_layer_count += 1
 				else:
 					# print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
 					pass
-
+			
 			# create model
 			deconv_model = Model(inputs=dc_input, outputs=x)
-
+			
 			# add to model map
 			self.model_map[self.input_img_name] = (deconv_model, layer_map)
-
+		
 		# print('\nTime to create deconv. model was %.4f seconds' % (time() - start_time))
-
+		
 		return deconv_model, layer_map
-
+	
 	# TODO: find efficient way to compute pooling input and output
 	def get_unpool_info(self):
-
+		
 		# create new dict{layer number: tuple(pooling input, pooling output)}
 		unpool_info = {}
-
+		
 		# set start values to first layer and initial image input
 		start_layer_no = 0
 		start_input = self.input_img
-
+		
 		# traverse layers and compute input and output for pooling layers
 		for layer_no in range(len(self.link_model.layers)):
 			if 'pool' in self.link_model.layers[layer_no].name:
 				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no, start_layer_no,
 																			  start_input)
-
+				
 				# add to info dict
 				unpool_info[layer_no] = (pool_input, pool_output)
-
+				
 				# update values to start next computation in the layer after the current pooling layer
 				start_layer_no = layer_no + 1
 				start_input = pool_output
-
+		
 		return unpool_info
-
+	
 	# update model with by creating new model with updated unpooling layers (unpooling is image specific)
 	def update_deconv_model(self, new_img, new_img_name):
 		self.input_img = new_img
 		self.input_img_name = new_img_name
-
+		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
-
-	def produce_reconstruction(self, feat_map_layer, feat_map_no, new_img=None, new_img_name=None):
-
+	
+	def produce_reconstruction(self, feat_map_layer_no, feat_map_no, new_img=None, new_img_name=None):
+		
 		# if specified, update all unpooling layers (used when image input has changed)
 		if new_img is not None:
 			self.update_deconv_model(new_img, new_img_name)
-
+		
 		# get conv. model output (feat maps) for desired feature map layer
-		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer, 0, self.input_img)
-
+		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
+		
 		# preprocess feature maps with regard to chosen feature map
 		processed_feat_maps = self.preprocess_feat_maps(feat_maps, feat_map_no)
-
+		
 		# feed to deconv. model to produce reconstruction
-		_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1, self.layer_map[feat_map_layer],
+		_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
 																processed_feat_maps)
-
+		
 		# save reconstruction to designated folder
 		save_reconstruction(reconstruction, feat_map_no)
-
+	
+	def produce_reconstruction_alt(self, feat_map_layer_no, feat_map_no, processed_feat_maps):
+		
+		# feed to deconv. model to produce reconstruction
+		_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
+																self.layer_map[feat_map_layer_no],
+																processed_feat_maps)
+		
+		# save reconstruction to designated folder (alternate version of save_reconstruction)
+		# process before save
+		img = tensor_to_img(reconstruction)
+		
+		image_name = 'max_no_%d_feat_map_%d' % (len(listdir(output_path)) + 1, feat_map_no)
+		
+		# save the resulting image to disk
+		scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
+	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								[model.layers[end_layer_no].input])
 		layer_input = input_func([start_input, 0])[0]
-
+		
 		output_func = K.function([model.layers[end_layer_no].input, K.learning_phase()],
 								 [model.layers[end_layer_no].output])
 		layer_output = output_func([layer_input, 0])[0]
-
+		
 		return layer_input, layer_output
-
+	
 	def preprocess_feat_maps(self, feat_maps, feat_map_no):
-
+		
 		if K.image_data_format() == 'channels_last':
 			# get selected feature map based on input
 			selected_feat_map = feat_maps[:, :, :, feat_map_no]
-
+			
 			# get index for max element in given feature map
 			max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
-
+			
 			# expand with feature map dimension
 			max_activation_pos += (feat_map_no,)
 		else:
 			# TODO: test support for theano
 			# get selected feature map based on input
 			selected_feat_map = feat_maps[:, feat_map_no, :, :]
-
+			
 			# get index for max element in given feature map
 			max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
-
+			
 			# expand with feature map dimension
 			max_activation_pos = (max_activation_pos[0], feat_map_no, max_activation_pos[1], max_activation_pos[2])
-
+		
 		# save max activation
 		max_activation = feat_maps[max_activation_pos]
-
+		
 		# set all entries except max activation of chosen feature map to zero
 		processed_feat_maps = np.zeros(feat_maps.shape)
 		processed_feat_maps[max_activation_pos] = max_activation
-
+		
 		return processed_feat_maps
-
-	def get_max_feature_map_indices(self, feat_maps, amount):
-
-		# find feature maps with largest single element values
-
+	
+	# find feature maps with largest single element values
+	def get_max_feature_maps(self, feat_map_layer_no, amount=-1):
+		
+		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
+		
+		# if negative number, select all
+		if amount < 0:
+			amount = feat_maps.shape[self.ch_dim]
+			print('Amount updated to:', amount)
+		
+		max_positions = []
+		feat_map_maxes = []
+		
+		# get selected feature map based on input
 		if K.image_data_format() == 'channels_last':
-			feat_map_maxes = np.array(
-				[np.amax(feat_maps[:, :, :, feat_map_no]) for feat_map_no in range(feat_maps.shape[self.ch_dim])])
+			for feat_map_no in range(feat_maps.shape[self.ch_dim]):
+				selected_feat_map = feat_maps[:, :, :, feat_map_no]
+				
+				# get index for max element in given feature map
+				max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
+				
+				# expand with feature map dimension
+				max_activation_pos += (feat_map_no,)
+				
+				max_positions.append(max_activation_pos)
+
+				feat_map_maxes.append(feat_maps[max_activation_pos])
 		else:
 			# TODO: test for theano
-			feat_map_maxes = np.array(
-				[np.amax(feat_maps[:, feat_map_no, :, :]) for feat_map_no in range(feat_maps.shape[self.ch_dim])])
+			for feat_map_no in range(feat_maps.shape[self.ch_dim]):
+				# get selected feature map based on input
+				selected_feat_map = feat_maps[:, feat_map_no, :, :]
+				
+				# get index for max element in given feature map
+				max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
+				
+				# expand with feature map dimension
+				max_activation_pos = (max_activation_pos[0], feat_map_no, max_activation_pos[1], max_activation_pos[2])
+				
+				max_positions.append(max_activation_pos)
 
-		max_feat_maps = feat_map_maxes.argsort()[-amount:]
-
+				feat_map_maxes.append(feat_maps[max_activation_pos])
+		
+		max_feat_maps = []
+		counter = 0
+		for feat_map_no in np.array(feat_map_maxes).argsort()[-amount:][::-1]:
+			# set all entries except max activation of chosen feature map to zero
+			processed_feat_maps = np.zeros(feat_maps.shape)
+			processed_feat_maps[max_positions[feat_map_no]] = feat_map_maxes[feat_map_no]
+		
+			max_feat_maps.append((feat_map_no, processed_feat_maps))
+		
+			if feat_map_maxes[feat_map_no] < 0.01:
+				counter += 1
+		
+		print('There were %d minor activations among those chosen' % counter)
+		
 		return max_feat_maps
-
+	
 	def get_max_images(self, check_amount, choose_amount, feat_map_layer_no, feat_map_nos):
-
+		
 		urls = []
-		scores = {}
-
-		# initialize scores with empty list
+		image_scores = {}
+		
+		# initialize image_scores with empty list
 		for feat_map_no in feat_map_nos:
-			scores[feat_map_no] = []
-
-		with open(join(dirname(__file__), 'input', 'fall11_urls.txt'), 'r') as f:
+			image_scores[feat_map_no] = []
+		
+		with open(urls_path, 'r') as f:
 			for i in range(check_amount):
 				url = f.readline().split('\t')[1].rstrip()
-
+				
 				# print('Check image ' + str(i) + ' at URL: ' + url)
-
+				
 				try:
 					img = load_image_from_url(url)
 				except RequestException:
@@ -365,41 +437,41 @@ class DeconvolutionModel:
 				except OSError:
 					# print('Error in opening image')
 					continue
-
+				
 				urls.append(url)
-
+				
 				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img)
-
+				
 				if K.image_data_format() == 'channels_last':
 					for feat_map_no in feat_map_nos:
-						scores[feat_map_no].append(np.amax(feat_maps[:, :, :, feat_map_no]))
+						image_scores[feat_map_no].append(np.amax(feat_maps[:, :, :, feat_map_no]))
 				else:
 					for feat_map_no in feat_map_nos:
-						scores[feat_map_no].append(np.amax(feat_maps[:, feat_map_no, :, :]))
-
+						image_scores[feat_map_no].append(np.amax(feat_maps[:, feat_map_no, :, :]))
+		
 		chosen_urls_dict = {}
 		chosen_images_dict = {}
 		for feat_map_no in feat_map_nos:
 			chosen_urls_dict[feat_map_no] = []
 			chosen_images_dict[feat_map_no] = []
-			count = 0
+			count = 1
 			print('\nChosen image URLs for feat. map no %d:' % feat_map_no)
-			for index in np.array(scores[feat_map_no]).argsort()[-choose_amount:]:
+			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
 				print(urls[index])
 				chosen_urls_dict[feat_map_no].append(urls[index])
-
+				
 				# if image was safely loaded the first time, assume safe to load now
 				img = load_image_from_url(urls[index])
 				chosen_images_dict[feat_map_no].append(img)
-
+				
 				# save max images for comparison
 				img = img[0]
 				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'max_images', 'feat_map_%d_image_%d_index_%d.png' % (feat_map_no, count, index)))
-
+					join(dirname(__file__), 'max_images', 'feat_map_%d_max_image_%d_index_%d.png' % (feat_map_no, count, index)))
+				
 				count += 1
-
+		
 		return chosen_images_dict, chosen_urls_dict
 
 

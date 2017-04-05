@@ -19,24 +19,24 @@ def create_intermediate_model():
 
 
 def create_model():
-    base_model = VGG16(include_top=True, weights='imagenet')
+	base_model = VGG16(include_top=True, weights='imagenet')
 
-    vgg_model = Sequential()
+	vgg_model = Sequential()
 
-    # save weights from last layer (softmax)
-    softmax_weights = base_model.layers[-1].get_weights()
+	# save weights from last layer (softmax)
+	softmax_weights = base_model.layers[-1].get_weights()
 
-    # remove softmax layer
-    base_model.layers.pop()
+	# remove softmax layer
+	base_model.layers.pop()
 
-    # add VGG base layers (add separately to avoid adding one, big layer)
-    for layer in base_model.layers:
-        vgg_model.add(layer)
+	# add VGG base layers (add separately to avoid adding one, big layer)
+	for layer in base_model.layers:
+		vgg_model.add(layer)
 
-    # add new, linear layer
-    vgg_model.add(Dense(1000, activation='linear', weights=softmax_weights))
+	# add new, linear layer
+	vgg_model.add(Dense(1000, activation='linear', weights=softmax_weights))
 
-    return vgg_model
+	return vgg_model
 
 
 def process_input(img):
@@ -60,26 +60,6 @@ def get_saliency_function(model_input, model_output, class_index):
 	return K.function([model_input], [saliency])
 
 
-'''def compile_saliency_function(model, inp, outp):
-
-	# problem: shape på output passer ikke inn her (max og så sum..?)
-
-	# problem: må ha inn faktisk input og output
-	#inp = model.inputs[0]
-	#outp = model.layers[-1].input
-	max_outp = np.amax(outp)
-	#saliency = K.gradients(inp, K.sum(max_outp))[0] # problem: returnerer NoneType
-	saliency = K.gradients(inp, max_outp)[0]
-	max_class = np.argmax(outp)
-
-	print(type(inp))
-	print(type(saliency))
-	print(type(max_class))
-	return
-
-	return K.function([inp], [saliency, max_class])'''
-
-
 def show_images(img_original, saliency, class_label):
 
 
@@ -95,7 +75,7 @@ def show_images(img_original, saliency, class_label):
 	plt.figure(figsize=(10, 10), facecolor='w')
 	plt.suptitle("Saliency maps for class: " + class_label)
 	#plt.suptitle("Class: " + classes[max_class] + ". Saliency: " + title)
-	
+
 	plt.subplot(2, 2, 1)
 	plt.title('input')
 	plt.imshow(img_original)
@@ -111,7 +91,7 @@ def show_images(img_original, saliency, class_label):
 	# plot absolute value with gray colormap
 	plt.imshow(image.array_to_img(abs_saliency), cmap='gray')
 
-	
+
 	plt.subplot(2, 2, 3)
 	plt.title('pos. saliency')
 	pos_saliency = np.maximum(0, saliency) / np.amax(saliency)
@@ -123,7 +103,7 @@ def show_images(img_original, saliency, class_label):
 	neg_saliency = np.maximum(0, -saliency) / -np.amin(saliency)
 	plt.imshow(image.array_to_img(neg_saliency))
 	#plt.imshow((np.maximum(0, -saliency) / -saliency.min()))'''
-	
+
 	plt.show()
 
 

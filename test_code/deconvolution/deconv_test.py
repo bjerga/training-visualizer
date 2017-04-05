@@ -35,6 +35,7 @@ except FileExistsError:
 # define path to image URLS
 urls_path = join(dirname(__file__), 'input', 'fall11_urls.txt')
 
+
 # TODO: delete when done with testing
 # NOTE: throws requests.exceptions.RequestException, ValueError, OSError
 def load_image_from_url(url):
@@ -83,11 +84,14 @@ def tensor_to_img(tensor):
 
 
 # saves the visualization and a txt-file describing its creation environment
-def save_reconstruction(recon, feat_map_no):
+def save_reconstruction(recon, feat_map_no, fixed_image_used=True):
 	# process before save
 	img = tensor_to_img(recon)
 
-	image_name = 'feat_map_%d_recon_%d' % (feat_map_no, len(listdir(output_path)))
+	if fixed_image_used:
+		image_name = 'max_no_%d_feat_map_%d' % (len(listdir(output_path)) + 1, feat_map_no)
+	else:
+		image_name = 'feat_map_%d_recon_%d' % (feat_map_no, len(listdir(output_path)) + 1)
 
 	# save the resulting image to disk
 	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
@@ -97,7 +101,8 @@ def save_reconstruction(recon, feat_map_no):
 
 
 def deconv_example():
-	img = load_image_from_file('dog.jpg')
+	img_name = 'dog.jpg'
+	img = load_image_from_file(img_name)
 
 	conv_model = VGG16(include_top=False, weights='imagenet', input_shape=img.shape[1:])
 
@@ -109,10 +114,12 @@ def deconv_example():
 	# for layer in conv_model.layers:
 	# 	print(layer.name)
 
-	deconv_model = DeconvolutionModel(conv_model, img, 'dog.jpg')
+	print('\nCreating deconvolution model')
+	start_time = time()
+	deconv_model = DeconvolutionModel(conv_model, img, img_name)
+	print('\nTime to create was %.4f seconds' % (time() - start_time))
 
 	# note that layers are zero indexed
-	#  TODO: test other (lower) layers
 	feat_map_layer_no = 18
 
 	choose_max_images = False
@@ -121,25 +128,12 @@ def deconv_example():
 	start_time = time()
 	
 	if choose_max_images:
-		np.random.seed(1337)
-		filter_amount = conv_model.layers[feat_map_layer_no].output_shape[deconv_model.ch_dim]
-		feat_map_random_subset = np.random.choice(filter_amount, 10, replace=False)
-		print('\nReconstruct for feature maps in layer %d:' % feat_map_layer_no, feat_map_random_subset)
-		max_images_dict, urls_dict = deconv_model.get_max_images(10000, 10, feat_map_layer_no, feat_map_random_subset)
-	
-		for feat_map_no in feat_map_random_subset:
-			for i in range(len(max_images_dict[feat_map_no])):
-				max_img = max_images_dict[feat_map_no][i]
-				max_img_name = urls_dict[feat_map_no][i]
-				deconv_model.produce_reconstruction(feat_map_layer_no, feat_map_no, max_img, max_img_name)
+		deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, 3)
+		# deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
 	else:
-		counter = 0
-		max_feat_maps = deconv_model.get_max_feature_maps(feat_map_layer_no, 10)
-		for feat_map_no, processed_feat_maps in max_feat_maps:
-			print(counter, feat_map_no)
-			deconv_model.produce_reconstruction_alt(feat_map_layer_no, feat_map_no, processed_feat_maps)
-			counter += 1
-			
+		deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, 10)
+		# deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
+		
 	print('\nTime to perform reconstructions for feat maps was %.4f seconds' % (time() - start_time))
 
 
@@ -275,40 +269,103 @@ class DeconvolutionModel:
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
-	def produce_reconstruction(self, feat_map_layer_no, feat_map_no, new_img=None, new_img_name=None):
+	# either uses maximally activated feature maps or specified ones
+	def produce_reconstruction_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
 		
-		# if specified, update all unpooling layers (used when image input has changed)
-		if new_img is not None:
-			self.update_deconv_model(new_img, new_img_name)
+		if feat_map_nos is None:
+			if feat_map_amount is None:
+				raise ValueError("Neither 'feat_map_amount' or 'feat_maps_nos' are specified. Specify at least one: "
+								 "'feat_map_amount' for maximally activated feature maps or 'feat_maps_nos' for user "
+								 "selected feature maps.")
+			
+			# get maximally activated feature maps of the specified amount
+			feat_maps_tuples = self.get_max_feature_maps(feat_map_layer_no, feat_map_amount)
+				
+		else:
+			# if feature map numbers are specified, check if valid
+			feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
+			invalid_nos = np.array(feat_map_nos)[np.array(feat_map_nos) >= feat_map_no_max]
+			if invalid_nos.size != 0:
+				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
+								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
+			
+			feat_maps_tuples = []
+			for feat_map_no in feat_map_nos:
+				# get conv. model output (feat maps) for desired feature map layer
+				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
+																   self.input_img)
+				
+				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
+				
+				# preprocess feature maps with regard to max activation in chosen feature map
+				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
+				
+				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
+
+		counter = 0
+		for feat_map_no, processed_feat_maps in feat_maps_tuples:
+			print(counter, feat_map_no)
+			
+			# feed to deconv. model to produce reconstruction
+			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
+																	self.layer_map[feat_map_layer_no],
+																	processed_feat_maps)
+			# save reconstruction to designated folder
+			save_reconstruction(reconstruction, feat_map_no)
+
+			counter += 1
+
+	# either uses randomly chosen feature maps or specified ones
+	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount, feat_map_amount=None, feat_map_nos=None):
 		
-		# get conv. model output (feat maps) for desired feature map layer
-		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
+		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
-		# preprocess feature maps with regard to chosen feature map
-		processed_feat_maps = self.preprocess_feat_maps(feat_maps, feat_map_no)
+		if feat_map_nos is None:
+			if feat_map_amount is None:
+				raise ValueError("Neither 'feat_map_amount' or 'feat_maps_nos' are specified. Specify at least one: "
+								 "'feat_map_amount' for a random subset of feature maps or 'feat_maps_nos' for user "
+								 "selected feature maps.")
+
+			# TODO: delete SEED when done with testing
+			np.random.seed(1337)
+			
+			# select random subset of feature map numbers of specified size
+			feat_map_nos = np.random.choice(feat_map_no_max, feat_map_amount, replace=False)
+			
+		else:
+			# if feature map numbers are specified, check if valid
+			invalid_nos = np.array(feat_map_nos)[np.array(feat_map_nos) >= feat_map_no_max]
+			if invalid_nos.size != 0:
+				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
+								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
+			
+		print('\nReconstruct for feature maps in layer %d:' % feat_map_layer_no, feat_map_nos)
+		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
-		# feed to deconv. model to produce reconstruction
-		_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
-																processed_feat_maps)
-		
-		# save reconstruction to designated folder
-		save_reconstruction(reconstruction, feat_map_no)
-	
-	def produce_reconstruction_alt(self, feat_map_layer_no, feat_map_no, processed_feat_maps):
-		
-		# feed to deconv. model to produce reconstruction
-		_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
-																self.layer_map[feat_map_layer_no],
-																processed_feat_maps)
-		
-		# save reconstruction to designated folder (alternate version of save_reconstruction)
-		# process before save
-		img = tensor_to_img(reconstruction)
-		
-		image_name = 'max_no_%d_feat_map_%d' % (len(listdir(output_path)) + 1, feat_map_no)
-		
-		# save the resulting image to disk
-		scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
+		for feat_map_no in feat_map_nos:
+			for i in range(len(max_images_dict[feat_map_no])):
+				max_img = max_images_dict[feat_map_no][i]
+				max_img_name = urls_dict[feat_map_no][i]
+				
+				# update all unpooling layers for the new image
+				self.update_deconv_model(max_img, max_img_name)
+				
+				# get conv. model output (feat maps) for desired feature map layer
+				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
+																   self.input_img)
+				
+				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
+
+				# preprocess feature maps with regard to max activation in chosen feature map
+				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
+				
+				# feed to deconv. model to produce reconstruction
+				_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
+																		self.layer_map[feat_map_layer_no],
+																		processed_feat_maps)
+				
+				# save reconstruction to designated folder
+				save_reconstruction(reconstruction, feat_map_no, False)
 	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
@@ -321,7 +378,7 @@ class DeconvolutionModel:
 		
 		return layer_input, layer_output
 	
-	def preprocess_feat_maps(self, feat_maps, feat_map_no):
+	def get_max_activation_and_pos(self, feat_maps, feat_map_no):
 		
 		if K.image_data_format() == 'channels_last':
 			# get selected feature map based on input
@@ -343,11 +400,13 @@ class DeconvolutionModel:
 			# expand with feature map dimension
 			max_activation_pos = (max_activation_pos[0], feat_map_no, max_activation_pos[1], max_activation_pos[2])
 		
-		# save max activation
-		max_activation = feat_maps[max_activation_pos]
+		# return max activation and its position
+		return feat_maps[max_activation_pos], max_activation_pos
+	
+	def preprocess_feat_maps(self, feat_maps_shape, max_activation, max_activation_pos):
 		
 		# set all entries except max activation of chosen feature map to zero
-		processed_feat_maps = np.zeros(feat_maps.shape)
+		processed_feat_maps = np.zeros(feat_maps_shape)
 		processed_feat_maps[max_activation_pos] = max_activation
 		
 		return processed_feat_maps
@@ -362,54 +421,31 @@ class DeconvolutionModel:
 			amount = feat_maps.shape[self.ch_dim]
 			print('Amount updated to:', amount)
 		
+		max_activations = []
 		max_positions = []
-		feat_map_maxes = []
 		
-		# get selected feature map based on input
-		if K.image_data_format() == 'channels_last':
-			for feat_map_no in range(feat_maps.shape[self.ch_dim]):
-				selected_feat_map = feat_maps[:, :, :, feat_map_no]
-				
-				# get index for max element in given feature map
-				max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
-				
-				# expand with feature map dimension
-				max_activation_pos += (feat_map_no,)
-				
-				max_positions.append(max_activation_pos)
+		# collect all feature map maximal activation
+		for feat_map_no in range(feat_maps.shape[self.ch_dim]):
+			
+			max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
 
-				feat_map_maxes.append(feat_maps[max_activation_pos])
-		else:
-			# TODO: test for theano
-			for feat_map_no in range(feat_maps.shape[self.ch_dim]):
-				# get selected feature map based on input
-				selected_feat_map = feat_maps[:, feat_map_no, :, :]
-				
-				# get index for max element in given feature map
-				max_activation_pos = np.unravel_index(np.argmax(selected_feat_map), selected_feat_map.shape)
-				
-				# expand with feature map dimension
-				max_activation_pos = (max_activation_pos[0], feat_map_no, max_activation_pos[1], max_activation_pos[2])
-				
-				max_positions.append(max_activation_pos)
-
-				feat_map_maxes.append(feat_maps[max_activation_pos])
+			max_activations.append(max_act)
+			max_positions.append(max_act_pos)
 		
-		max_feat_maps = []
+		max_feat_maps_tuples = []
 		counter = 0
-		for feat_map_no in np.array(feat_map_maxes).argsort()[-amount:][::-1]:
+		for feat_map_no in np.array(max_activations).argsort()[-amount:][::-1]:
 			# set all entries except max activation of chosen feature map to zero
-			processed_feat_maps = np.zeros(feat_maps.shape)
-			processed_feat_maps[max_positions[feat_map_no]] = feat_map_maxes[feat_map_no]
+			processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_activations[feat_map_no], max_positions[feat_map_no])
 		
-			max_feat_maps.append((feat_map_no, processed_feat_maps))
+			max_feat_maps_tuples.append((feat_map_no, processed_feat_maps))
 		
-			if feat_map_maxes[feat_map_no] < 0.01:
+			if max_activations[feat_map_no] < 0.01:
 				counter += 1
 		
 		print('There were %d minor activations among those chosen' % counter)
 		
-		return max_feat_maps
+		return max_feat_maps_tuples
 	
 	def get_max_images(self, check_amount, choose_amount, feat_map_layer_no, feat_map_nos):
 		

@@ -10,7 +10,6 @@ from os import mkdir, listdir
 from os.path import join, basename
 
 
-# saves the network at correct path when starting training and after each epoch
 class NetworkSaver(Callback):
 
 	def __init__(self, file_folder):
@@ -103,3 +102,49 @@ class ActivationTupleListSaver(Callback):
 
 		with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 			pickle.dump(layer_tuples, f)
+
+
+class SaliencyMap(Callback):
+
+	def __init__(self, file_folder):
+		super(SaliencyMap, self).__init__()
+		self.results_folder = join(file_folder, 'results')
+
+		images_folder = join(file_folder, 'images')
+		image_name = listdir(images_folder)[-1]
+		image = Image.open(join(images_folder, image_name))
+
+		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
+
+		self.counter = 0
+
+	def on_batch_end(self, batch, logs={}):
+
+		#TODO: allow user to set the interval
+		if self.counter == 10:
+
+			#predictions = self.model.predict(self.input_tensor)
+			# we need to remove the softmax layer
+			predict_func = K.function([self.model.input, K.learning_phase()], [self.model.layers[-2].output])
+			predictions = predict_func([self.input_tensor, 0])[0]
+
+			max_class = np.argmax(predictions)
+
+			loss = self.model.layers[-2].output[0, max_class]
+			saliency = K.gradients(loss, self.model.input)[0]
+
+			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])
+			saliency = get_saliency_function([self.input_tensor, 0])[0][0][:, :, ::-1]
+
+			abs_saliency = np.abs(saliency)
+
+			# scale to fit between [0.0, 255.0]
+			if abs_saliency.max() != 0.0:
+				abs_saliency *= (255.0 / abs_saliency.max())
+
+			file = join(self.results_folder, 'saliency_maps')
+			np.save(file, abs_saliency)
+
+			self.counter = 0
+
+		self.counter += 1

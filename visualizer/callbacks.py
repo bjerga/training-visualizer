@@ -111,32 +111,34 @@ class SaliencyMaps(Callback):
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 
+		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		image_name = listdir(images_folder)[-1]
 		image = Image.open(join(images_folder, image_name))
 
+		# convert to correct format TODO: check if this is needed, and generalize
 		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
-
 		self.counter = 0
 
 	def on_batch_end(self, batch, logs={}):
 
-		#TODO: allow user to set the interval
+		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 
-			#predictions = self.model.predict(self.input_tensor)
-			# we need to remove the softmax layer
+			# predict using the chosen image, but remove the top layer as it is a softmax layer
 			predict_func = K.function([self.model.input, K.learning_phase()], [self.model.layers[-2].output])
 			predictions = predict_func([self.input_tensor, 0])[0]
-
+			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
+			# compute the gradient of the input with respect to the loss
 			loss = self.model.layers[-2].output[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
 			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])
 			saliency = get_saliency_function([self.input_tensor, 0])[0][0][:, :, ::-1]
 
+			# get the absolute value of the saliency
 			abs_saliency = np.abs(saliency)
 
 			# scale to fit between [0.0, 255.0]

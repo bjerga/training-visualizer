@@ -125,14 +125,22 @@ class SaliencyMaps(Callback):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 
-			# predict using the chosen image, but remove the top layer as it is a softmax layer
-			predict_func = K.function([self.model.input, K.learning_phase()], [self.model.layers[-2].output])
-			predictions = predict_func([self.input_tensor, 0])[0]
+			output_layer = self.model.layers[-1]
+
+			if output_layer.get_config()['activation'] == 'softmax':
+				output_layer = self.model.layers[-2]
+
+				# predict using the chosen image, but remove the top layer as it is a softmax layer
+				predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
+				predictions = predict_func([self.input_tensor, 0])[0]
+			else:
+				predictions = self.model.predict(self.input_tensor)[0]
+
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
 			# compute the gradient of the input with respect to the loss
-			loss = self.model.layers[-2].output[0, max_class]
+			loss = output_layer.output[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
 			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])

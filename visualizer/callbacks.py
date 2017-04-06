@@ -106,9 +106,10 @@ class ActivationTupleListSaver(Callback):
 
 class SaliencyMap(Callback):
 
-	def __init__(self, file_folder):
+	def __init__(self, file_folder, interval=10):
 		super(SaliencyMap, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
 
 		images_folder = join(file_folder, 'images')
 		image_name = listdir(images_folder)[-1]
@@ -121,7 +122,7 @@ class SaliencyMap(Callback):
 	def on_batch_end(self, batch, logs={}):
 
 		#TODO: allow user to set the interval
-		if self.counter == 10:
+		if self.counter == self.interval:
 
 			#predictions = self.model.predict(self.input_tensor)
 			# we need to remove the softmax layer

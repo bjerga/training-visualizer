@@ -89,15 +89,15 @@ def save_reconstruction(recon, feat_map_no, fixed_image_used=True):
 	img = tensor_to_img(recon)
 
 	if fixed_image_used:
-		image_name = 'max_no_%d_feat_map_%d' % (len(listdir(output_path)) + 1, feat_map_no)
+		image_name = 'max_no_{}_feat_map_{}'.format(len(listdir(output_path)) + 1, feat_map_no)
 	else:
-		image_name = 'feat_map_%d_recon_%d' % (feat_map_no, len(listdir(output_path)) + 1)
+		image_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(output_path)) + 1)
 
 	# save the resulting image to disk
 	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
 	# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
 
-	# print('\nImage has been saved as %s.png\n' % image_name)
+	# print('\nImage has been saved as {!s}.png\n'.format(image_name))
 
 
 def deconv_example():
@@ -117,12 +117,12 @@ def deconv_example():
 	print('\nCreating deconvolution model')
 	start_time = time()
 	deconv_model = DeconvolutionModel(conv_model, img, img_name)
-	print('\nTime to create was %.4f seconds' % (time() - start_time))
+	print('\nTime to create was {:.4f} seconds'.format(time() - start_time))
 
 	# note that layers are zero indexed
 	feat_map_layer_no = 18
 
-	choose_max_images = False
+	choose_max_images = True
 
 	print('\nReady for deconv. pred.')
 	start_time = time()
@@ -134,7 +134,7 @@ def deconv_example():
 		deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, 10)
 		# deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
 		
-	print('\nTime to perform reconstructions for feat maps was %.4f seconds' % (time() - start_time))
+	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))
 
 
 class DeconvolutionModel:
@@ -233,7 +233,7 @@ class DeconvolutionModel:
 			# add to model map
 			self.model_map[self.input_img_name] = (deconv_model, layer_map)
 		
-		# print('\nTime to create deconv. model was %.4f seconds' % (time() - start_time))
+		# print('\nTime to create deconv. model was {:.4f} seconds'.format(time() - start_time))
 		
 		return deconv_model, layer_map
 	
@@ -339,7 +339,7 @@ class DeconvolutionModel:
 				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
 								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
 			
-		print('\nReconstruct for feature maps in layer %d:' % feat_map_layer_no, feat_map_nos)
+		print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
 		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
 		for feat_map_no in feat_map_nos:
@@ -443,7 +443,7 @@ class DeconvolutionModel:
 			if max_activations[feat_map_no] < 0.01:
 				counter += 1
 		
-		print('There were %d minor activations among those chosen' % counter)
+		print('There were {} minor activations among those chosen'.format(counter))
 		
 		return max_feat_maps_tuples
 	
@@ -491,7 +491,7 @@ class DeconvolutionModel:
 			chosen_urls_dict[feat_map_no] = []
 			chosen_images_dict[feat_map_no] = []
 			count = 1
-			print('\nChosen image URLs for feat. map no %d:' % feat_map_no)
+			print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
 				print(urls[index])
 				chosen_urls_dict[feat_map_no].append(urls[index])
@@ -504,7 +504,7 @@ class DeconvolutionModel:
 				img = img[0]
 				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'max_images', 'feat_map_%d_max_image_%d_index_%d.png' % (feat_map_no, count, index)))
+					join(dirname(__file__), 'max_images', 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
 		

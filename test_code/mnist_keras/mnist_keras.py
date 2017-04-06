@@ -4,7 +4,7 @@ from os.path import join, dirname
 import numpy as np
 
 from keras.models import Model
-from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, Dropout, Flatten, K
+from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, Dropout, Flatten
 from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 

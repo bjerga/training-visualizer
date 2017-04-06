@@ -2,8 +2,8 @@
 .idea/
 visualizer/*.db
 visualizer/static/user_storage/
+visualizer/deconv_output
+visualizer/deconv_max_images
+visualizer/deconv_input/fall11_urls.txt
 test_code/deep_dream/output
 test_code/deep_dream/old_output
-test_code/deconvolution/output
-test_code/deconvolution/max_images
-test_code/deconvolution/input/fall11_urls.txt

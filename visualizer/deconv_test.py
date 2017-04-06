@@ -25,15 +25,10 @@ from io import BytesIO
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
 # define output path and make folder
-output_path = join(dirname(__file__), 'output')
-try:
-	mkdir(output_path)
-except FileExistsError:
-	# folder exists, which is what we wanted
-	pass
+output_path = join(dirname(__file__), 'deconv_output')
 
 # define path to image URLS
-urls_path = join(dirname(__file__), 'input', 'fall11_urls.txt')
+urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 # TODO: delete when done with testing
@@ -504,7 +499,7 @@ class DeconvolutionModel:
 				img = img[0]
 				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'max_images', 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
+					join(dirname(__file__), 'deconv_max_images', 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
 		

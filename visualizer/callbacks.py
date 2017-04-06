@@ -104,10 +104,10 @@ class ActivationTupleListSaver(Callback):
 			pickle.dump(layer_tuples, f)
 
 
-class SaliencyMap(Callback):
+class SaliencyMaps(Callback):
 
 	def __init__(self, file_folder, interval=10):
-		super(SaliencyMap, self).__init__()
+		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 

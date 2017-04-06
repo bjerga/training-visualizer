@@ -10,7 +10,7 @@ from requests.exceptions import RequestException
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Input, Conv2DTranspose, Activation
+from keras.layers import Input, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
 from keras.layers.pooling import _Pooling2D
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
@@ -122,7 +122,7 @@ def deconv_example():
 	# note that layers are zero indexed
 	feat_map_layer_no = 18
 
-	choose_max_images = True
+	choose_max_images = False
 
 	print('\nReady for deconv. pred.')
 	start_time = time()
@@ -173,10 +173,10 @@ class DeconvolutionModel:
 			
 			# create layer map between conv. layers and deconv. layers
 			layer_map = {}
-			
+
 			# get info used to create unpooling layers
 			unpool_info = self.get_unpool_info()
-			
+
 			# add first layer with output shape of conv. model as input shape
 			dc_input = Input(shape=self.link_model.output_shape[1:])
 			
@@ -188,7 +188,7 @@ class DeconvolutionModel:
 				layer = self.link_model.layers[layer_no]
 				
 				# if convolution layer in linked model
-				if 'conv' in layer.name:
+				if isinstance(layer, Conv2D):
 					# add activation before deconvolution layer
 					x = Activation(layer.activation)(x)
 					
@@ -209,7 +209,7 @@ class DeconvolutionModel:
 					dc_layer_count += 2
 				
 				# if pooling layer in linked model
-				elif 'pool' in layer.name:
+				elif isinstance(layer, MaxPooling2D):
 					# get previously computed input and output for pooling layer in linked model
 					pool_input, pool_output = unpool_info[layer_no]
 					
@@ -249,7 +249,7 @@ class DeconvolutionModel:
 		
 		# traverse layers and compute input and output for pooling layers
 		for layer_no in range(len(self.link_model.layers)):
-			if 'pool' in self.link_model.layers[layer_no].name:
+			if isinstance(self.link_model.layers[layer_no], MaxPooling2D):
 				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no, start_layer_no,
 																			  start_input)
 				

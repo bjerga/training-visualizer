@@ -110,6 +110,7 @@ class SaliencyMaps(Callback):
 		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
+		self.counter = 0
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
@@ -118,7 +119,6 @@ class SaliencyMaps(Callback):
 
 		# convert to correct format TODO: check if this is needed, and generalize
 		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
-		self.counter = 0
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -126,15 +126,13 @@ class SaliencyMaps(Callback):
 		if self.counter == self.interval:
 
 			output_layer = self.model.layers[-1]
-
+			# ignore the top layer of prediction if it is a softmax layer
 			if output_layer.get_config()['activation'] == 'softmax':
 				output_layer = self.model.layers[-2]
 
-				# predict using the chosen image, but remove the top layer as it is a softmax layer
-				predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
-				predictions = predict_func([self.input_tensor, 0])[0]
-			else:
-				predictions = self.model.predict(self.input_tensor)[0]
+			predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
+			# predict using the chosen image
+			predictions = predict_func([self.input_tensor, 0])[0]
 
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)

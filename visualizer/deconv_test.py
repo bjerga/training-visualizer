@@ -45,7 +45,7 @@ def load_image_from_url(url):
 
 
 def load_image_from_file(img_name):
-	img_path = join(dirname(__file__), 'input', img_name)
+	img_path = join(dirname(__file__), 'deconv_input', img_name)
 	img = image.load_img(img_path, target_size=(224, 224))
 	img = image.img_to_array(img)
 
@@ -63,9 +63,9 @@ def preprocess_image(img):
 
 
 # utility function used to convert a tensor into a savable image
-def tensor_to_img(tensor):
+def postprocess_image(np_array):
 	# remove batch dimension
-	img = tensor[0]
+	img = np_array[0]
 
 	if K.image_data_format() == 'channels_first':
 		# alter dimensions from (color, height, width) to (height, width, color)
@@ -78,21 +78,26 @@ def tensor_to_img(tensor):
 	return img
 
 
-# saves the visualization and a txt-file describing its creation environment
+# saves the visualization and a txt-file describing its creation environment and return saved array and name
 def save_reconstruction(recon, feat_map_no, fixed_image_used=True):
 	# process before save
-	img = tensor_to_img(recon)
+	img = postprocess_image(recon)
 
 	if fixed_image_used:
-		image_name = 'max_no_{}_feat_map_{}'.format(len(listdir(output_path)) + 1, feat_map_no)
+		img_name = 'max_no_{}_feat_map_{}'.format(len(listdir(output_path)) + 1, feat_map_no)
 	else:
-		image_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(output_path)) + 1)
+		img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(output_path)) + 1)
+
+	# get Pillow Image
+	pil_img = scipy.misc.toimage(img, cmin=0, cmax=255)
 
 	# save the resulting image to disk
-	scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
 	# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
+	pil_img.save(join(output_path, img_name + '.png'))
 
-	# print('\nImage has been saved as {!s}.png\n'.format(image_name))
+	# print('\nImage has been saved as {!s}.png\n'.format(img_name))
+	
+	return img, img_name
 
 
 def deconv_example():
@@ -111,7 +116,7 @@ def deconv_example():
 
 	print('\nCreating deconvolution model')
 	start_time = time()
-	deconv_model = DeconvolutionModel(conv_model, img, img_name)
+	deconv_model = DeconvolutionModel(conv_model, img, img_name, output_path)
 	print('\nTime to create was {:.4f} seconds'.format(time() - start_time))
 
 	# note that layers are zero indexed
@@ -131,9 +136,54 @@ def deconv_example():
 		
 	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))
 
+from keras.callbacks import Callback
+import keras.backend as K
+
+import numpy as np
+import pickle
+
+from PIL import Image
+
+from os import mkdir, listdir
+from os.path import join, basename
+
+class DeconvolutionReconstruction(Callback):
+	
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=10):
+		super(DeconvolutionReconstruction, self).__init__()
+		
+		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
+		
+		# find image uploaded by user to use in visualization
+		images_folder = join(file_folder, 'images')
+		self.img_name = listdir(images_folder)[-1]
+		self.img = Image.open(join(images_folder, self.img_name))
+		
+		self.feat_map_layer_no = feat_map_layer_no
+		self.feat_map_amount = feat_map_amount
+		self.feat_map_nos = feat_map_nos
+		
+	def on_train_begin(self, logs=None):
+		self.deconv_model = DeconvolutionModel(self.model, self.img, self.img_name, self.results_folder)
+		
+	def on_batch_end(self, batch, logs=None):
+		
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
+			
+			self.deconv_model.produce_reconstruction_with_fixed_image(self.feat_map_layer_no,
+																	  self.feat_map_amount,
+																	  self.feat_map_nos)
+			
+			self.counter = 0
+			
+		self.counter += 1
+
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img, input_img_name):
+	def __init__(self, link_model, input_img, input_img_name, output_folder):
 		
 		# TODO: test with img-model map
 		self.model_map = {}
@@ -147,6 +197,7 @@ class DeconvolutionModel:
 		self.link_model = link_model
 		self.input_img = input_img
 		self.input_img_name = input_img_name
+		self.output_folder = output_folder
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
@@ -267,18 +318,23 @@ class DeconvolutionModel:
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstruction_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
 		
+		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
+		
 		if feat_map_nos is None:
 			if feat_map_amount is None:
 				raise ValueError("Neither 'feat_map_amount' or 'feat_maps_nos' are specified. Specify at least one: "
 								 "'feat_map_amount' for maximally activated feature maps or 'feat_maps_nos' for user "
-								 "selected feature maps.")
+								 "selected feature maps. Set 'feat_map_amount' to -1 to select all feature maps.")
+			
+			# if feat_map_amount is set to -1, select all feature maps
+			elif feat_map_amount == -1:
+				feat_map_amount = feat_map_no_max
 			
 			# get maximally activated feature maps of the specified amount
 			feat_maps_tuples = self.get_max_feature_maps(feat_map_layer_no, feat_map_amount)
 				
 		else:
 			# if feature map numbers are specified, check if valid
-			feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 			invalid_nos = np.array(feat_map_nos)[np.array(feat_map_nos) >= feat_map_no_max]
 			if invalid_nos.size != 0:
 				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
@@ -298,6 +354,7 @@ class DeconvolutionModel:
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
 
 		counter = 0
+		reconstructions = {}
 		for feat_map_no, processed_feat_maps in feat_maps_tuples:
 			print(counter, feat_map_no)
 			
@@ -305,11 +362,16 @@ class DeconvolutionModel:
 			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
 																	self.layer_map[feat_map_layer_no],
 																	processed_feat_maps)
-			# save reconstruction to designated folder
-			save_reconstruction(reconstruction, feat_map_no)
+			# save reconstruction to designated folder (returns saved array and name)
+			img, img_name = save_reconstruction(reconstruction, feat_map_no)
+			
+			reconstructions[img_name] = img
 
 			counter += 1
-
+		
+		# save as numpy array
+		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions))
+		
 	# either uses randomly chosen feature maps or specified ones
 	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount, feat_map_amount=None, feat_map_nos=None):
 		
@@ -337,7 +399,9 @@ class DeconvolutionModel:
 		print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
 		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
+		reconstructions_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
+			reconstructions_by_feat_map_no[feat_map_no] = {}
 			for i in range(len(max_images_dict[feat_map_no])):
 				max_img = max_images_dict[feat_map_no][i]
 				max_img_name = urls_dict[feat_map_no][i]
@@ -359,8 +423,13 @@ class DeconvolutionModel:
 																		self.layer_map[feat_map_layer_no],
 																		processed_feat_maps)
 				
-				# save reconstruction to designated folder
-				save_reconstruction(reconstruction, feat_map_no, False)
+				# save reconstruction to designated folder (returns saved array and name)
+				img, img_name = save_reconstruction(reconstruction, feat_map_no, False)
+				
+				reconstructions_by_feat_map_no[feat_map_no][img_name] = img
+				
+		# save as numpy array
+		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions_by_feat_map_no))
 	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
@@ -407,14 +476,9 @@ class DeconvolutionModel:
 		return processed_feat_maps
 	
 	# find feature maps with largest single element values
-	def get_max_feature_maps(self, feat_map_layer_no, amount=-1):
+	def get_max_feature_maps(self, feat_map_layer_no, amount):
 		
 		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
-		
-		# if negative number, select all
-		if amount < 0:
-			amount = feat_maps.shape[self.ch_dim]
-			print('Amount updated to:', amount)
 		
 		max_activations = []
 		max_positions = []
@@ -482,9 +546,11 @@ class DeconvolutionModel:
 		
 		chosen_urls_dict = {}
 		chosen_images_dict = {}
+		max_images_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
 			chosen_urls_dict[feat_map_no] = []
 			chosen_images_dict[feat_map_no] = []
+			max_images_by_feat_map_no[feat_map_no] = {}
 			count = 1
 			print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
@@ -498,10 +564,16 @@ class DeconvolutionModel:
 				# save max images for comparison
 				img = img[0]
 				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
+				
+				max_images_by_feat_map_no[feat_map_no][urls[index]] = img
+				
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
 					join(dirname(__file__), 'deconv_max_images', 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
+
+		# save as numpy array
+		np.save(join(dirname(__file__), 'deconv_max_images', 'deconv_max_images'), np.array(max_images_by_feat_map_no))
 		
 		return chosen_images_dict, chosen_urls_dict
 

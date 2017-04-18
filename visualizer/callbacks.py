@@ -10,7 +10,6 @@ from os import mkdir, listdir
 from os.path import join, basename
 
 
-# saves the network at correct path when starting training and after each epoch
 class NetworkSaver(Callback):
 
 	def __init__(self, file_folder):
@@ -103,3 +102,58 @@ class ActivationTupleListSaver(Callback):
 
 		with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 			pickle.dump(layer_tuples, f)
+
+
+class SaliencyMaps(Callback):
+
+	def __init__(self, file_folder, interval=10):
+		super(SaliencyMaps, self).__init__()
+		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
+
+		# find image uploaded by user to use in visualization
+		images_folder = join(file_folder, 'images')
+		image_name = listdir(images_folder)[-1]
+		image = Image.open(join(images_folder, image_name))
+
+		# convert to correct format TODO: check if this is needed, and generalize
+		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
+
+	def on_batch_end(self, batch, logs={}):
+
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
+
+			output_layer = self.model.layers[-1]
+			# ignore the top layer of prediction if it is a softmax layer
+			if output_layer.get_config()['activation'] == 'softmax':
+				output_layer = self.model.layers[-2]
+
+			predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
+			# predict using the chosen image
+			predictions = predict_func([self.input_tensor, 0])[0]
+
+			# find the most likely predicted class
+			max_class = np.argmax(predictions)
+
+			# compute the gradient of the input with respect to the loss
+			loss = output_layer.output[0, max_class]
+			saliency = K.gradients(loss, self.model.input)[0]
+
+			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])
+			saliency = get_saliency_function([self.input_tensor, 0])[0][0][:, :, ::-1]
+
+			# get the absolute value of the saliency
+			abs_saliency = np.abs(saliency)
+
+			# scale to fit between [0.0, 255.0]
+			if abs_saliency.max() != 0.0:
+				abs_saliency *= (255.0 / abs_saliency.max())
+
+			file = join(self.results_folder, 'saliency_maps')
+			np.save(file, abs_saliency)
+
+			self.counter = 0
+
+		self.counter += 1

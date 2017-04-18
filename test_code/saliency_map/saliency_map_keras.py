@@ -12,12 +12,6 @@ import matplotlib.pyplot as plt
 # https://github.com/Lasagne/Recipes/blob/master/examples/Saliency%20Maps%20and%20Guided%20Backpropagation.ipynb
 
 
-def create_intermediate_model():
-	base_model = VGG16(include_top=True, weights='imagenet')
-	model = Model(input=base_model.input, output=base_model.layers[-1].input)
-	return model
-
-
 def create_model():
 	base_model = VGG16(include_top=True, weights='imagenet')
 
@@ -29,7 +23,7 @@ def create_model():
 	# remove softmax layer
 	base_model.layers.pop()
 
-	# add VGG base layers (add separately to avoid adding one, big layer)
+	# add VGG base layers
 	for layer in base_model.layers:
 		vgg_model.add(layer)
 
@@ -109,7 +103,6 @@ def show_images(img_original, saliency, class_label):
 
 def main():
 	# Creates the VGG model without the softmax layer
-	#model = create_intermediate_model()
 	model = create_model()
 
 	img_path = 'cat.jpg'

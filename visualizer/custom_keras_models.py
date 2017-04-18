@@ -4,7 +4,7 @@ import theano.tensor as tht
 import scipy.misc
 
 from time import time
-from os import mkdir, listdir
+from os import listdir
 from os.path import dirname, join
 from requests.exceptions import RequestException
 
@@ -12,7 +12,6 @@ import keras.backend as K
 from keras.models import Model
 from keras.layers import Input, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
 from keras.layers.pooling import _Pooling2D
-from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
 
 # TODO: delete when done with testing
@@ -21,165 +20,14 @@ from PIL import Image
 import requests
 from io import BytesIO
 
-# VGG16 mean values
-MEAN_VALUES = np.array([103.939, 116.779, 123.68])
-
-# define output path and make folder
-output_path = join(dirname(__file__), 'deconv_output')
+# TODO: delete when done with testing
+is_VGG16 = True
 
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
-
-# TODO: delete when done with testing
-# NOTE: throws requests.exceptions.RequestException, ValueError, OSError
-def load_image_from_url(url):
-	response = requests.get(url, timeout=5)
-
-	img = Image.open(BytesIO(response.content))
-	img = image.img_to_array(img)
-	img = scipy.misc.imresize(img, (224, 224))
-	img = img.astype('float64')
-
-	return preprocess_image(img)
-
-
-def load_image_from_file(img_name):
-	img_path = join(dirname(__file__), 'deconv_input', img_name)
-	img = image.load_img(img_path, target_size=(224, 224))
-	img = image.img_to_array(img)
-
-	return preprocess_image(img)
-
-
-def preprocess_image(img):
-
-	if K.image_data_format() == 'channels_last':
-		img -= MEAN_VALUES.reshape((1, 1, 3))
-	else:
-		img -= MEAN_VALUES.reshape((3, 1, 1))
-
-	return np.expand_dims(img, axis=0)
-
-
-# utility function used to convert a tensor into a savable image
-def postprocess_image(np_array):
-	# remove batch dimension
-	img = np_array[0]
-
-	if K.image_data_format() == 'channels_first':
-		# alter dimensions from (color, height, width) to (height, width, color)
-		img = img.transpose((1, 2, 0))
-
-	img += MEAN_VALUES.reshape((1, 1, 3))
-
-	img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
-
-	return img
-
-
-# saves the visualization and a txt-file describing its creation environment and return saved array and name
-def save_reconstruction(recon, feat_map_no, fixed_image_used=True):
-	# process before save
-	img = postprocess_image(recon)
-
-	if fixed_image_used:
-		img_name = 'max_no_{}_feat_map_{}'.format(len(listdir(output_path)) + 1, feat_map_no)
-	else:
-		img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(output_path)) + 1)
-
-	# get Pillow Image
-	pil_img = scipy.misc.toimage(img, cmin=0, cmax=255)
-
-	# save the resulting image to disk
-	# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-	pil_img.save(join(output_path, img_name + '.png'))
-
-	# print('\nImage has been saved as {!s}.png\n'.format(img_name))
-	
-	return img, img_name
-
-
-def deconv_example():
-	img_name = 'dog.jpg'
-	img = load_image_from_file(img_name)
-
-	conv_model = VGG16(include_top=False, weights='imagenet', input_shape=img.shape[1:])
-
-	# print conv info
-	# print('\n***CONVOLUTIONAL MODEL INFO***')
-	# print('Conv. input shape:', conv_model.input_shape)
-	# print('Conv. output shape:', conv_model.output_shape)
-	# print('\nLayers in conv. model:')
-	# for layer in conv_model.layers:
-	# 	print(layer.name)
-
-	print('\nCreating deconvolution model')
-	start_time = time()
-	deconv_model = DeconvolutionModel(conv_model, img, img_name, output_path)
-	print('\nTime to create was {:.4f} seconds'.format(time() - start_time))
-
-	# note that layers are zero indexed
-	feat_map_layer_no = 18
-
-	choose_max_images = False
-
-	print('\nReady for deconv. pred.')
-	start_time = time()
-	
-	if choose_max_images:
-		deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, 3)
-		# deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
-	else:
-		deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, 10)
-		# deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
-		
-	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))
-
-from keras.callbacks import Callback
-import keras.backend as K
-
-import numpy as np
-import pickle
-
-from PIL import Image
-
-from os import mkdir, listdir
-from os.path import join, basename
-
-class DeconvolutionReconstruction(Callback):
-	
-	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=10):
-		super(DeconvolutionReconstruction, self).__init__()
-		
-		self.results_folder = join(file_folder, 'results')
-		self.interval = interval
-		self.counter = 0
-		
-		# find image uploaded by user to use in visualization
-		images_folder = join(file_folder, 'images')
-		self.img_name = listdir(images_folder)[-1]
-		self.img = Image.open(join(images_folder, self.img_name))
-		
-		self.feat_map_layer_no = feat_map_layer_no
-		self.feat_map_amount = feat_map_amount
-		self.feat_map_nos = feat_map_nos
-		
-	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img, self.img_name, self.results_folder)
-		
-	def on_batch_end(self, batch, logs=None):
-		
-		# only update visualization at user specified intervals
-		if self.counter == self.interval:
-			
-			self.deconv_model.produce_reconstruction_with_fixed_image(self.feat_map_layer_no,
-																	  self.feat_map_amount,
-																	  self.feat_map_nos)
-			
-			self.counter = 0
-			
-		self.counter += 1
+# VGG16 mean values
+MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
 
 class DeconvolutionModel:
@@ -219,10 +67,10 @@ class DeconvolutionModel:
 			
 			# create layer map between conv. layers and deconv. layers
 			layer_map = {}
-
+			
 			# get info used to create unpooling layers
 			unpool_info = self.get_unpool_info()
-
+			
 			# add first layer with output shape of conv. model as input shape
 			dc_input = Input(shape=self.link_model.output_shape[1:])
 			
@@ -332,7 +180,7 @@ class DeconvolutionModel:
 			
 			# get maximally activated feature maps of the specified amount
 			feat_maps_tuples = self.get_max_feature_maps(feat_map_layer_no, feat_map_amount)
-				
+		
 		else:
 			# if feature map numbers are specified, check if valid
 			invalid_nos = np.array(feat_map_nos)[np.array(feat_map_nos) >= feat_map_no_max]
@@ -352,7 +200,7 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
-
+		
 		counter = 0
 		reconstructions = {}
 		for feat_map_no, processed_feat_maps in feat_maps_tuples:
@@ -363,17 +211,18 @@ class DeconvolutionModel:
 																	self.layer_map[feat_map_layer_no],
 																	processed_feat_maps)
 			# save reconstruction to designated folder (returns saved array and name)
-			img, img_name = save_reconstruction(reconstruction, feat_map_no)
+			img_array, img_name = self.save_as_image(reconstruction, feat_map_no)
 			
-			reconstructions[img_name] = img
-
+			reconstructions[img_name] = img_array
+			
 			counter += 1
 		
 		# save as numpy array
 		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions))
-		
+	
 	# either uses randomly chosen feature maps or specified ones
-	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount, feat_map_amount=None, feat_map_nos=None):
+	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount,
+											   feat_map_amount=None, feat_map_nos=None):
 		
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
@@ -382,20 +231,20 @@ class DeconvolutionModel:
 				raise ValueError("Neither 'feat_map_amount' or 'feat_maps_nos' are specified. Specify at least one: "
 								 "'feat_map_amount' for a random subset of feature maps or 'feat_maps_nos' for user "
 								 "selected feature maps.")
-
+			
 			# TODO: delete SEED when done with testing
 			np.random.seed(1337)
 			
 			# select random subset of feature map numbers of specified size
 			feat_map_nos = np.random.choice(feat_map_no_max, feat_map_amount, replace=False)
-			
+		
 		else:
 			# if feature map numbers are specified, check if valid
 			invalid_nos = np.array(feat_map_nos)[np.array(feat_map_nos) >= feat_map_no_max]
 			if invalid_nos.size != 0:
 				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
 								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
-			
+		
 		print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
 		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
@@ -414,7 +263,7 @@ class DeconvolutionModel:
 																   self.input_img)
 				
 				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
-
+				
 				# preprocess feature maps with regard to max activation in chosen feature map
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
@@ -424,10 +273,10 @@ class DeconvolutionModel:
 																		processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)
-				img, img_name = save_reconstruction(reconstruction, feat_map_no, False)
+				img, img_name = self.save_as_image(reconstruction, feat_map_no, False)
 				
 				reconstructions_by_feat_map_no[feat_map_no][img_name] = img
-				
+		
 		# save as numpy array
 		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions_by_feat_map_no))
 	
@@ -485,9 +334,8 @@ class DeconvolutionModel:
 		
 		# collect all feature map maximal activation
 		for feat_map_no in range(feat_maps.shape[self.ch_dim]):
-			
 			max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
-
+			
 			max_activations.append(max_act)
 			max_positions.append(max_act_pos)
 		
@@ -495,10 +343,11 @@ class DeconvolutionModel:
 		counter = 0
 		for feat_map_no in np.array(max_activations).argsort()[-amount:][::-1]:
 			# set all entries except max activation of chosen feature map to zero
-			processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_activations[feat_map_no], max_positions[feat_map_no])
-		
+			processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_activations[feat_map_no],
+															max_positions[feat_map_no])
+			
 			max_feat_maps_tuples.append((feat_map_no, processed_feat_maps))
-		
+			
 			if max_activations[feat_map_no] < 0.01:
 				counter += 1
 		
@@ -522,7 +371,7 @@ class DeconvolutionModel:
 				# print('Check image ' + str(i) + ' at URL: ' + url)
 				
 				try:
-					img = load_image_from_url(url)
+					img = self.load_image_from_url(url)
 				except RequestException:
 					# print('Error with request')
 					continue
@@ -558,7 +407,7 @@ class DeconvolutionModel:
 				chosen_urls_dict[feat_map_no].append(urls[index])
 				
 				# if image was safely loaded the first time, assume safe to load now
-				img = load_image_from_url(urls[index])
+				img = self.load_image_from_url(urls[index])
 				chosen_images_dict[feat_map_no].append(img)
 				
 				# save max images for comparison
@@ -568,14 +417,67 @@ class DeconvolutionModel:
 				max_images_by_feat_map_no[feat_map_no][urls[index]] = img
 				
 				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'deconv_max_images', 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
+					join(dirname(__file__), 'deconv_max_images',
+						 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
-
+		
 		# save as numpy array
 		np.save(join(dirname(__file__), 'deconv_max_images', 'deconv_max_images'), np.array(max_images_by_feat_map_no))
 		
 		return chosen_images_dict, chosen_urls_dict
+	
+	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.
+	
+	# TODO: modify when done with testing
+	# NOTE: throws requests.exceptions.RequestException, ValueError, OSError
+	def load_image_from_url(self, url):
+		response = requests.get(url, timeout=5)
+		
+		img = Image.open(BytesIO(response.content))
+		img = image.img_to_array(img)
+		img = scipy.misc.imresize(img, (224, 224))
+		img = img.astype('float64')
+		
+		if is_VGG16:
+			if K.image_data_format() == 'channels_last':
+				img -= MEAN_VALUES.reshape((1, 1, 3))
+			else:
+				img -= MEAN_VALUES.reshape((3, 1, 1))
+		
+		return np.expand_dims(img, axis=0)
+	
+	# TODO: modify when done with testing
+	# saves the visualization and a txt-file describing its creation environment and return saved array and name
+	def save_as_image(self, img_array, feat_map_no, fixed_image_used=True):
+		
+		# process before save
+		# remove batch dimension
+		img_array = img_array[0]
+		
+		if K.image_data_format() == 'channels_first':
+			# alter dimensions from (color, height, width) to (height, width, color)
+			img_array = img_array.transpose((1, 2, 0))
+		
+		if is_VGG16:
+			img_array += MEAN_VALUES.reshape((1, 1, 3))
+		
+		# clip in [0, 255] and convert to uint8
+		img_array = img_array.clip(0, 255).astype('uint8')
+		
+		if fixed_image_used:
+			img_name = 'max_no_{}_feat_map_{}'.format(len(listdir(self.output_folder)) + 1, feat_map_no)
+		else:
+			img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(self.output_folder)) + 1)
+		
+		# save the resulting image to disk
+		# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
+		# scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, img_name + '.png'))
+		scipy.misc.toimage(img_array).save(join(self.output_folder, img_name + '.png'))
+		
+		# print('\nImage has been saved as {!s}.png\n'.format(img_name))
+		
+		return img_array, img_name
 
 
 # generates a recreated pooling input from pooling output and pooling configuration
@@ -585,9 +487,9 @@ class MaxUnpooling2D(_Pooling2D):
 	#########################################################
 	### these three initial methods are required by Layer ###
 	#########################################################
-
+	
 	def __init__(self, pool_input, pool_output, pool_size, strides, padding, **kwargs):
-
+		
 		# check backend to detect dimensions used
 		if K.image_data_format() == 'channels_last':
 			# tensorflow is used, dimension are (samples, rows, columns, channels)
@@ -599,24 +501,24 @@ class MaxUnpooling2D(_Pooling2D):
 			self.row_dim = 2
 			self.col_dim = 3
 			self.ch_dim = 1
-
+		
 		# create placeholder values for pooling input and output
 		self.pool_input = pool_input
 		self.pool_output = pool_output
-
+		
 		# information about original pooling behaviour
 		# pool size and strides are both (rows, columns)-tuples
 		self.pool_size = pool_size
 		self.strides = strides
 		# border mode is either 'valid' or 'same'
 		self.padding = padding
-
+		
 		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
 		# initialize offset to 0, as it is not needed when border mode is valid
 		self.row_offset = 0
 		self.col_offset = 0
 		if self.padding == 'same':
-
+			
 			if K.backend() == 'tensorflow':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
 				# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling will use upper- and
@@ -625,14 +527,14 @@ class MaxUnpooling2D(_Pooling2D):
 				# also be added to balance the how much of each region is inside the original tensor, e.g. padding to get
 				# two regions with 75% of entries inside each instead of one region with 100% inside and the other with 25%
 				# inside
-
+				
 				# find offset (to simulate padding) by computing total region space that falls outside of original tensor
 				# and divide by two to distribute to top-bottom/left-right of original tensor
 				self.row_offset = ((self.pool_output.shape[self.row_dim] - 1) * self.strides[0] +
 								   self.pool_size[0] - self.pool_input.shape[self.row_dim]) // 2
 				self.col_offset = ((self.pool_output.shape[self.col_dim] - 1) * self.strides[1] +
 								   self.pool_size[1] - self.pool_input.shape[self.col_dim]) // 2
-
+				
 				# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
 				# computed offset can be negative, but this equals no offset
 				if self.row_offset < 0:
@@ -647,25 +549,25 @@ class MaxUnpooling2D(_Pooling2D):
 				# the natural column center, e.g. entry [3, 1] in a 4x3 region. similarly, if only the columns have an
 				# unclear center, the center is chosen to be at the natural row center and the rightmost column, e.g. [3, 1]
 				# in a 3X4 region.
-
+				
 				# set offset (to simulate padding) to lowermost and rightmost entries by default
 				self.row_offset = self.pool_size[0] - 1
 				self.col_offset = self.pool_size[1] - 1
-
+				
 				# if rows have a clear center, update offset
 				if self.pool_size[0] % 2 == 1:
 					self.row_offset //= 2
-
+				
 				# if columns have a clear center, update offset
 				if self.pool_size[1] % 2 == 1:
 					self.col_offset //= 2
-
+		
 		super(MaxUnpooling2D, self).__init__(**kwargs)
-
+	
 	def _pooling_function(self, inputs, pool_size, strides, padding, data_format):
-
+		
 		indices = []
-
+		
 		# TODO: sample_no in potentially always 0, as deconv. model only ever receives one input image (images are switch specific in unpool, so >1 image for input makes no sense)
 		# for every sample
 		for sample_no in range(self.pool_output.shape[0]):
@@ -673,15 +575,15 @@ class MaxUnpooling2D(_Pooling2D):
 			for i in range(self.pool_output.shape[self.row_dim]):
 				# compute pooling region row indices
 				start_row, end_row = self.compute_index_interval(i, 0, self.row_offset, self.row_dim)
-
+				
 				for j in range(self.pool_output.shape[self.col_dim]):
 					# compute pooling region column indices
 					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
-
+					
 					indices.extend(
 						[self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, channel)
 						 for channel in range(self.pool_output.shape[self.ch_dim])])
-
+		
 		if K.backend() == 'tensorflow':
 			# use tensorflow
 			recreated_input = tf.scatter_nd(indices=indices,
@@ -695,15 +597,15 @@ class MaxUnpooling2D(_Pooling2D):
 			recreated_input = tht.zeros(self.pool_input.shape)
 			for (input_index, output_index) in indices:
 				recreated_input = tht.set_subtensor(recreated_input[input_index], inputs[output_index])
-
+		
 		return recreated_input
-
+	
 	##############################################
 	### what follows are custom helper methods ###
 	##############################################
-
+	
 	def get_region_max_index(self, sample_no, start_row, end_row, start_col, end_col, i, j, channel):
-
+		
 		if K.backend() == 'tensorflow':
 			# use tensorflow dimensions
 			for row in range(start_row, end_row):
@@ -716,7 +618,7 @@ class MaxUnpooling2D(_Pooling2D):
 				for col in range(start_col, end_col):
 					if self.pool_input[sample_no, channel, row, col] == self.pool_output[sample_no, channel, i, j]:
 						return ((sample_no, channel, row, col), (sample_no, channel, i, j))
-
+	
 	# computes index intervals for pooling regions, and is applicable for both row and column indices
 	# considering pooling regions as entries in a traditional matrix, the region_index describes either a row or column
 	# index for the region entry in such a matrix
@@ -725,15 +627,12 @@ class MaxUnpooling2D(_Pooling2D):
 	def compute_index_interval(self, region_index, tuple_no, offset, dim):
 		start_index = region_index * self.strides[tuple_no] - offset
 		end_index = start_index + self.pool_size[tuple_no]
-
+		
 		# we ignore padded parts, so if offset makes start index smaller than smallest index in original pooling input
 		# or end index larger than largest index in original pooling input, correct
 		if start_index < 0:
 			start_index = 0
 		if end_index > self.pool_input.shape[dim]:
 			end_index = self.pool_input.shape[dim]
-
+		
 		return start_index, end_index
-
-
-deconv_example()

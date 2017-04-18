@@ -15,6 +15,8 @@ from scipy.ndimage.filters import gaussian_filter
 
 from keras.models import Model
 
+from visualizer.custom_keras_models import DeconvolutionModel
+
 
 class NetworkSaver(Callback):
 
@@ -162,6 +164,35 @@ class SaliencyMaps(Callback):
 
 			self.counter = 0
 
+class DeconvolutionReconstruction(Callback):
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=10):
+		super(DeconvolutionReconstruction, self).__init__()
+		
+		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
+		
+		# find image uploaded by user to use in visualization
+		images_folder = join(file_folder, 'images')
+		self.img_name = listdir(images_folder)[-1]
+		self.img = Image.open(join(images_folder, self.img_name))
+		
+		self.feat_map_layer_no = feat_map_layer_no
+		self.feat_map_amount = feat_map_amount
+		self.feat_map_nos = feat_map_nos
+	
+	def on_train_begin(self, logs=None):
+		self.deconv_model = DeconvolutionModel(self.model, self.img, self.img_name, self.results_folder)
+	
+	def on_batch_end(self, batch, logs=None):
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
+			self.deconv_model.produce_reconstruction_with_fixed_image(self.feat_map_layer_no,
+																	  self.feat_map_amount,
+																	  self.feat_map_nos)
+			
+			self.counter = 0
+		
 		self.counter += 1
 
 

@@ -308,7 +308,7 @@ def show_file_visualization(filename):
 		visualization_path = form.visualization.choices[0][0]
 
 	# get the script for a given visualization from the bokeh server
-	script = autoload_server(model=None, app_path=visualization_path)
+	script = autoload_server(model=None, url=join(app.config['BOKEH_SERVER'], visualization_path))
 
 	# set the correct query parameters
 	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
@@ -330,7 +330,7 @@ def show_file_training_progress(filename):
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
 	# get the script for training progress from the bokeh server
-	script = autoload_server(model=None, app_path='/training_progress')
+	script = autoload_server(model=None, url=join(app.config['BOKEH_SERVER'], 'training_progress'))
 
 	# set the correct query parameters
 	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}

@@ -138,7 +138,7 @@ def run_python_shell(file_path):
 
 		# run program via command line
 		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
-			p = subprocess.Popen(PYTHON + ' ' + file_path, shell=True, stdout=f)
+			p = subprocess.Popen([PYTHON, file_path], stdout=f)
 		return p
 	else:
 		print('\n\nNo file found\n\n')

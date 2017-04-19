@@ -5,7 +5,6 @@ from os.path import join, dirname, getmtime, split
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
 from flask_login import login_required, login_user, logout_user, current_user
-import requests
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 

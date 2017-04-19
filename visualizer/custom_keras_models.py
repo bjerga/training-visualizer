@@ -10,7 +10,7 @@ from requests.exceptions import RequestException
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Input, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
+from keras.layers import Input, InputLayer, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
 from keras.layers.pooling import _Pooling2D
 from keras.preprocessing import image
 
@@ -21,10 +21,13 @@ import requests
 from io import BytesIO
 
 # TODO: delete when done with testing
-is_VGG16 = True
+is_VGG16 = False
 
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
+
+# define layers from which we can create a deconvolution model
+USABLE_LAYERS = (InputLayer, Conv2D, MaxPooling2D)
 
 # VGG16 mean values
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
@@ -38,8 +41,12 @@ class DeconvolutionModel:
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
+			self.row_dim = 1
+			self.col_dim = 2
 			self.ch_dim = 3
 		else:
+			self.row_dim = 2
+			self.col_dim = 3
 			self.ch_dim = 1
 		
 		self.link_model = link_model
@@ -69,15 +76,15 @@ class DeconvolutionModel:
 			layer_map = {}
 			
 			# get info used to create unpooling layers
-			unpool_info = self.get_unpool_info()
+			deconv_start_layer_no, unpool_info = self.compute_model_info()
 			
 			# add first layer with output shape of conv. model as input shape
-			dc_input = Input(shape=self.link_model.output_shape[1:])
+			dc_input = Input(shape=self.link_model.layers[deconv_start_layer_no].output_shape[1:])
 			
 			# examine linked model from the top down and add appropriate layers
 			dc_layer_count = 1
 			x = dc_input
-			for layer_no in range(len(self.link_model.layers) - 1, -1, -1):
+			for layer_no in range(deconv_start_layer_no, -1, -1):
 				
 				layer = self.link_model.layers[layer_no]
 				
@@ -132,7 +139,7 @@ class DeconvolutionModel:
 		return deconv_model, layer_map
 	
 	# TODO: find efficient way to compute pooling input and output
-	def get_unpool_info(self):
+	def compute_model_info(self):
 		
 		# create new dict{layer number: tuple(pooling input, pooling output)}
 		unpool_info = {}
@@ -141,11 +148,15 @@ class DeconvolutionModel:
 		start_layer_no = 0
 		start_input = self.input_img
 		
-		# traverse layers and compute input and output for pooling layers
-		for layer_no in range(len(self.link_model.layers)):
+		# so long we have consecutive layers that can be used to create deconvolution model
+		layer_no = 0
+		while isinstance(self.link_model.layers[layer_no], USABLE_LAYERS) and layer_no < len(self.link_model.layers):
+			
+			# if MaxPooling2D layer, collect information needed to create corresponding MaxUnpooling2D layer
 			if isinstance(self.link_model.layers[layer_no], MaxPooling2D):
-				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no, start_layer_no,
-																			  start_input)
+				# compute input and output for pooling layers
+				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no,
+																			  start_layer_no, start_input)
 				
 				# add to info dict
 				unpool_info[layer_no] = (pool_input, pool_output)
@@ -153,8 +164,11 @@ class DeconvolutionModel:
 				# update values to start next computation in the layer after the current pooling layer
 				start_layer_no = layer_no + 1
 				start_input = pool_output
+				
+			layer_no += 1
 		
-		return unpool_info
+		# return last layer examined as start layer of deconvolution model, and info needed for unpooling
+		return layer_no - 1, unpool_info
 	
 	# update model with by creating new model with updated unpooling layers (unpooling is image specific)
 	def update_deconv_model(self, new_img, new_img_name):
@@ -166,6 +180,9 @@ class DeconvolutionModel:
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstruction_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
 		
+		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
+			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
+
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
 		if feat_map_nos is None:
@@ -204,7 +221,7 @@ class DeconvolutionModel:
 		counter = 0
 		reconstructions = {}
 		for feat_map_no, processed_feat_maps in feat_maps_tuples:
-			print(counter, feat_map_no)
+			# print(counter, feat_map_no)
 			
 			# feed to deconv. model to produce reconstruction
 			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
@@ -224,6 +241,9 @@ class DeconvolutionModel:
 	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount,
 											   feat_map_amount=None, feat_map_nos=None):
 		
+		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
+			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
+
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
 		if feat_map_nos is None:
@@ -245,7 +265,7 @@ class DeconvolutionModel:
 				raise ValueError("'feat_maps_nos' contains numbers that are too large. Max is {}. "
 								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
 		
-		print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
+		# print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
 		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
 		reconstructions_by_feat_map_no = {}
@@ -281,6 +301,7 @@ class DeconvolutionModel:
 		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions_by_feat_map_no))
 	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
+		
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								[model.layers[end_layer_no].input])
 		layer_input = input_func([start_input, 0])[0]
@@ -351,7 +372,7 @@ class DeconvolutionModel:
 			if max_activations[feat_map_no] < 0.01:
 				counter += 1
 		
-		print('There were {} minor activations among those chosen'.format(counter))
+		# print('\nThere were {} minor activations among the feature maps chosen'.format(counter))
 		
 		return max_feat_maps_tuples
 	
@@ -401,9 +422,9 @@ class DeconvolutionModel:
 			chosen_images_dict[feat_map_no] = []
 			max_images_by_feat_map_no[feat_map_no] = {}
 			count = 1
-			print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
+			# print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
-				print(urls[index])
+				# print(urls[index])
 				chosen_urls_dict[feat_map_no].append(urls[index])
 				
 				# if image was safely loaded the first time, assume safe to load now
@@ -451,7 +472,7 @@ class DeconvolutionModel:
 	# saves the visualization and a txt-file describing its creation environment and return saved array and name
 	def save_as_image(self, img_array, feat_map_no, fixed_image_used=True):
 		
-		# process before save
+		# process image array
 		# remove batch dimension
 		img_array = img_array[0]
 		
@@ -470,10 +491,16 @@ class DeconvolutionModel:
 		else:
 			img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(self.output_folder)) + 1)
 		
+		# process image to be saved
+		img_to_save = img_array.copy()
+		# use self.ch_dim - 1 as we have removed batch dimension
+		if img_to_save.shape[self.ch_dim - 1] == 1:
+			# if greyscale image, remove inner dimension before save
+			img_to_save = img_to_save.reshape((img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
+
 		# save the resulting image to disk
 		# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-		# scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, img_name + '.png'))
-		scipy.misc.toimage(img_array).save(join(self.output_folder, img_name + '.png'))
+		scipy.misc.toimage(img_to_save).save(join(self.output_folder, img_name + '.png'))
 		
 		# print('\nImage has been saved as {!s}.png\n'.format(img_name))
 		

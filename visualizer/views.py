@@ -2,7 +2,6 @@ from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
 from os.path import join, dirname, getmtime, split
-from urllib.parse import urlencode
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
 from flask_login import login_required, login_user, logout_user, current_user
@@ -10,7 +9,6 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
 from tailer import tail
-from bokeh.embed import autoload_server
 
 from visualizer.forms import *
 from visualizer.helpers import *
@@ -303,20 +301,11 @@ def show_file_visualization(filename):
 
 	# get visualization choice from dropdown, or default to the first of the list
 	if form.validate_on_submit():
-		visualization_path = request.form.get('visualization')
+		visualization = request.form.get('visualization')
 	else:
-		visualization_path = form.visualization.choices[0][0]
-
-	# get the script for a given visualization from the bokeh server
-	script = autoload_server(model=None, url=join(app.config['BOKEH_SERVER'], visualization_path))
-
-	# set the correct query parameters
-	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
-	# manually add the query parameters to the script, this is not yet implemented in bokeh
-	script_list = script.split("\n")
-	script_list[2] = script_list[2][:-1]
-	script_list[2] += '&' + urlencode(params) + '"'
-	plot = "\n".join(script_list)
+		visualization = form.visualization.choices[0][0]
+		
+	plot = get_bokeh_plot(filename, visualization)
 
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
 
@@ -329,16 +318,7 @@ def show_file_training_progress(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
 
-	# get the script for training progress from the bokeh server
-	script = autoload_server(model=None, url=join(app.config['BOKEH_SERVER'], 'training_progress'))
-
-	# set the correct query parameters
-	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
-	# manually add the query parameters to the script, this is not yet implemented in bokeh
-	script_list = script.split("\n")
-	script_list[2] = script_list[2][:-1]
-	script_list[2] += '&' + urlencode(params) + '"'
-	plot = "\n".join(script_list)
+	plot = get_bokeh_plot(filename, 'training_progress')
 
 	return render_template('show_file_training_progress.html', filename=filename, meta=meta, plot=plot)
 

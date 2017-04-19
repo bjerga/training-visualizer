@@ -4,8 +4,8 @@ from os import mkdir, listdir, remove
 from os.path import join, dirname, getmtime, split
 from urllib.parse import urlencode
 
-from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify
-from flask_login import login_required, login_user, logout_user, current_user, abort
+from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
+from flask_login import login_required, login_user, logout_user, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 

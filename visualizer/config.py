@@ -17,3 +17,5 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # URL to bokeh server
 BOKEH_SERVER = 'http://localhost:5006'
+# what command to use for running python
+PYTHON = 'python3'

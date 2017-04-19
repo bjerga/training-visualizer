@@ -3,10 +3,6 @@ from bokeh.models import ColumnDataSource, Line, Div
 from bokeh.plotting import figure, curdoc
 from bokeh.layouts import layout
 
-import sys
-from os.path import dirname
-sys.path.insert(0, dirname(dirname((__file__))))
-
 from visualizer.config import UPLOAD_FOLDER
 
 document = curdoc()

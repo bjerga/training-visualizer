@@ -5,13 +5,10 @@ import numpy as np
 from bokeh.layouts import layout
 from bokeh.models import ColumnDataSource, Div, Paragraph
 
-import sys
-from os.path import dirname, join
+from os.path import join
 
 from bokeh.plotting import figure
 from PIL import Image
-
-sys.path.insert(0, dirname(dirname(__file__)))
 
 from visualizer.config import UPLOAD_FOLDER
 

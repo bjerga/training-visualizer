@@ -7,10 +7,6 @@ import pickle
 import numpy as np
 import math
 
-import sys
-from os.path import dirname
-sys.path.insert(0, dirname(dirname((__file__))))
-
 from visualizer.config import UPLOAD_FOLDER
 
 document = curdoc()

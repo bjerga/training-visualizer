@@ -1,14 +1,15 @@
 import subprocess
 from os import listdir, mkdir
-from os.path import join, relpath, basename, dirname
-
-import sys
+from os.path import join, relpath, basename
+from urllib.parse import urlencode
 
 from flask import url_for
 from flask_login import current_user
 
+from bokeh.embed import autoload_server
+
 from visualizer.models import User, Tag, FileMeta
-from visualizer.config import UPLOAD_FOLDER
+from visualizer.config import UPLOAD_FOLDER, PYTHON, BOKEH_SERVER
 
 
 # allowed extensions for uploading files
@@ -110,8 +111,9 @@ def get_visualization_img_rel_path(filename):
 	abs_image_path = get_visualization_img_abs_path(filename)
 	if abs_image_path:
 		rel_image_path = relpath(abs_image_path, UPLOAD_FOLDER)
+		
 		# needs to add 'static' and 'user_storage' to the path
-		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path))
+		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path).replace('\\', '/'))
 	return None
 
 
@@ -134,13 +136,9 @@ def run_python_shell(file_path):
 		
 		print('\nSubprocess started\n')
 
-		# get PYTHONPATH to send to subprocess so that it has visualizer registered as a module
-		python_path = ":".join(sys.path)[1:]
-		
 		# run program via command line
 		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
-			p = subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f)
-
+			p = subprocess.Popen([PYTHON, file_path], stdout=f)
 		return p
 	else:
 		print('\n\nNo file found\n\n')
@@ -156,3 +154,18 @@ def create_folders(base_path, new_folders):
 			mkdir(join(base_path, new_folder))
 		except FileExistsError:
 			pass
+
+
+def get_bokeh_plot(filename, app_path):
+	# get the script for a given visualization from the bokeh server
+	script = autoload_server(model=None, url=join(BOKEH_SERVER, app_path))
+
+	# set the correct query parameters
+	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}
+	
+	# manually add the query parameters to the script, this is not yet implemented in bokeh
+	script_list = script.split('\n')
+	script_list[2] = script_list[2][:-1]
+	script_list[2] += '&' + urlencode(params) + '"'
+	
+	return '\n'.join(script_list)

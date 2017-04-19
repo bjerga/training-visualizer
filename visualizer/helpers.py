@@ -1,14 +1,12 @@
 import subprocess
 from os import listdir, mkdir
-from os.path import join, relpath, basename, dirname
-
-import sys
+from os.path import join, relpath, basename
 
 from flask import url_for
 from flask_login import current_user
 
 from visualizer.models import User, Tag, FileMeta
-from visualizer.config import UPLOAD_FOLDER
+from visualizer.config import UPLOAD_FOLDER, PYTHON
 
 
 # allowed extensions for uploading files
@@ -134,13 +132,9 @@ def run_python_shell(file_path):
 		
 		print('\nSubprocess started\n')
 
-		# get PYTHONPATH to send to subprocess so that it has visualizer registered as a module
-		python_path = ":".join(sys.path)[1:]
-		
 		# run program via command line
 		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
-			p = subprocess.Popen('python3 ' + file_path, shell=True, env={'PYTHONPATH': python_path}, stdout=f)
-
+			p = subprocess.Popen(PYTHON + ' ' + file_path, shell=True, stdout=f)
 		return p
 	else:
 		print('\n\nNo file found\n\n')

@@ -113,7 +113,7 @@ def get_visualization_img_rel_path(filename):
 		rel_image_path = relpath(abs_image_path, UPLOAD_FOLDER)
 		
 		# needs to add 'static' and 'user_storage' to the path
-		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path))
+		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path).replace('\\', '/'))
 	return None
 
 

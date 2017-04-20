@@ -11,8 +11,16 @@ from keras.layers import Dense
 from keras import backend as K
 from keras.applications.vgg16 import VGG16
 
+# define output path and make folder
+output_path = join(dirname(__file__), 'output')
+try:
+    mkdir(output_path)
+except FileExistsError:
+    # folder exists, which is what we wanted
+    pass
+
 # VGG16 mean values
-MEAN_VALUES = np.array([103.939, 116.779, 123.68])
+VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
 # Update coefficient
 learning_rate = 2500.
@@ -63,7 +71,7 @@ def deprocess(vis_tensor, color_axis):
     new_shape[color_axis] = 3
 
     # add VGG16 mean values
-    img += MEAN_VALUES.reshape(new_shape)
+    img += VGG16_MEAN_VALUES.reshape(new_shape)
 
     if color_axis == 0:
         # alter dimensions from (color, height, width) to (height, width, color)
@@ -99,20 +107,12 @@ def create_model():
 # saves the visualization and a txt-file describing its creation environment
 def save_visualization(img, class_index, loss_value):
     
-    # define output path and make folder
-    output_path = join(dirname(__file__), 'output')
-    try:
-        mkdir(output_path)
-    except FileExistsError:
-        # folder exists, which is what we wanted
-        pass
-    
     # create appropriate name to identify image
     if regularize:
         image_name = 'regularized'
     else:
         image_name = 'vanilla'
-    image_name += '_%d_%d' % (class_index, time())
+    image_name += '_{}_{}'.format(class_index, time())
 
     # save the resulting image to disk
     scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
@@ -120,20 +120,20 @@ def save_visualization(img, class_index, loss_value):
 
     # also save a txt-file containing information about creation environment and obtained loss
     with open(join(output_path, image_name + '_info.txt'), 'a') as f:
-        f.write('Learning rate: %f\n' % learning_rate)
-        f.write('Number of iterations: %d\n' % no_of_iterations)
+        f.write('Learning rate: {}\n'.format(learning_rate))
+        f.write('Number of iterations: {}\n'.format(no_of_iterations))
         f.write('----------\n')
         if regularize:
-            f.write('L2-decay: %f\n' % l2_decay)
-            f.write('Blur every and std: %d & %f\n' % (blur_every, blur_std))
-            f.write('Value percentile: %d\n' % value_percentile)
-            f.write('Norm percentile: %d\n' % norm_percentile)
-            f.write('Contribution percentile: %d\n' % contribution_percentile)
-            f.write('Abs. contribution percentile: %d\n' % abs_contribution_percentile)
+            f.write('L2-decay: {}\n'.format(l2_decay))
+            f.write('Blur every and std: {} & {}\n'.format(blur_every, blur_std))
+            f.write('Value percentile: {}\n'.format(value_percentile))
+            f.write('Norm percentile: {}\n'.format(norm_percentile))
+            f.write('Contribution percentile: {}\n'.format(contribution_percentile))
+            f.write('Abs. contribution percentile: {}\n'.format(abs_contribution_percentile))
         f.write('----------\n')
-        f.write('Obtained loss value: %f\n' % loss_value)
+        f.write('Obtained loss value: {}\n'.format(loss_value))
         
-    print('\nImage of class %d have been saved as %s.png\n' % (class_index, image_name))
+    print('\nImage of class {} have been saved as {}.png\n'.format(class_index, image_name))
 
 
 # returns the function to easily compute the input image gradients w.r.t. the activations
@@ -262,7 +262,7 @@ def expand_for_color(np_array, color_axis):
         # for numpy arrays on form [batch, height, width, color]
         np_array = np.tile(np_array[:, :, :, np.newaxis], (1, 1, 1, 3))
     else:
-        raise ValueError('Color axis %d not recognized as legal axis value' % color_axis)
+        raise ValueError('Color axis {} not recognized as legal axis value'.format(color_axis))
     return np_array
 
 
@@ -272,7 +272,7 @@ def main():
 
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
     for class_index in [130, 351, 736, 850]:
-        print('Processing class %d' % class_index)
+        print('Processing class {}'.format(class_index))
         
         # used to time generation of each image
         start_time = time()
@@ -302,12 +302,12 @@ def main():
                     deep_vis = ensemble_regularization(deep_vis, color_axis, pixel_gradients, i)
         
                 # print('Current loss value:', loss_value)
-                print('Round %d finished.' % i)
+                print('Round {} finished.'.format(i))
 
             # process visualization to match with standard image dimensions
             visualization_image = deprocess(deep_vis, color_axis)
             
-            print('Class %d visualization completed in %ds' % (class_index, time() - start_time))
+            print('Class {} visualization completed in {}s'.format(class_index, time() - start_time))
         
             # save visualization image, complete with info about creation environment
             save_visualization(visualization_image, class_index, loss_value)

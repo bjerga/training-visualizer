@@ -15,6 +15,8 @@ from keras.callbacks import Callback
 from keras.preprocessing import image
 
 from visualizer.custom_keras_models import DeconvolutionModel
+from keras.layers import Dropout
+from keras.layers import Flatten
 
 
 class NetworkSaver(Callback):
@@ -79,12 +81,17 @@ class LayerActivations(Callback):
 
 	input_tensor = None
 
-	def __init__(self, file_folder, interval=10):
+	def __init__(self, file_folder, interval=10, exclude_layers=None):
 
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
+
+		# needed to overcome mutable default arguments
+		if exclude_layers is None:
+			exclude_layers = [Dropout, Flatten]
+		self.exclude_layers = exclude_layers
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
@@ -102,24 +109,28 @@ class LayerActivations(Callback):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 
-			# for all layers, get and save activation tensor
-			for layer in self.model.layers:
-				# create function using keras-backend for getting activation tensor
-				get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
+			for layer_no in range(len(self.model.layers)):
 
-				# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
+				layer = self.model.layers[layer_no]
 
-				tensor = get_activation_tensor([self.input_tensor, 0])[0][0]
-				# scale to fit between [0.0, 255.0]
-				if tensor.max() != 0.0:
-					tensor *= (255.0 / tensor.max())
+				# check if layer should be included
+				if not isinstance(layer, tuple(self.exclude_layers)):
+					# create function using keras-backend for getting activation tensor
+					get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
 
-				if len(tensor.shape) == 3:
-					# get on correct format (list of filters)
-					tensor = np.rollaxis(tensor, 2)
+					# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
 
-				# save tuple (layer name, layer's activation tensor)
-				layer_tuples.append((layer.name, tensor))
+					tensor = get_activation_tensor([self.input_tensor, 0])[0][0]
+					# scale to fit between [0.0, 255.0]
+					if tensor.max() != 0.0:
+						tensor *= (255.0 / tensor.max())
+
+					if len(tensor.shape) == 3:
+						# get on correct format (list of filters)
+						tensor = np.rollaxis(tensor, 2)
+
+					# save tuple (layer name, layer's activation tensor)
+					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), tensor))
 
 			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 				pickle.dump(layer_tuples, f)

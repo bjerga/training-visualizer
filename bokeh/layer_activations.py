@@ -1,7 +1,7 @@
 from os.path import join
 from bokeh.io import curdoc
 from bokeh.layouts import column
-from bokeh.models import Div, ColumnDataSource, Paragraph, Column, List
+from bokeh.models import Div, ColumnDataSource, Paragraph, Column
 from bokeh.plotting import figure
 import pickle
 import numpy as np
@@ -38,9 +38,7 @@ def create_figures(layer_activation_data):
 	p.text = "Visualizations are being produced..."
 	figures = []
 
-	for layer_no in range(len(layer_activation_data)):
-
-		layer_name, filters = layer_activation_data[layer_no]
+	for layer_name, filters in layer_activation_data:
 
 		# The filters are either images or just a long array of numbers
 		if len(filters.shape) == 3:
@@ -60,7 +58,7 @@ def create_figures(layer_activation_data):
 			layer_activation_source.add([images], name=layer_name)
 
 			fig = figure(tools="box_zoom, reset, save", plot_width=total_image_width*5, plot_height=total_image_height*5, x_range=(0, total_image_width), y_range=(0, total_image_height))
-			fig.title.text = "Layer {0}: {1}".format(layer_no, layer_name)
+			fig.title.text = layer_name
 			fig.image(image=layer_name, x=0, y=0, dw=total_image_width, dh=total_image_height, source=layer_activation_source)
 			fig.axis.visible = False
 			fig.toolbar.logo = None
@@ -74,8 +72,8 @@ def create_figures(layer_activation_data):
 			# need to add an axis to plot as image
 			layer_activation_source.add([filters[np.newaxis, :]], name=layer_name)
 
-			fig = figure(tools="save", plot_width=width*5, plot_height=50, x_range=(0, width), y_range=(0, 1))
-			fig.title.text = "Layer {0}: {1}".format(layer_no, layer_name)
+			fig = figure(tools="save", plot_width=width*10, plot_height=50, x_range=(0, width), y_range=(0, 1))
+			fig.title.text = layer_name
 			fig.image(image=layer_name, x=0, y=0, dw=width, dh=1, source=layer_activation_source)
 			fig.axis.visible = False
 			fig.toolbar.logo = None
@@ -101,8 +99,7 @@ def update_data():
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data
 		else:
-			for layer_no in range(len(layer_activation_data)):
-				layer_name, filters = layer_activation_data[layer_no]
+			for layer_name, filters in layer_activation_data:
 
 				if len(filters.shape) == 3:
 					images = np.hstack([f[::-1] for f in filters])

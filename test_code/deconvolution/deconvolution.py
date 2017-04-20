@@ -45,7 +45,7 @@ def deconv_example():
 	
 	print('\nCreating deconvolution model')
 	start_time = time()
-	deconv_model = DeconvolutionModel(conv_model, img, img_name, output_path)
+	deconv_model = DeconvolutionModel(conv_model, img, output_path)
 	print('\nTime to create was {:.4f} seconds'.format(time() - start_time))
 	
 	# note that layers are zero indexed

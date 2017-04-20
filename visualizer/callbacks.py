@@ -174,8 +174,8 @@ class DeconvolutionReconstruction(Callback):
 		
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
-		self.img_name = listdir(images_folder)[-1]
-		pil_img = Image.open(join(images_folder, self.img_name))
+		img_name = listdir(images_folder)[-1]
+		pil_img = Image.open(join(images_folder, img_name))
 		
 		# convert to array and add batch dimension
 		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
@@ -185,7 +185,7 @@ class DeconvolutionReconstruction(Callback):
 		self.feat_map_nos = feat_map_nos
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img, self.img_name, self.results_folder)
+		self.deconv_model = DeconvolutionModel(self.model, self.img, self.results_folder)
 	
 	def on_batch_end(self, batch, logs=None):
 		# only update visualization at user specified intervals

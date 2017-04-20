@@ -7,7 +7,6 @@ import pickle
 from time import time
 from os import listdir
 from os.path import dirname, join
-from requests.exceptions import RequestException
 
 import keras.backend as K
 from keras.models import Model
@@ -15,30 +14,25 @@ from keras.layers import Input, InputLayer, Conv2D, MaxPooling2D, Activation, Co
 from keras.layers.pooling import _Pooling2D
 from keras.preprocessing import image
 
-# TODO: delete when done with testing
 # for images from URLs
-from PIL import Image
 import requests
+from requests.exceptions import RequestException
+from PIL import Image
 from io import BytesIO
-
-# TODO: delete when done with testing
-is_VGG16 = True
-
-# define path to image URLS
-urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 # define layers from which we can create a deconvolution model
 USABLE_LAYERS = (InputLayer, Conv2D, MaxPooling2D)
 
-# VGG16 mean values
-MEAN_VALUES = np.array([103.939, 116.779, 123.68])
+# TODO: delete when done with testing
+is_VGG16 = False
+VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
+
+# define path to image URLS
+urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img, input_img_name, output_folder):
-		
-		# TODO: test with img-model map
-		self.model_map = {}
+	def __init__(self, link_model, input_img, output_folder):
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
@@ -52,7 +46,6 @@ class DeconvolutionModel:
 		
 		self.link_model = link_model
 		self.input_img = input_img
-		self.input_img_name = input_img_name
 		self.output_folder = output_folder
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
@@ -69,75 +62,66 @@ class DeconvolutionModel:
 		
 		start_time = time()
 		
-		try:
-			deconv_model, layer_map = self.model_map[self.input_img_name]
-		except KeyError:
+		# create layer map between conv. layers and deconv. layers
+		layer_map = {}
+		
+		# get info used to create unpooling layers
+		deconv_start_layer_no, unpool_info = self.compute_model_info()
+		
+		# add first layer with output shape of conv. model as input shape
+		dc_input = Input(shape=self.link_model.layers[deconv_start_layer_no].output_shape[1:])
+		
+		# examine linked model from the top down and add appropriate layers
+		dc_layer_count = 1
+		x = dc_input
+		for layer_no in range(deconv_start_layer_no, -1, -1):
 			
-			# create layer map between conv. layers and deconv. layers
-			layer_map = {}
+			layer = self.link_model.layers[layer_no]
 			
-			# get info used to create unpooling layers
-			deconv_start_layer_no, unpool_info = self.compute_model_info()
-			
-			# add first layer with output shape of conv. model as input shape
-			dc_input = Input(shape=self.link_model.layers[deconv_start_layer_no].output_shape[1:])
-			
-			# examine linked model from the top down and add appropriate layers
-			dc_layer_count = 1
-			x = dc_input
-			for layer_no in range(deconv_start_layer_no, -1, -1):
+			# if convolution layer in linked model
+			if isinstance(layer, Conv2D):
+				# add activation before deconvolution layer
+				x = Activation(layer.activation)(x)
 				
-				layer = self.link_model.layers[layer_no]
+				# add deconvolution layer (called Conv2DTranspose in Keras)
+				x = Conv2DTranspose(filters=layer.input_shape[self.ch_dim],
+									kernel_size=layer.kernel_size,
+									strides=layer.strides,
+									padding=layer.padding,
+									data_format=layer.data_format,
+									dilation_rate=layer.dilation_rate,
+									# weights=flip_weights(layer.get_weights()),
+									weights=[layer.get_weights()[0]],
+									use_bias=False)(x)
 				
-				# if convolution layer in linked model
-				if isinstance(layer, Conv2D):
-					# add activation before deconvolution layer
-					x = Activation(layer.activation)(x)
-					
-					# add deconvolution layer (called Conv2DTranspose in Keras)
-					x = Conv2DTranspose(filters=layer.input_shape[self.ch_dim],
-										kernel_size=layer.kernel_size,
-										strides=layer.strides,
-										padding=layer.padding,
-										data_format=layer.data_format,
-										dilation_rate=layer.dilation_rate,
-										# weights=flip_weights(layer.get_weights()),
-										weights=[layer.get_weights()[0]],
-										use_bias=False)(x)
-					
-					# update layer map
-					# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
-					layer_map[layer_no] = dc_layer_count + 1
-					dc_layer_count += 2
+				# update layer map
+				# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
+				layer_map[layer_no] = dc_layer_count + 1
+				dc_layer_count += 2
+			
+			# if pooling layer in linked model
+			elif isinstance(layer, MaxPooling2D):
+				# get previously computed input and output for pooling layer in linked model
+				pool_input, pool_output = unpool_info[layer_no]
 				
-				# if pooling layer in linked model
-				elif isinstance(layer, MaxPooling2D):
-					# get previously computed input and output for pooling layer in linked model
-					pool_input, pool_output = unpool_info[layer_no]
-					
-					# add unpooling layer (custom)
-					x = MaxUnpooling2D(pool_input=pool_input,
-									   pool_output=pool_output,
-									   pool_size=layer.pool_size,
-									   strides=layer.strides,
-									   padding=layer.padding)(x)
-					
-					# update layer map
-					layer_map[layer_no] = dc_layer_count
-					dc_layer_count += 1
-				else:
-					# print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
-					pass
-			
-			# create model
-			deconv_model = Model(inputs=dc_input, outputs=x)
-			
-			# add to model map
-			self.model_map[self.input_img_name] = (deconv_model, layer_map)
+				# add unpooling layer (custom)
+				x = MaxUnpooling2D(pool_input=pool_input,
+								   pool_output=pool_output,
+								   pool_size=layer.pool_size,
+								   strides=layer.strides,
+								   padding=layer.padding)(x)
+				
+				# update layer map
+				layer_map[layer_no] = dc_layer_count
+				dc_layer_count += 1
+			else:
+				# print('\nFound layer in original model which is neither convolutional or pooling, with layer name: ' + layer.name)
+				pass
 		
 		# print('\nTime to create deconv. model was {:.4f} seconds'.format(time() - start_time))
 		
-		return deconv_model, layer_map
+		# return model and layer map
+		return Model(inputs=dc_input, outputs=x), layer_map
 	
 	# TODO: find efficient way to compute pooling input and output
 	def compute_model_info(self):
@@ -172,9 +156,8 @@ class DeconvolutionModel:
 		return layer_no - 1, unpool_info
 	
 	# update model with by creating new model with updated unpooling layers (unpooling is image specific)
-	def update_deconv_model(self, new_img, new_img_name):
+	def update_deconv_model(self, new_img):
 		self.input_img = new_img
-		self.input_img_name = new_img_name
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
@@ -231,7 +214,7 @@ class DeconvolutionModel:
 			# save reconstruction to designated folder (returns saved array and name)
 			img_array, img_name = self.save_as_image(reconstruction, feat_map_no)
 			
-			reconstructions[img_name] = img_array
+			reconstructions[img_name] = (img_name, img_array)
 			
 			counter += 1
 		
@@ -268,17 +251,16 @@ class DeconvolutionModel:
 								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
 		
 		# print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
-		max_images_dict, urls_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
+		max_images_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
 		reconstructions_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
-			reconstructions_by_feat_map_no[feat_map_no] = {}
+			reconstructions_by_feat_map_no[feat_map_no] = []
 			for i in range(len(max_images_dict[feat_map_no])):
 				max_img = max_images_dict[feat_map_no][i]
-				max_img_name = urls_dict[feat_map_no][i]
 				
 				# update all unpooling layers for the new image
-				self.update_deconv_model(max_img, max_img_name)
+				self.update_deconv_model(max_img)
 				
 				# get conv. model output (feat maps) for desired feature map layer
 				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
@@ -295,9 +277,9 @@ class DeconvolutionModel:
 																		processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)
-				img, img_name = self.save_as_image(reconstruction, feat_map_no, False)
+				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, False)
 				
-				reconstructions_by_feat_map_no[feat_map_no][img_name] = img
+				reconstructions_by_feat_map_no[feat_map_no].append((img_name, img_array))
 		
 		# save as pickle
 		with open(join(self.output_folder, 'deconv_reconstructions.pickle'), 'wb') as f:
@@ -379,6 +361,7 @@ class DeconvolutionModel:
 		
 		return max_feat_maps_tuples
 	
+	# TODO: currently based on ImageNet '11 text file with image URLs
 	def get_max_images(self, check_amount, choose_amount, feat_map_layer_no, feat_map_nos):
 		
 		urls = []
@@ -395,7 +378,7 @@ class DeconvolutionModel:
 				# print('Check image ' + str(i) + ' at URL: ' + url)
 				
 				try:
-					img = self.load_image_from_url(url)
+					img_array = self.load_image_from_url(url)
 				except RequestException:
 					# print('Error with request')
 					continue
@@ -408,7 +391,7 @@ class DeconvolutionModel:
 				
 				urls.append(url)
 				
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img)
+				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img_array)
 				
 				if K.image_data_format() == 'channels_last':
 					for feat_map_no in feat_map_nos:
@@ -417,31 +400,37 @@ class DeconvolutionModel:
 					for feat_map_no in feat_map_nos:
 						image_scores[feat_map_no].append(np.amax(feat_maps[:, feat_map_no, :, :]))
 		
-		chosen_urls_dict = {}
 		chosen_images_dict = {}
 		max_images_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
-			chosen_urls_dict[feat_map_no] = []
 			chosen_images_dict[feat_map_no] = []
-			max_images_by_feat_map_no[feat_map_no] = {}
+			max_images_by_feat_map_no[feat_map_no] = []
 			count = 1
 			# print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
 				# print(urls[index])
-				chosen_urls_dict[feat_map_no].append(urls[index])
 				
 				# if image was safely loaded the first time, assume safe to load now
-				img = self.load_image_from_url(urls[index])
-				chosen_images_dict[feat_map_no].append(img)
+				img_array = self.load_image_from_url(urls[index])
+				chosen_images_dict[feat_map_no].append(img_array)
 				
+				# remove batch dimension, clip in [0, 255], and convert to uint8
+				img_array = img_array[0]
+				img_array = np.clip(img_array, 0, 255).astype('uint8')
+				
+				max_images_by_feat_map_no[feat_map_no].append((urls[index], img_array))
+
+				# TODO: delete when visualization on website is confirmed
+				# process image to be saved
+				img_to_save = img_array.copy()
+				# use self.ch_dim - 1 as we have removed batch dimension
+				if img_to_save.shape[self.ch_dim - 1] == 1:
+					# if greyscale image, remove inner dimension before save
+					img_to_save = img_to_save.reshape(
+						(img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
+
 				# save max images for comparison
-				img = img[0]
-				img = np.clip(img, 0, 255).astype('uint8')  # clip in [0;255] and convert to int
-				
-				max_images_by_feat_map_no[feat_map_no][urls[index]] = img
-				
-				scipy.misc.toimage(img, cmin=0, cmax=255).save(
-					join(dirname(__file__), 'deconv_max_images',
+				scipy.misc.toimage(img_to_save).save(join(dirname(__file__), 'deconv_max_images',
 						 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
@@ -450,7 +439,7 @@ class DeconvolutionModel:
 		with open(join(self.output_folder, 'deconv_max_images.pickle'), 'wb') as f:
 			pickle.dump(max_images_by_feat_map_no, f)
 			
-		return chosen_images_dict, chosen_urls_dict
+		return chosen_images_dict
 	
 	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.
 	
@@ -459,18 +448,18 @@ class DeconvolutionModel:
 	def load_image_from_url(self, url):
 		response = requests.get(url, timeout=5)
 		
-		img = Image.open(BytesIO(response.content))
-		img = image.img_to_array(img)
-		img = scipy.misc.imresize(img, (224, 224))
-		img = img.astype('float64')
+		pil_img = Image.open(BytesIO(response.content))
+		img_array = image.img_to_array(pil_img)
+		img_array = scipy.misc.imresize(img_array, (224, 224))
+		img_array = img_array.astype('float64')
 		
 		if is_VGG16:
 			if K.image_data_format() == 'channels_last':
-				img -= MEAN_VALUES.reshape((1, 1, 3))
+				img_array -= VGG16_MEAN_VALUES.reshape((1, 1, 3))
 			else:
-				img -= MEAN_VALUES.reshape((3, 1, 1))
+				img_array -= VGG16_MEAN_VALUES.reshape((3, 1, 1))
 		
-		return np.expand_dims(img, axis=0)
+		return np.expand_dims(img_array, axis=0)
 	
 	# TODO: modify when done with testing
 	# saves the visualization and a txt-file describing its creation environment and return saved array and name
@@ -485,7 +474,7 @@ class DeconvolutionModel:
 			img_array = img_array.transpose((1, 2, 0))
 		
 		if is_VGG16:
-			img_array += MEAN_VALUES.reshape((1, 1, 3))
+			img_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
 		
 		# clip in [0, 255] and convert to uint8
 		img_array = img_array.clip(0, 255).astype('uint8')
@@ -495,6 +484,7 @@ class DeconvolutionModel:
 		else:
 			img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(self.output_folder)) + 1)
 		
+		# TODO: delete when visualization on website is confirmed
 		# process image to be saved
 		img_to_save = img_array.copy()
 		# use self.ch_dim - 1 as we have removed batch dimension

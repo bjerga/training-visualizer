@@ -9,6 +9,7 @@ from os.path import join
 
 from bokeh.plotting import figure
 from PIL import Image
+import pickle
 
 from visualizer.config import UPLOAD_FOLDER
 
@@ -42,8 +43,8 @@ grid.append([p])
 # flip image to display correctly in coordinate system
 saliency_maps_source = ColumnDataSource(data=dict(image=[saliency_maps_data[::-1]]))
 
-image_width = original_image.shape[0]
-image_height = original_image.shape[1]
+image_height = original_image.shape[0]
+image_width = original_image.shape[1]
 
 fig1 = figure(tools="box_zoom, reset, save", x_range=(0, image_width), y_range=(0, image_height))
 fig1.title.text = "Original Image"
@@ -65,7 +66,8 @@ grid.append([fig1, fig2])
 
 def update_data():
 	try:
-		saliency_maps_data = np.load(join(results_path, 'saliency_maps.npy'))
+		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
+			saliency_maps_data = pickle.load(f)
 		p.text = ""
 		img.visible = True
 	except FileNotFoundError:

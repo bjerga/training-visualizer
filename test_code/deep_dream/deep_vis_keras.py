@@ -49,6 +49,7 @@ abs_contribution_percentile = 0
 # choose whether to include regularization
 regularize = True
 
+# TODO: update to Keras 2.0
 
 # utility function used to convert a tensor into a savable image
 def deprocess(vis_tensor, color_axis):

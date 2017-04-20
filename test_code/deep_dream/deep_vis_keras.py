@@ -109,31 +109,36 @@ def save_visualization(img, class_index, loss_value):
     
     # create appropriate name to identify image
     if regularize:
-        image_name = 'regularized'
+        img_name = 'regularized'
     else:
-        image_name = 'vanilla'
-    image_name += '_{}_{}'.format(class_index, time())
+        img_name = 'vanilla'
+    img_name += '_{}_{}'.format(class_index, time())
 
     # save the resulting image to disk
-    scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, image_name + '.png'))
     # avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
+    scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, img_name + '.png'))
 
     # also save a txt-file containing information about creation environment and obtained loss
-    with open(join(output_path, image_name + '_info.txt'), 'a') as f:
-        f.write('Learning rate: {}\n'.format(learning_rate))
-        f.write('Number of iterations: {}\n'.format(no_of_iterations))
-        f.write('----------\n')
-        if regularize:
-            f.write('L2-decay: {}\n'.format(l2_decay))
-            f.write('Blur every and std: {} & {}\n'.format(blur_every, blur_std))
-            f.write('Value percentile: {}\n'.format(value_percentile))
-            f.write('Norm percentile: {}\n'.format(norm_percentile))
-            f.write('Contribution percentile: {}\n'.format(contribution_percentile))
-            f.write('Abs. contribution percentile: {}\n'.format(abs_contribution_percentile))
-        f.write('----------\n')
-        f.write('Obtained loss value: {}\n'.format(loss_value))
+    img_info = 'Learning rate: {}\n' \
+               'Number of iterations: {}\n' \
+               '----------\n' \
+               ''.format(learning_rate, no_of_iterations)
+    if regularize:
+        img_info += 'L2-decay: {}\n' \
+                    'Blur every and std: {} & {}\n' \
+                    'Value percentile: {}\n' \
+                    'Norm percentile: {}\n' \
+                    'Contribution percentile: {}\n' \
+                    'Abs. contribution percentile: {}\n' \
+                    ''.format(l2_decay, blur_every, blur_std, value_percentile, norm_percentile,
+                              contribution_percentile, abs_contribution_percentile)
+    img_info += '----------\n' \
+                'Obtained loss value: {}\n' \
+                ''.format(loss_value)
+    with open(join(output_path, img_name + '_info.txt'), 'w') as f:
+        f.write(img_info)
         
-    print('\nImage of class {} have been saved as {}.png\n'.format(class_index, image_name))
+    print('\nImage of class {} have been saved as {}.png\n'.format(class_index, img_name))
 
 
 # returns the function to easily compute the input image gradients w.r.t. the activations

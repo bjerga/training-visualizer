@@ -150,7 +150,7 @@ class DeconvolutionModel:
 		
 		# so long we have consecutive layers that can be used to create deconvolution model
 		layer_no = 0
-		while isinstance(self.link_model.layers[layer_no], USABLE_LAYERS) and layer_no < len(self.link_model.layers):
+		while layer_no < len(self.link_model.layers) and isinstance(self.link_model.layers[layer_no], USABLE_LAYERS):
 			
 			# if MaxPooling2D layer, collect information needed to create corresponding MaxUnpooling2D layer
 			if isinstance(self.link_model.layers[layer_no], MaxPooling2D):

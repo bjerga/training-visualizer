@@ -4,6 +4,5 @@ visualizer/*.db
 visualizer/static/user_storage
 visualizer/deconv_input
 visualizer/deconv_max_images
-test_code/deconvolution/deconv_input
 test_code/deconvolution/deconv_max_images
 test_code/deconvolution/deconv_output

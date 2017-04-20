@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import theano.tensor as tht
 import scipy.misc
+import pickle
 
 from time import time
 from os import listdir
@@ -21,7 +22,7 @@ import requests
 from io import BytesIO
 
 # TODO: delete when done with testing
-is_VGG16 = False
+is_VGG16 = True
 
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
@@ -234,8 +235,9 @@ class DeconvolutionModel:
 			
 			counter += 1
 		
-		# save as numpy array
-		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions))
+		# save as pickle
+		with open(join(self.output_folder, 'deconv_reconstructions.pickle'), 'wb') as f:
+			pickle.dump(reconstructions, f)
 	
 	# either uses randomly chosen feature maps or specified ones
 	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount,
@@ -297,8 +299,9 @@ class DeconvolutionModel:
 				
 				reconstructions_by_feat_map_no[feat_map_no][img_name] = img
 		
-		# save as numpy array
-		np.save(join(self.output_folder, 'deconv_reconstructions'), np.array(reconstructions_by_feat_map_no))
+		# save as pickle
+		with open(join(self.output_folder, 'deconv_reconstructions.pickle'), 'wb') as f:
+			pickle.dump(reconstructions_by_feat_map_no, f)
 	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
 		
@@ -443,9 +446,10 @@ class DeconvolutionModel:
 				
 				count += 1
 		
-		# save as numpy array
-		np.save(join(dirname(__file__), 'deconv_max_images', 'deconv_max_images'), np.array(max_images_by_feat_map_no))
-		
+		# save as pickle
+		with open(join(self.output_folder, 'deconv_max_images.pickle'), 'wb') as f:
+			pickle.dump(max_images_by_feat_map_no, f)
+			
 		return chosen_images_dict, chosen_urls_dict
 	
 	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.

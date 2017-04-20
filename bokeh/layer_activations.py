@@ -1,7 +1,7 @@
 from os.path import join
 from bokeh.io import curdoc
-from bokeh.layouts import layout
-from bokeh.models import Div, ColumnDataSource
+from bokeh.layouts import column
+from bokeh.models import Div, ColumnDataSource, Paragraph, Column, List
 from bokeh.plotting import figure
 import pickle
 import numpy as np
@@ -17,73 +17,112 @@ args = document.session_context.request.arguments
 file = args['file'][0].decode('ascii')
 user = args['user'][0].decode('ascii')
 
-layer_activation_source = ColumnDataSource(data=dict())
-
+# find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# read content of pickle file
-try:
-	with open(join(results_path, 'layer_activations.pickle'), 'rb') as f:
-		layer_activation_data = pickle.load(f)
-except FileNotFoundError:
-	#TODO: provide a div text saying that visualization could not be retrieved
-	layer_activation_data = []
-	print('Cannot find file')
-
-grid = []
+# used to determine if the data source should be created
+# this is needed to avoid error when the script is just started
+create_source = True
 
 div = Div(text="<h3>Visualization of the layer activations</h3>", width=500)
+layout = Column(children=[div])
 
-grid.append([div])
+p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
+layout.children.append(p)
 
-#TODO: decide on how to choose which layers should be displayed
-#for layer_no in range(len(layer_activation_data)):
-for layer_no in range(0, 5):
+layer_activation_source = ColumnDataSource(data=dict())
 
-	layer_name, layer_activation = layer_activation_data[layer_no]
 
-	# scale to fit between [0.0, 255.0]
-	layer_activation += max(-np.min(layer_activation), 0.0)
-	la_max = np.max(layer_activation)
-	if la_max != 0.0:
-		layer_activation /= la_max
-		layer_activation *= 255.0
+def create_figures(layer_activation_data):
 
-	filters = np.transpose(layer_activation[0], (2, 0, 1))
+	p.text = "Visualizations are being produced..."
+	figures = []
 
-	no_of_filters = filters.shape[0]
+	for layer_no in range(len(layer_activation_data)):
 
-	#TODO: Should be generalized more
-	if no_of_filters == 1:
+		layer_name, filters = layer_activation_data[layer_no]
 
-		plot_width, plot_height = 250, 250
-		x_range_end, y_range_end = 20, 20
-		total_image = np.flipud(filters[0])
+		# The filters are either images or just a long array of numbers
+		if len(filters.shape) == 3:
+			# line the filters up horizontally
+			images = np.hstack([f[::-1] for f in filters])
 
-	else:
+			total_image_width = images.shape[1]
 
-		plot_width, plot_height = 500, 250
-		x_range_end, y_range_end = 40, 20
+			# if there are more than 4 filters, split into several rows.
+			if len(filters) > 4:
+				step = math.ceil(total_image_width / 4)
+				images = np.vstack([images[:, x:x + step] for x in range(0, total_image_width, step)])
 
-		no_of_cols = 8
-		no_of_rows = math.ceil(no_of_filters/no_of_cols)
+			total_image_height = images.shape[0]
+			total_image_width = images.shape[1]
 
-		rows = []
-		for i in range(no_of_rows):
-			#TODO: Probably very slow, find a faster way to do this
-			rows.append(np.hstack(tuple(np.flipud(np.lib.pad(filters[j], (1, 1), 'constant', constant_values=255)) for j in range(i, i+8))))
+			layer_activation_source.add([images], name=layer_name)
 
-		total_image = np.vstack(tuple(rows))
+			fig = figure(tools="box_zoom, reset, save", plot_width=total_image_width*5, plot_height=total_image_height*5, x_range=(0, total_image_width), y_range=(0, total_image_height))
+			fig.title.text = "Layer {0}: {1}".format(layer_no, layer_name)
+			fig.image(image=layer_name, x=0, y=0, dw=total_image_width, dh=total_image_height, source=layer_activation_source)
+			fig.axis.visible = False
+			fig.toolbar.logo = None
 
-	layer_activation_source.add([total_image.astype('uint8')], name=layer_name)
+			figures.append(fig)
 
-	title = "Layer " + str(layer_no) + ": " + layer_name
-	fig = figure(title=title, tools="box_zoom, reset, save", x_range=(0, x_range_end), y_range=(0, y_range_end),
-				 plot_width=plot_width, plot_height=plot_height)
-	fig.image(image=layer_name, x=0, y=0, dw=x_range_end, dh=y_range_end, source=layer_activation_source)
-	fig.axis.visible = False
-	fig.toolbar.logo = None
+		elif len(filters.shape) == 1:
 
-	grid.append([fig])
+			width = filters.shape[0]
 
-document.add_root(layout(grid))
+			# need to add an axis to plot as image
+			layer_activation_source.add([filters[np.newaxis, :]], name=layer_name)
+
+			fig = figure(tools="save", plot_width=width*5, plot_height=50, x_range=(0, width), y_range=(0, 1))
+			fig.title.text = "Layer {0}: {1}".format(layer_no, layer_name)
+			fig.image(image=layer_name, x=0, y=0, dw=width, dh=1, source=layer_activation_source)
+			fig.axis.visible = False
+			fig.toolbar.logo = None
+
+			figures.append(fig)
+
+	layout.children.append(column(figures))
+	p.text = ""
+
+
+def update_data():
+	global create_source
+	try:
+		with open(join(results_path, 'layer_activations.pickle'), 'rb') as f:
+			layer_activation_data = pickle.load(f)
+
+		# if it is the first time data is detected, we need to initialize the data source
+		if create_source:
+			# temporary remove callback to make sure the function is not being called while creating the visualizations
+			document.remove_periodic_callback(update_data)
+			create_figures(layer_activation_data)
+			create_source = False
+			document.add_periodic_callback(update_data, 5000)
+		# if not, we can simply update the data
+		else:
+			for layer_no in range(len(layer_activation_data)):
+				layer_name, filters = layer_activation_data[layer_no]
+
+				if len(filters.shape) == 3:
+					images = np.hstack([f[::-1] for f in filters])
+
+					total_image_width = images.shape[1]
+
+					if len(filters) > 4:
+						step = math.ceil(total_image_width / 4)
+						images = np.vstack([images[:, x:x + step] for x in range(0, total_image_width, step)])
+
+					layer_activation_source.data[layer_name] = [images]
+
+				elif len(filters.shape) == 1:
+
+					layer_activation_source.data[layer_name] = [filters[np.newaxis, :]]
+
+	except FileNotFoundError:
+		pass
+
+
+document.add_periodic_callback(update_data, 5000)
+document.add_root(layout)
+

@@ -75,17 +75,18 @@ class LossListSaver(Callback):
 
 
 # saves activation arrays for each layer as tuples: (layer-name, array)
-class ActivationTupleListSaver(Callback):
+class LayerActivations(Callback):
 
 	input_tensor = None
 
-	def __init__(self, file_folder):
+	def __init__(self, file_folder, interval=10):
 
-		super(ActivationTupleListSaver, self).__init__()
+		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
 
-		# TODO: make sure that it is OK not to handle whether the image folder is empty
-		# get visualization image corresponding to the file
+		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
 		img = Image.open(join(images_folder, img_name))
@@ -93,22 +94,39 @@ class ActivationTupleListSaver(Callback):
 		# set input tensor and reshape to (1, width, height, 1)
 		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
-	def on_epoch_end(self, batch, logs={}):
+	def on_batch_end(self, batch, logs={}):
 
 		# initialize layer tuple list with image
 		layer_tuples = []
 
-		# for all layers, get and save activation tensor
-		for layer in self.model.layers:
-			# create function using keras-backend for getting activation tensor
-			get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
 
-			# save tuple (layer name, layer's activation tensor)
-			# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
-			layer_tuples.append((layer.name, get_activation_tensor([self.input_tensor, 0])[0]))
+			# for all layers, get and save activation tensor
+			for layer in self.model.layers:
+				# create function using keras-backend for getting activation tensor
+				get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
 
-		with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
-			pickle.dump(layer_tuples, f)
+				# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
+
+				tensor = get_activation_tensor([self.input_tensor, 0])[0][0]
+				# scale to fit between [0.0, 255.0]
+				if tensor.max() != 0.0:
+					tensor *= (255.0 / tensor.max())
+
+				if len(tensor.shape) == 3:
+					# get on correct format (list of filters)
+					tensor = np.rollaxis(tensor, 2)
+
+				# save tuple (layer name, layer's activation tensor)
+				layer_tuples.append((layer.name, tensor))
+
+			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
+				pickle.dump(layer_tuples, f)
+
+			self.counter = 0
+
+		self.counter += 1
 
 
 class SaliencyMaps(Callback):
@@ -158,8 +176,8 @@ class SaliencyMaps(Callback):
 			if abs_saliency.max() != 0.0:
 				abs_saliency *= (255.0 / abs_saliency.max())
 
-			file = join(self.results_folder, 'saliency_maps')
-			np.save(file, abs_saliency)
+			with open(join(self.results_folder, 'saliency_maps.pickle'), 'wb') as f:
+				pickle.dump(abs_saliency, f)
 
 			self.counter = 0
 

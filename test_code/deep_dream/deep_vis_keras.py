@@ -19,6 +19,12 @@ except FileExistsError:
     # folder exists, which is what we wanted
     pass
 
+# set channel dimension based on image data format from Keras backend
+if K.image_data_format() == 'channels_last':
+    ch_dim = 3
+else:
+    ch_dim = 1
+
 # TODO: delete when done with testing
 is_VGG16 = True
 VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
@@ -62,21 +68,20 @@ regularize = True
 # TODO: add support for greyscale images
 
 # utility function used to convert an array into a savable image
-def deprocess(vis_array, ch_dim):
+def deprocess(vis_array):
 
     # remove batch dimension, and alter color dimension accordingly
     img_array = vis_array[0]
-    ch_dim -= 1
 
     if is_VGG16:
         # create shape with correct color dimension
         new_shape = [1, 1, 1]
-        new_shape[ch_dim] = 3
+        new_shape[ch_dim - 1] = 3
     
         # add VGG16 mean values
         img_array += VGG16_MEAN_VALUES.reshape(new_shape)
 
-    if ch_dim == 0:
+    if K.image_data_format() == 'channels_first':
         # alter dimensions from (color, height, width) to (height, width, color)
         img_array = img_array.transpose((1, 2, 0))
 
@@ -146,7 +151,7 @@ def save_visualization(img, class_index, loss_value):
 
 
 # returns the function to easily compute the input image gradients w.r.t. the activations
-def get_gradient_function(model_input, model_output, class_index):
+def get_loss_and_gradient_function(model_input, model_output, class_index):
     
     # loss is the activation of the neuron for the chosen class
     loss = model_output[0, class_index]
@@ -155,7 +160,7 @@ def get_gradient_function(model_input, model_output, class_index):
     gradients = K.gradients(loss, model_input)[0]
     
     # return function returning the loss and gradients given a visualization image
-    # add a flag to disable the learning phase (e.g. when using dropout)
+    # add a flag to disable the learning phase
     return K.function([model_input, K.learning_phase()], [loss, gradients])
 
 
@@ -166,22 +171,15 @@ def create_initial_image(model_input_shape):
     # set random seed to be able to reproduce initial state of image
     # used in testing only, and should be remove upon implementation with tool
     np.random.seed(1337)
-
-    # set channel dimension based on image data format from Keras backend
-    if K.image_data_format() == 'channels_last':
-        ch_dim = 3
-    else:
-        ch_dim = 1
     
     # TODO: why 0 and 10 values? just for testing? check it out
-    # return a random, initial image, and the channel (color) dimension of the image
     # add (1,) for batch dimension
-    return np.random.normal(0, 10, (1,) + model_input_shape[1:]), model_input_shape[ch_dim]
+    return np.random.normal(0, 10, (1,) + model_input_shape[1:])
 
 
 # regularizes input image with various techniques
 # each technique is activated by non-zero values for their respective global variables
-def apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, iteration):
+def apply_ensemble_regularization(visualization, pixel_gradients, iteration):
     
     # regularizer #1
     # apply L2-decay
@@ -224,7 +222,7 @@ def apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, iterat
         high_norm_mask = pixel_norms >= np.percentile(pixel_norms, norm_percentile)
         
         # expand mask to account for colors
-        high_norm_mask = expand_for_color(high_norm_mask, ch_dim)
+        high_norm_mask = expand_for_color(high_norm_mask)
 
         # apply to image to set pixels with small norms to zero
         visualization *= high_norm_mask
@@ -242,7 +240,7 @@ def apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, iterat
         high_contribution_mask = contribution >= np.percentile(contribution, contribution_percentile)
 
         # expand mask to account for colors
-        high_contribution_mask = expand_for_color(high_contribution_mask, ch_dim)
+        high_contribution_mask = expand_for_color(high_contribution_mask)
 
         # apply to image to set pixels with small contributions to zero
         visualization *= high_contribution_mask
@@ -262,7 +260,7 @@ def apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, iterat
         high_abs_contribution_mask = abs_contribution >= np.percentile(abs_contribution, abs_contribution_percentile)
 
         # expand mask to account for colors
-        high_abs_contribution_mask = expand_for_color(high_abs_contribution_mask, ch_dim)
+        high_abs_contribution_mask = expand_for_color(high_abs_contribution_mask)
 
         # apply to image to set pixels with small absolute contributions to zero
         visualization *= high_abs_contribution_mask
@@ -272,15 +270,18 @@ def apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, iterat
 
 # TODO: use expand_dims instead of np.newaxis?
 # use to expand a (batch, height, width)-numpy array with a channel (color) dimension
-def expand_for_color(np_array, ch_dim):
-    if ch_dim == 1:
-        # for numpy arrays on form (batch, color, height, width)
-        np_array = np.tile(np_array[:, np.newaxis, :, :], (1, 3, 1, 1))
-    elif ch_dim == 3:
-        # for numpy arrays on form (batch, height, width, color)
-        np_array = np.tile(np_array[:, :, :, np.newaxis], (1, 1, 1, 3))
-    else:
-        raise ValueError('channel (color) dimension {} not recognized as legal dimension value'.format(ch_dim))
+def expand_for_color(np_array):
+    
+    # expand at channel (color) dimension
+    np_array = np.expand_dims(np_array, axis=ch_dim)
+    
+    # create tile repetition list, repeating thrice in channel (color) dimension
+    tile_reps = [1, 1, 1, 1]
+    tile_reps[ch_dim] = 3
+
+    # apply tile repetition
+    np_array = np.tile(np_array, tile_reps)
+    
     return np_array
 
 
@@ -296,10 +297,10 @@ def main():
         start_time = time()
         
         # create and save gradient function for current class
-        iterate = get_gradient_function(model.input, model.output, class_index)
+        compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.output, class_index)
     
         # create an initial visualization image, and locate its channel (color) dimension
-        visualization, ch_dim = create_initial_image(model.input_shape)
+        visualization = create_initial_image(model.input_shape)
         
         # TODO: delete discrimination when done with testing
         loss_value = 0.0
@@ -310,20 +311,20 @@ def main():
                 
                 # compute loss and gradient values
                 # input 0 for test phase
-                loss_value, pixel_gradients = iterate([visualization, 0])
+                loss_value, pixel_gradients = compute_loss_and_gradients([visualization, 0])
         
                 # update visualization image
                 visualization += pixel_gradients * learning_rate
         
                 # if regularization has been activated, regularize image
                 if regularize:
-                    visualization = apply_ensemble_regularization(visualization, ch_dim, pixel_gradients, i)
+                    visualization = apply_ensemble_regularization(visualization, pixel_gradients, i)
         
                 # print('Current loss value:', loss_value)
                 print('Round {} finished.'.format(i))
 
             # process visualization to match with standard image dimensions
-            visualization_image = deprocess(visualization, ch_dim)
+            visualization_image = deprocess(visualization)
             
             print('Class {} visualization completed in {}s'.format(class_index, time() - start_time))
         

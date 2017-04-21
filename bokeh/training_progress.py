@@ -45,34 +45,30 @@ loss_fig.y_range = DataRange1d(start=0)
 loss_fig.toolbar.logo = None
 grid.append([loss_fig])
 
-train_source = ColumnDataSource(data=dict(acc_x=[], acc_y=[], loss_x=[], loss_y=[]))
-val_source = ColumnDataSource(data=dict(acc_x=[], acc_y=[], loss_x=[], loss_y=[]))
+train_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
+val_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
 
-accuracy_fig.add_glyph(train_source, Line(x='acc_x', y='acc_y', line_color='blue'))
-accuracy_fig.add_glyph(val_source, Line(x='acc_x', y='acc_y', line_color='green'))
-loss_fig.add_glyph(train_source, Line(x='loss_x', y='loss_y', line_color='blue'))
-loss_fig.add_glyph(val_source, Line(x='loss_x', y='loss_y', line_color='green'))
+accuracy_fig.add_glyph(train_source, Line(x='x', y='acc_y', line_color='blue'))
+accuracy_fig.add_glyph(val_source, Line(x='x', y='acc_y', line_color='green'))
+loss_fig.add_glyph(train_source, Line(x='x', y='loss_y', line_color='blue'))
+loss_fig.add_glyph(val_source, Line(x='x', y='loss_y', line_color='green'))
 
 
 def update_data():
-
 	try:
-		with open(join(results_path, 'accuracy_train.txt'), 'r') as f:
-			accuracy_train_data = list(zip(*[line.strip().split() for line in f]))
-		with open(join(results_path, 'loss_train.txt'), 'r') as f:
-			loss_train_data = list(zip(*[line.strip().split() for line in f]))
+		with open(join(results_path, 'training_progress.txt')) as f:
+			train_data = list(zip(*[line.strip().split() for line in f]))
 		p.text = ""
 	except FileNotFoundError:
-		return
+		train_data = [[], [], []]
 
 	new_train_data = dict(
-		acc_x=accuracy_train_data[0],
-		acc_y=accuracy_train_data[1],
-		loss_x=loss_train_data[0],
-		loss_y=loss_train_data[1]
+		x=train_data[0],
+		acc_y=train_data[1],
+		loss_y=train_data[2]
 	)
 	train_source.data = new_train_data
 
 
 document.add_root(layout(grid))
-document.add_periodic_callback(update_data, 1000)
+document.add_periodic_callback(update_data, 500)

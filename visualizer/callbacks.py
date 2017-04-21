@@ -42,6 +42,35 @@ class NetworkSaver(Callback):
 		self.model.save(join(self.networks_folder, self.name + '.h5'))
 
 
+class TrainingProgress(Callback):
+
+	def __init__(self, file_folder):
+		super(TrainingProgress, self).__init__()
+		self.results_folder = join(file_folder, 'results')
+		self.batches_in_epoch = None
+
+	def on_train_begin(self, logs={}):
+		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
+		# ensure file creation
+		with open(join(self.results_folder, 'training_progress.txt'), 'w') as f:
+			f.write('')
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'training_progress_val.txt'), 'w') as f:
+				f.write('')
+
+	def on_batch_end(self, batch, logs={}):
+		# write new accuracy line
+		with open(join(self.results_folder, 'training_progress.txt'), 'a') as f:
+			# saves accuracy at each finished training batch as lines of "x-value acc loss"
+			f.write("{0} {1} {2}\n".format(batch / self.batches_in_epoch, logs['acc'], logs['loss']))
+
+	def on_epoch_end(self, epoch, logs={}):
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'training_progress_val.txt'), 'a') as f:
+				# saves validation accuracy at each finished training epoch
+				f.write("{0} {1} {2}\n".format(epoch, logs['val_acc'], logs['val_loss']))
+
+
 # saves accuracy at each finished training batch
 class Accuracy(Callback):
 

@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import math
 
 from os import mkdir, listdir
 from os.path import join, basename
@@ -42,38 +43,62 @@ class NetworkSaver(Callback):
 
 
 # saves accuracy at each finished training batch
-class AccuracyListSaver(Callback):
+class Accuracy(Callback):
 
 	def __init__(self, file_folder):
-		super(AccuracyListSaver, self).__init__()
+		super(Accuracy, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.batches_in_epoch = None
 
 	def on_train_begin(self, logs={}):
+		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
 		# ensure file creation
-		with open(join(self.results_folder, 'batch_accuracy.txt'), 'w') as f:
+		with open(join(self.results_folder, 'accuracy_train.txt'), 'w') as f:
 			f.write('')
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'accuracy_val.txt'), 'w') as f:
+				f.write('')
 
 	def on_batch_end(self, batch, logs={}):
 		# write new accuracy line
-		with open(join(self.results_folder, 'batch_accuracy.txt'), 'a') as f:
-			f.write(str(logs['acc']) + '\n')  # saves loss at each finished training batch
+		with open(join(self.results_folder, 'accuracy_train.txt'), 'a') as f:
+			# saves accuracy at each finished training batch as a tuple of (x, y) values
+			f.write(str(batch/self.batches_in_epoch) + ' ' + str(logs['acc']) + '\n')
+
+	def on_epoch_end(self, epoch, logs={}):
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'accuracy_val.txt'), 'a') as f:
+				# saves validation accuracy at each finished training epoch
+				f.write(str(epoch + 1) + ' ' + str(logs['val_acc']) + '\n')
 
 
-class LossListSaver(Callback):
+class Loss(Callback):
 
 	def __init__(self, file_folder):
-		super(LossListSaver, self).__init__()
+		super(Loss, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.batches_in_epoch = None
 
 	def on_train_begin(self, logs={}):
+		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
 		# ensure file creation
-		with open(join(self.results_folder, 'batch_loss.txt'), 'w') as f:
+		with open(join(self.results_folder, 'loss_train.txt'), 'w') as f:
 			f.write('')
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'loss_val.txt'), 'w') as f:
+				f.write('')
 
 	def on_batch_end(self, batch, logs={}):
 		# write new loss line
-		with open(join(self.results_folder, 'batch_loss.txt'), 'a') as f:
-			f.write(str(logs['loss']) + '\n')
+		with open(join(self.results_folder, 'loss_train.txt'), 'a') as f:
+			# saves accuracy at each finished training batch as a tuple of (x, y) values
+			f.write(str(batch/self.batches_in_epoch) + ' ' + str(logs['loss']) + '\n')
+
+	def on_epoch_end(self, epoch, logs={}):
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'loss_val.txt'), 'a') as f:
+				# saves validation accuracy at each finished training epoch
+				f.write(str(epoch + 1) + ' ' + str(logs['val_loss']) + '\n')
 
 
 # saves activation arrays for each layer as tuples: (layer-name, array)

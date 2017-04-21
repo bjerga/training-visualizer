@@ -23,13 +23,10 @@ grid.append([div])
 p = Paragraph(text="There seems to be no training progress data produced yet.", width=500)
 grid.append([p])
 
-x_ticker = SingleIntervalTicker(interval=1, num_minor_ticks=10)
-
 accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=900, plot_height=300)
 accuracy_fig.title.text = ('Accuracy')
 accuracy_fig.xaxis.axis_label = 'Epoch'
 accuracy_fig.yaxis.axis_label = 'Accuracy'
-accuracy_fig.xaxis.ticker = x_ticker
 accuracy_fig.x_range = DataRange1d(start=0)
 accuracy_fig.y_range = Range1d(0, 1)
 accuracy_fig.toolbar.logo = None
@@ -39,7 +36,6 @@ loss_fig = figure(tools="box_zoom, reset, save", plot_width=900, plot_height=300
 loss_fig.title.text = ('Loss')
 loss_fig.xaxis.axis_label = 'Epoch'
 loss_fig.yaxis.axis_label = 'Loss'
-loss_fig.xaxis.ticker = x_ticker
 loss_fig.x_range = DataRange1d(start=0)
 loss_fig.y_range = DataRange1d(start=0)
 loss_fig.toolbar.logo = None
@@ -55,20 +51,28 @@ loss_fig.add_glyph(val_source, Line(x='x', y='loss_y', line_color='green'))
 
 
 def update_data():
+
+	data_length = len(train_source.data['x'])
+
 	try:
 		with open(join(results_path, 'training_progress.txt')) as f:
 			train_data = list(zip(*[line.strip().split() for line in f]))
+		if not train_data:
+			return  # this means that the file has been created but no data has been added yet
+		new_data_length = len(train_data[0])
 		p.text = ""
 	except FileNotFoundError:
-		train_data = [[], [], []]
+		return
 
+	# find new data that should be added to the graph
 	new_train_data = dict(
-		x=train_data[0],
-		acc_y=train_data[1],
-		loss_y=train_data[2]
+		x=train_data[0][data_length:new_data_length],
+		acc_y=train_data[1][data_length:new_data_length],
+		loss_y=train_data[2][data_length:new_data_length]
 	)
-	train_source.data = new_train_data
+
+	train_source.stream(new_train_data)
 
 
 document.add_root(layout(grid))
-document.add_periodic_callback(update_data, 500)
+document.add_periodic_callback(update_data, 200)

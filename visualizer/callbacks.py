@@ -71,65 +71,6 @@ class TrainingProgress(Callback):
 				f.write("{0} {1} {2}\n".format(epoch, logs['val_acc'], logs['val_loss']))
 
 
-# saves accuracy at each finished training batch
-class Accuracy(Callback):
-
-	def __init__(self, file_folder):
-		super(Accuracy, self).__init__()
-		self.results_folder = join(file_folder, 'results')
-		self.batches_in_epoch = None
-
-	def on_train_begin(self, logs={}):
-		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
-		# ensure file creation
-		with open(join(self.results_folder, 'accuracy_train.txt'), 'w') as f:
-			f.write('')
-		if self.params['do_validation']:
-			with open(join(self.results_folder, 'accuracy_val.txt'), 'w') as f:
-				f.write('')
-
-	def on_batch_end(self, batch, logs={}):
-		# write new accuracy line
-		with open(join(self.results_folder, 'accuracy_train.txt'), 'a') as f:
-			# saves accuracy at each finished training batch as a tuple of (x, y) values
-			f.write(str(batch/self.batches_in_epoch) + ' ' + str(logs['acc']) + '\n')
-
-	def on_epoch_end(self, epoch, logs={}):
-		if self.params['do_validation']:
-			with open(join(self.results_folder, 'accuracy_val.txt'), 'a') as f:
-				# saves validation accuracy at each finished training epoch
-				f.write(str(epoch + 1) + ' ' + str(logs['val_acc']) + '\n')
-
-
-class Loss(Callback):
-
-	def __init__(self, file_folder):
-		super(Loss, self).__init__()
-		self.results_folder = join(file_folder, 'results')
-		self.batches_in_epoch = None
-
-	def on_train_begin(self, logs={}):
-		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
-		# ensure file creation
-		with open(join(self.results_folder, 'loss_train.txt'), 'w') as f:
-			f.write('')
-		if self.params['do_validation']:
-			with open(join(self.results_folder, 'loss_val.txt'), 'w') as f:
-				f.write('')
-
-	def on_batch_end(self, batch, logs={}):
-		# write new loss line
-		with open(join(self.results_folder, 'loss_train.txt'), 'a') as f:
-			# saves accuracy at each finished training batch as a tuple of (x, y) values
-			f.write(str(batch/self.batches_in_epoch) + ' ' + str(logs['loss']) + '\n')
-
-	def on_epoch_end(self, epoch, logs={}):
-		if self.params['do_validation']:
-			with open(join(self.results_folder, 'loss_val.txt'), 'a') as f:
-				# saves validation accuracy at each finished training epoch
-				f.write(str(epoch + 1) + ' ' + str(logs['val_loss']) + '\n')
-
-
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class LayerActivations(Callback):
 

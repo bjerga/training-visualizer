@@ -114,26 +114,28 @@ def create_model():
 
 
 # saves the visualization and a txt-file describing its creation environment
-def save_visualization(img, class_index, loss_value):
+def save_visualization(img, layer_no, neuron_no, loss_value):
     
     # create appropriate name to identify image
     if regularize:
         img_name = 'regularized'
     else:
         img_name = 'vanilla'
-    img_name += '_{}_{}'.format(class_index, time())
+    img_name += '_{}_{}_{}'.format(layer_no, neuron_no, time())
 
     # save the resulting image to disk
     # avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
     scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, img_name + '.png'))
 
     # also save a txt-file containing information about creation environment and obtained loss
-    img_info = 'Learning rate: {}\n' \
+    img_info = 'Image "{}.png" was created from neuron {} in layer {}, using the following hyperparameters:\n\n' \
+               'Learning rate: {}\n' \
                'Number of iterations: {}\n' \
                '----------\n' \
-               ''.format(learning_rate, no_of_iterations)
+               ''.format(img_name, neuron_no, layer_no, learning_rate, no_of_iterations)
     if regularize:
-        img_info += 'L2-decay: {}\n' \
+        img_info += 'Regularization enabled\n\n' \
+                    'L2-decay: {}\n' \
                     'Blur interval and std: {} & {}\n' \
                     'Value percentile: {}\n' \
                     'Norm percentile: {}\n' \
@@ -141,27 +143,29 @@ def save_visualization(img, class_index, loss_value):
                     'Abs. contribution percentile: {}\n' \
                     ''.format(l2_decay, blur_interval, blur_std, value_percentile, norm_percentile,
                               contribution_percentile, abs_contribution_percentile)
+    else:
+        img_info += 'Regularization disabled\n'
     img_info += '----------\n' \
                 'Obtained loss value: {}\n' \
                 ''.format(loss_value)
     with open(join(output_path, img_name + '_info.txt'), 'w') as f:
         f.write(img_info)
         
-    print('\nImage of class {} have been saved as {}.png\n'.format(class_index, img_name))
+    print('\nImage of neuron {} from layer {} have been saved as {}.png\n'.format(neuron_no, layer_no, img_name))
 
 
 # returns the function to easily compute the input image gradients w.r.t. the activations
-def get_loss_and_gradient_function(model_input, model_output, class_index):
+def get_loss_and_gradient_function(input_tensor, output_tensor, neuron_no):
     
     # loss is the activation of the neuron for the chosen class
-    loss = model_output[0, class_index]
+    loss = output_tensor[0, neuron_no]
     
     # gradients are computed from the visualization w.r.t. this loss
-    gradients = K.gradients(loss, model_input)[0]
+    gradients = K.gradients(loss, input_tensor)[0]
     
     # return function returning the loss and gradients given a visualization image
     # add a flag to disable the learning phase
-    return K.function([model_input, K.learning_phase()], [loss, gradients])
+    return K.function([input_tensor, K.learning_phase()], [loss, gradients])
 
 
 # creates an random, initial image to manipulate into a visualization
@@ -179,7 +183,7 @@ def create_initial_image(model_input_shape):
 
 # regularizes input image with various techniques
 # each technique is activated by non-zero values for their respective global variables
-def apply_ensemble_regularization(visualization, pixel_gradients, iteration):
+def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
     
     # regularizer #1
     # apply L2-decay
@@ -190,7 +194,7 @@ def apply_ensemble_regularization(visualization, pixel_gradients, iteration):
     # apply Gaussian blur
     if blur_interval > 0 and blur_std > 0:
         # only blur at certain iterations, as blurring is expensive
-        if not iteration % blur_interval:
+        if not iteration_no % blur_interval:
             # define standard deviations for blur kernel
             blur_kernel_std = [0, blur_std, blur_std, blur_std]
             
@@ -289,28 +293,29 @@ def main():
     # create model to generate gradients from
     model = create_model()
 
+    # select neurons to visualize for by adding (layer number, neuron number)
+    neurons_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]
+    # neuron numbers in last layer represent the following classes:
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
-    for class_index in [130, 351, 736, 850]:
-        print('Processing class {}'.format(class_index))
+
+    for layer_no, neuron_no in neurons_to_visualize:
+        print('Processing neuron {} in layer {}'.format(neuron_no, layer_no))
         
         # used to time generation of each image
         start_time = time()
         
         # create and save gradient function for current class
-        compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.output, class_index)
+        compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.layers[layer_no].output, neuron_no)
     
         # create an initial visualization image, and locate its channel (color) dimension
         visualization = create_initial_image(model.input_shape)
         
         # TODO: delete discrimination when done with testing
-        loss_value = 0.0
-        if class_index == 736:
-        # if class_index:
+        if neuron_no == 736:
             # perform gradient ascent update with or without regularization for n steps
-            for i in range(no_of_iterations):
+            for i in range(1, no_of_iterations + 1):
                 
-                # compute loss and gradient values
-                # input 0 for test phase
+                # compute loss and gradient values (input 0 as arg. #2 to deactivate training layers, like dropout)
                 loss_value, pixel_gradients = compute_loss_and_gradients([visualization, 0])
         
                 # update visualization image
@@ -326,9 +331,9 @@ def main():
             # process visualization to match with standard image dimensions
             visualization_image = deprocess(visualization)
             
-            print('Class {} visualization completed in {}s'.format(class_index, time() - start_time))
+            print('Visualization for neuron {} from layer {} completed in {:.4f} seconds'.format(neuron_no, layer_no, time() - start_time))
         
             # save visualization image, complete with info about creation environment
-            save_visualization(visualization_image, class_index, loss_value)
+            save_visualization(visualization_image, layer_no, neuron_no, loss_value)
 
 main()

@@ -1,5 +1,6 @@
 from keras.callbacks import Callback
 import keras.backend as K
+from keras.preprocessing import image
 
 import numpy as np
 import pickle
@@ -153,6 +154,41 @@ class SaliencyMaps(Callback):
 
 			file = join(self.results_folder, 'saliency_maps')
 			np.save(file, abs_saliency)
+
+			self.counter = 0
+
+		self.counter += 1
+
+
+class DeepVisualization(Callback):
+
+	def __init__(self, file_folder, interval=1000):
+		super(DeepVisualization, self).__init__()
+		
+		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
+		
+		# find image uploaded by user to use in visualization
+		images_folder = join(file_folder, 'images')
+		img_name = listdir(images_folder)[-1]
+		pil_img = Image.open(join(images_folder, img_name))
+		
+		# convert to array and add batch dimension
+		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
+		
+		# set channel dimension based on image data format from Keras backend
+		if K.image_data_format() == 'channels_last':
+			self.ch_dim = 3
+		else:
+			self.ch_dim = 1
+
+	def on_batch_end(self, batch, logs={}):
+
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
+
+			# perform deep visualization
 
 			self.counter = 0
 

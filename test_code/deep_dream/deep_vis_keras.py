@@ -1,6 +1,6 @@
 import numpy as np
 
-import scipy.misc
+from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
 from os import mkdir
 from os.path import dirname, join
@@ -29,7 +29,7 @@ else:
 is_VGG16 = True
 VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
-# Update coefficient
+# set learning rate
 learning_rate = 2500.
 
 # how many times we update image
@@ -46,19 +46,19 @@ blur_interval = 4
 blur_std = 1.0
 
 # specify value percentile limit
-# used to induce sparsity by setting pixels with small absolute value to 0
+# used to induce sparsity by setting pixels with small absolute value to zero
 value_percentile = 0
 
 # specify norm percentile limit
-# used to induce sparsity by setting pixels with small norm to 0
+# used to induce sparsity by setting pixels with small norm to zero
 norm_percentile = 0
 
 # specify contribution percentile limit
-# used to induce sparsity by setting pixels with small contribution to 0
+# used to induce sparsity by setting pixels with small contribution to zero
 contribution_percentile = 0
 
 # specify absolute contribution percentile limit
-# used to induce sparsity by setting pixels with small absolute contribution to 0
+# used to induce sparsity by setting pixels with small absolute contribution to zero
 abs_contribution_percentile = 0
 
 # choose whether to include regularization
@@ -67,23 +67,18 @@ regularize = True
 # TODO: update to Keras 2.0
 # TODO: add support for greyscale images
 
-# utility function used to convert an array into a savable image
+# utility function used to convert an array into a savable image array
 def deprocess(vis_array):
 
     # remove batch dimension, and alter color dimension accordingly
     img_array = vis_array[0]
 
-    if is_VGG16:
-        # create shape with correct color dimension
-        new_shape = [1, 1, 1]
-        new_shape[ch_dim - 1] = 3
-    
-        # add VGG16 mean values
-        img_array += VGG16_MEAN_VALUES.reshape(new_shape)
-
     if K.image_data_format() == 'channels_first':
         # alter dimensions from (color, height, width) to (height, width, color)
         img_array = img_array.transpose((1, 2, 0))
+
+    if is_VGG16:
+        img_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
 
     # clip in [0, 255], and convert to uint8
     img_array = np.clip(img_array, 0, 255).astype('uint8')
@@ -125,7 +120,7 @@ def save_visualization(img, layer_no, neuron_no, loss_value):
 
     # save the resulting image to disk
     # avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-    scipy.misc.toimage(img, cmin=0, cmax=255).save(join(output_path, img_name + '.png'))
+    toimage(img).save(join(output_path, img_name + '.png'))
 
     # also save a txt-file containing information about creation environment and obtained loss
     img_info = 'Image "{}.png" was created from neuron {} in layer {}, using the following hyperparameters:\n\n' \
@@ -154,10 +149,10 @@ def save_visualization(img, layer_no, neuron_no, loss_value):
     print('\nImage of neuron {} from layer {} have been saved as {}.png\n'.format(neuron_no, layer_no, img_name))
 
 
-# returns the function to easily compute the input image gradients w.r.t. the activations
+# returns a function for computing loss and gradients w.r.t. the activations for the chosen neuron in the output tensor
 def get_loss_and_gradient_function(input_tensor, output_tensor, neuron_no):
     
-    # loss is the activation of the neuron for the chosen class
+    # loss is the activation of the neuron in the chosen output tensor (chosen layer output)
     loss = output_tensor[0, neuron_no]
     
     # gradients are computed from the visualization w.r.t. this loss
@@ -225,7 +220,7 @@ def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
         # find initial mask of high norms (norms above chosen norm percentile)
         high_norm_mask = pixel_norms >= np.percentile(pixel_norms, norm_percentile)
         
-        # expand mask to account for colors
+        # expand mask to account for color dimension
         high_norm_mask = expand_for_color(high_norm_mask)
 
         # apply to image to set pixels with small norms to zero
@@ -243,7 +238,7 @@ def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
         # find initial mask of high contributions (contr. above chosen contr. percentile)
         high_contribution_mask = contribution >= np.percentile(contribution, contribution_percentile)
 
-        # expand mask to account for colors
+        # expand mask to account for color dimension
         high_contribution_mask = expand_for_color(high_contribution_mask)
 
         # apply to image to set pixels with small contributions to zero
@@ -263,7 +258,7 @@ def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
         # find initial mask of high absolute contributions (abs. contr. above chosen abs. contr. percentile)
         high_abs_contribution_mask = abs_contribution >= np.percentile(abs_contribution, abs_contribution_percentile)
 
-        # expand mask to account for colors
+        # expand mask to account for color dimension
         high_abs_contribution_mask = expand_for_color(high_abs_contribution_mask)
 
         # apply to image to set pixels with small absolute contributions to zero
@@ -272,7 +267,6 @@ def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
     return visualization
 
 
-# TODO: use expand_dims instead of np.newaxis?
 # use to expand a (batch, height, width)-numpy array with a channel (color) dimension
 def expand_for_color(np_array):
     
@@ -299,15 +293,15 @@ def main():
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
 
     for layer_no, neuron_no in neurons_to_visualize:
-        print('Processing neuron {} in layer {}'.format(neuron_no, layer_no))
+        print('\nProcessing neuron {} in layer {}'.format(neuron_no, layer_no))
         
         # used to time generation of each image
         start_time = time()
         
-        # create and save gradient function for current class
+        # create and save loss and gradient function for current neuron
         compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.layers[layer_no].output, neuron_no)
     
-        # create an initial visualization image, and locate its channel (color) dimension
+        # create an initial visualization image
         visualization = create_initial_image(model.input_shape)
         
         # TODO: delete discrimination when done with testing

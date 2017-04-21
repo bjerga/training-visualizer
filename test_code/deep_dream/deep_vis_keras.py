@@ -30,7 +30,7 @@ is_VGG16 = True
 VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
 # set learning rate
-learning_rate = 2500.
+learning_rate = 2500.0
 
 # how many times we update image
 no_of_iterations = 500

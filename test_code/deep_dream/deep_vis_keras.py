@@ -289,6 +289,7 @@ def main():
     # neuron numbers in last layer represent the following classes:
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
 
+    # for the chosen layer number and neuron number
     for layer_no, neuron_no in neurons_to_visualize:
         print('\nProcessing neuron {} in layer {}'.format(neuron_no, layer_no))
         

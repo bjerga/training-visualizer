@@ -256,6 +256,7 @@ class DeepVisualization(Callback):
 			# list to hold visualization info for all chosen neurons
 			vis_info = []
 			
+			# for the chosen layer number and neuron number
 			for layer_no, neuron_no in self.neurons_to_visualize:
 				
 				# create and save loss and gradient function for current neuron
@@ -282,7 +283,7 @@ class DeepVisualization(Callback):
 				# add to list of all visualization info
 				vis_info.append((visualization, layer_no, neuron_no, loss_value))
 				
-			# save visualization image, complete with info about creation environment
+			# save visualization images, complete with info about creation environment
 			self.save_visualization_info(vis_info)
 			
 			self.counter = 0

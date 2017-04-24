@@ -44,7 +44,7 @@ def train(model, no_of_epochs=10):
 
 	# initialize custom callbacks
 	custom_callbacks = [NetworkSaver(save_path), AccuracyListSaver(save_path), LossListSaver(save_path), SaliencyMaps(save_path),
-						DeepVisualization(save_path, 2500.0, 100, [(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
+						DeepVisualization(save_path, [(-1, 0), (-1, 1), (-1, 2)], 2500.0, 500,
 										  l2_decay=0.0001, blur_interval=4, blur_std=1.0)]
 
 	# get data

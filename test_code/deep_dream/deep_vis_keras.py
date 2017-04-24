@@ -64,9 +64,6 @@ abs_contribution_percentile = 0
 # choose whether to include regularization
 regularize = True
 
-# TODO: update to Keras 2.0
-# TODO: add support for greyscale images
-
 # utility function used to convert an array into a savable image array
 def deprocess(vis_array):
 

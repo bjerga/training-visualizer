@@ -25,7 +25,7 @@ if K.image_data_format() == 'channels_last':
 else:
     ch_dim = 1
 
-# TODO: delete when done with testing
+# for VGG16 specific testing
 is_VGG16 = True
 VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
@@ -301,30 +301,28 @@ def main():
         # create an initial visualization image
         visualization = create_initial_image(model.input_shape)
         
-        # TODO: delete discrimination when done with testing
-        if neuron_no == 736:
-            # perform gradient ascent update with or without regularization for n steps
-            for i in range(1, no_of_iterations + 1):
-                
-                # compute loss and gradient values (input 0 as arg. #2 to deactivate training layers, like dropout)
-                loss_value, pixel_gradients = compute_loss_and_gradients([visualization, 0])
-        
-                # update visualization image
-                visualization += pixel_gradients * learning_rate
-        
-                # if regularization has been activated, regularize image
-                if regularize:
-                    visualization = apply_ensemble_regularization(visualization, pixel_gradients, i)
-        
-                # print('Current loss value:', loss_value)
-                print('Round {} finished.'.format(i))
-
-            # process visualization to match with standard image dimensions
-            visualization_image = deprocess(visualization)
+        # perform gradient ascent update with or without regularization for n steps
+        for i in range(1, no_of_iterations + 1):
             
-            print('Visualization for neuron {} from layer {} completed in {:.4f} seconds'.format(neuron_no, layer_no, time() - start_time))
+            # compute loss and gradient values (input 0 as arg. #2 to deactivate training layers, like dropout)
+            loss_value, pixel_gradients = compute_loss_and_gradients([visualization, 0])
+    
+            # update visualization image
+            visualization += pixel_gradients * learning_rate
+    
+            # if regularization has been activated, regularize image
+            if regularize:
+                visualization = apply_ensemble_regularization(visualization, pixel_gradients, i)
+    
+            # print('Current loss value:', loss_value)
+            print('Round {} finished.'.format(i))
+
+        # process visualization to match with standard image dimensions
+        visualization_image = deprocess(visualization)
+    
+        # save visualization image, complete with info about creation environment
+        save_visualization(visualization_image, layer_no, neuron_no, loss_value)
         
-            # save visualization image, complete with info about creation environment
-            save_visualization(visualization_image, layer_no, neuron_no, loss_value)
+        print('Visualization for neuron {} from layer {} completed in {:.4f} seconds'.format(neuron_no, layer_no, time() - start_time))
 
 main()

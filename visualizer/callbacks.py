@@ -221,14 +221,6 @@ class DeepVisualization(Callback):
 		self.norm_percentile = norm_percentile
 		self.contribution_percentile = contribution_percentile
 		self.abs_contribution_percentile = abs_contribution_percentile
-		
-		# find image uploaded by user to use in visualization
-		images_folder = join(file_folder, 'images')
-		img_name = listdir(images_folder)[-1]
-		pil_img = Image.open(join(images_folder, img_name))
-		
-		# convert to array and add batch dimension
-		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -264,8 +256,8 @@ class DeepVisualization(Callback):
 				# add to list of all visualization info
 				vis_info.append((visualization, layer_no, neuron_no, loss_value))
 				
-				# save visualization image, complete with info about creation environment
-				self.save_visualization_info(vis_info)
+			# save visualization image, complete with info about creation environment
+			self.save_visualization_info(vis_info)
 			
 			self.counter = 0
 
@@ -342,7 +334,6 @@ class DeepVisualization(Callback):
 		# regularizer #6
 		# apply absolute contribution limit
 		if self.abs_contribution_percentile > 0:
-			# alternative approach
 			# predict the contribution of each pixel
 			predicted_contribution = -visualization * pixel_gradients
 			
@@ -380,7 +371,7 @@ class DeepVisualization(Callback):
 		# expand at channel (color) dimension
 		np_array = np.expand_dims(np_array, axis=self.ch_dim)
 		
-		# create tile repetition list, repeating thrice in channel (color) dimension
+		# create tile repetition list, repeating in channel (color) dimension
 		tile_reps = [1, 1, 1, 1]
 		tile_reps[self.ch_dim] = self.model.input_shape[self.ch_dim]
 		

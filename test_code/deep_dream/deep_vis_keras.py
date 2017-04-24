@@ -168,7 +168,6 @@ def create_initial_image(model_input_shape):
     # used in testing only, and should be remove upon implementation with tool
     np.random.seed(1337)
     
-    # TODO: why 0 and 10 values? just for testing? check it out
     # add (1,) for batch dimension
     return np.random.normal(0, 10, (1,) + model_input_shape[1:])
 
@@ -285,7 +284,8 @@ def main():
     model = create_model()
 
     # select neurons to visualize for by adding (layer number, neuron number)
-    neurons_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]
+    # neurons_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]
+    neurons_to_visualize = [(-1, 736)]
     # neuron numbers in last layer represent the following classes:
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
 

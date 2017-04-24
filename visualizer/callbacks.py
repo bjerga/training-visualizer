@@ -13,6 +13,8 @@ from os.path import join, basename
 from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
 
+from keras.models import Model
+
 
 class NetworkSaver(Callback):
 
@@ -221,7 +223,31 @@ class DeepVisualization(Callback):
 		self.norm_percentile = norm_percentile
 		self.contribution_percentile = contribution_percentile
 		self.abs_contribution_percentile = abs_contribution_percentile
+		
+	def on_train_begin(self, logs=None):
+		
+		output_layer = self.model.layers[-1]
+		output_layer_config = output_layer.get_config()
+		
+		# if top layer has softmax activation
+		if output_layer_config['activation'] == 'softmax':
+			# create a model similar to original, but with a linear activation in output layer, instead of softmax
+			
+			# alter activation in config to be linear
+			output_layer_config['activation'] = 'linear'
+			
+			# create an alternative output layer using altered config and connect to same input layer as original output layer
+			alt_output = type(output_layer).from_config(output_layer_config)(output_layer.input)
 
+			# create the linear alternative model
+			self.vis_model = Model(inputs=self.model.input, outputs=alt_output)
+			
+			# use weights from original output layer
+			self.vis_model.layers[-1].set_weights(output_layer.get_weights())
+		else:
+			# if not, original model can be used
+			self.vis_model = self.model
+			
 	def on_batch_end(self, batch, logs={}):
 
 		# only update visualization at user specified intervals
@@ -356,14 +382,14 @@ class DeepVisualization(Callback):
 	def get_loss_and_gradient_function(self, layer_no, neuron_no):
 		
 		# loss is the activation of the neuron in the output of the chosen layer
-		loss = self.model.layers[layer_no].output[0, neuron_no]
+		loss = self.vis_model.layers[layer_no].output[0, neuron_no]
 		
 		# gradients are computed from the visualization given as input w.r.t. this loss
-		gradients = K.gradients(loss, self.model.input)[0]
+		gradients = K.gradients(loss, self.vis_model.input)[0]
 		
 		# return function returning the loss and gradients given a visualization image
 		# add a flag to disable the learning phase
-		return K.function([self.model.input, K.learning_phase()], [loss, gradients])
+		return K.function([self.vis_model.input, K.learning_phase()], [loss, gradients])
 	
 	# use to expand a (batch, height, width)-numpy array with a channel (color) dimension
 	def expand_for_color(self, np_array):
@@ -373,7 +399,7 @@ class DeepVisualization(Callback):
 		
 		# create tile repetition list, repeating in channel (color) dimension
 		tile_reps = [1, 1, 1, 1]
-		tile_reps[self.ch_dim] = self.model.input_shape[self.ch_dim]
+		tile_reps[self.ch_dim] = self.vis_model.input_shape[self.ch_dim]
 		
 		# apply tile repetition
 		np_array = np.tile(np_array, tile_reps)
@@ -388,9 +414,8 @@ class DeepVisualization(Callback):
 		# used in testing only, and should be remove upon implementation with tool
 		np.random.seed(1337)
 		
-		# TODO: why 0 and 10 values? just for testing? check it out
 		# add (1,) for batch dimension
-		return np.random.normal(0, 10, (1,) + self.model.input_shape[1:])
+		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])
 	
 	# utility function used to convert an array into a savable image array
 	def deprocess(self, vis_array):

@@ -1,4 +1,5 @@
 import subprocess
+from sys import exc_info
 from os import listdir, mkdir
 from os.path import join, relpath, basename
 from urllib.parse import urlencode
@@ -138,7 +139,15 @@ def run_python_shell(file_path):
 
 		# run program via command line
 		with open(get_output_file(get_current_user(), basename(file_path)), 'w') as f:
-			p = subprocess.Popen([PYTHON, file_path], stdout=f)
+			try:
+				p = subprocess.Popen([PYTHON, file_path], stdout=f)
+			except FileNotFoundError as e:
+				file_folder, file_name = file_path.rsplit('\\', 1)
+				raise FileNotFoundError(str(e) + '. Please make sure that file {!r} exists in folder {!r}. Otherwise, '
+												 'problem might be caused by system not recognizing {!r} as a command. '
+												 'If so, please alter PYTHON variable in config.py to match your Python '
+												 'command word.'
+												 ''.format(file_name, file_folder, PYTHON)).with_traceback(exc_info()[2])
 		return p
 	else:
 		print('\n\nNo file found\n\n')

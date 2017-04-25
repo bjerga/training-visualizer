@@ -2,5 +2,5 @@
 .idea/
 visualizer/*.db
 visualizer/static/user_storage/
-test_code/figures
-test_code/networks
+test_code/deep_dream/output
+test_code/deep_dream/old_output

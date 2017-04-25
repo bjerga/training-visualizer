@@ -32,7 +32,7 @@ urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img, output_folder):
+	def __init__(self, link_model, input_img):
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
@@ -46,7 +46,6 @@ class DeconvolutionModel:
 		
 		self.link_model = link_model
 		self.input_img = input_img
-		self.output_folder = output_folder
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
@@ -162,7 +161,7 @@ class DeconvolutionModel:
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
 	# either uses maximally activated feature maps or specified ones
-	def produce_reconstruction_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
+	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
 		
 		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
 			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
@@ -202,29 +201,24 @@ class DeconvolutionModel:
 				
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
 		
-		counter = 0
 		reconstructions = {}
-		for feat_map_no, processed_feat_maps in feat_maps_tuples:
-			# print(counter, feat_map_no)
+		for i in range(len(feat_maps_tuples)):
+			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
 			
 			# feed to deconv. model to produce reconstruction
 			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
 																	self.layer_map[feat_map_layer_no],
 																	processed_feat_maps)
 			# save reconstruction to designated folder (returns saved array and name)
-			img_array, img_name = self.save_as_image(reconstruction, feat_map_no)
+			img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i)
 			
 			reconstructions[img_name] = (img_name, img_array)
 			
-			counter += 1
-		
-		# save as pickle
-		with open(join(self.output_folder, 'deconv_reconstructions.pickle'), 'wb') as f:
-			pickle.dump(reconstructions, f)
+		return reconstructions
 	
 	# either uses randomly chosen feature maps or specified ones
-	def produce_reconstruction_from_top_images(self, feat_map_layer_no, check_amount, choose_amount,
-											   feat_map_amount=None, feat_map_nos=None):
+	def produce_reconstructions_from_top_images(self, feat_map_layer_no, check_amount, choose_amount,
+												feat_map_amount=None, feat_map_nos=None):
 		
 		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
 			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
@@ -251,7 +245,7 @@ class DeconvolutionModel:
 								 "The invalid numbers were: {}".format(feat_map_no_max - 1, list(invalid_nos)))
 		
 		# print('\nReconstruct for feature maps in layer {}: {}'.format(feat_map_layer_no, feat_map_nos))
-		max_images_dict = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
+		max_images_dict, max_imgs_info_by_feat_map_no = self.get_max_images(check_amount, choose_amount, feat_map_layer_no, feat_map_nos)
 		
 		reconstructions_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
@@ -277,13 +271,11 @@ class DeconvolutionModel:
 																		processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)
-				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, False)
+				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i, False)
 				
 				reconstructions_by_feat_map_no[feat_map_no].append((img_name, img_array))
 		
-		# save as pickle
-		with open(join(self.output_folder, 'deconv_reconstructions.pickle'), 'wb') as f:
-			pickle.dump(reconstructions_by_feat_map_no, f)
+		return reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no
 	
 	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
 		
@@ -401,10 +393,10 @@ class DeconvolutionModel:
 						image_scores[feat_map_no].append(np.amax(feat_maps[:, feat_map_no, :, :]))
 		
 		chosen_images_dict = {}
-		max_images_by_feat_map_no = {}
+		max_imgs_info_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
 			chosen_images_dict[feat_map_no] = []
-			max_images_by_feat_map_no[feat_map_no] = []
+			max_imgs_info_by_feat_map_no[feat_map_no] = []
 			count = 1
 			# print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
@@ -418,7 +410,7 @@ class DeconvolutionModel:
 				img_array = img_array[0]
 				img_array = np.clip(img_array, 0, 255).astype('uint8')
 				
-				max_images_by_feat_map_no[feat_map_no].append((urls[index], img_array))
+				max_imgs_info_by_feat_map_no[feat_map_no].append((urls[index], img_array))
 
 				# TODO: delete when visualization on website is confirmed
 				# process image to be saved
@@ -434,12 +426,8 @@ class DeconvolutionModel:
 						 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
 				
 				count += 1
-		
-		# save as pickle
-		with open(join(self.output_folder, 'deconv_max_images.pickle'), 'wb') as f:
-			pickle.dump(max_images_by_feat_map_no, f)
 			
-		return chosen_images_dict
+		return chosen_images_dict, max_imgs_info_by_feat_map_no
 	
 	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.
 	
@@ -462,31 +450,31 @@ class DeconvolutionModel:
 		return np.expand_dims(img_array, axis=0)
 	
 	# TODO: modify when done with testing
-	# saves the visualization and a txt-file describing its creation environment and return saved array and name
-	def save_as_image(self, img_array, feat_map_no, fixed_image_used=True):
+	# processes and saves the reconstruction and returns processed array and name
+	def save_as_image(self, rec_array, feat_map_no, rec_no, fixed_image_used=True):
 		
-		# process image array
+		# process reconstruction array
 		# remove batch dimension
-		img_array = img_array[0]
+		rec_array = rec_array[0]
 		
 		if K.image_data_format() == 'channels_first':
 			# alter dimensions from (color, height, width) to (height, width, color)
-			img_array = img_array.transpose((1, 2, 0))
+			rec_array = rec_array.transpose((1, 2, 0))
 		
 		if is_VGG16:
-			img_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
+			rec_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
 		
 		# clip in [0, 255] and convert to uint8
-		img_array = img_array.clip(0, 255).astype('uint8')
+		rec_array = rec_array.clip(0, 255).astype('uint8')
 		
 		if fixed_image_used:
-			img_name = 'max_no_{}_feat_map_{}'.format(len(listdir(self.output_folder)) + 1, feat_map_no)
+			rec_name = 'max_no_{}_feat_map_{}'.format(rec_no, feat_map_no)
 		else:
-			img_name = 'feat_map_{}_recon_{}'.format(feat_map_no, len(listdir(self.output_folder)) + 1)
+			rec_name = 'feat_map_{}_recon_{}'.format(feat_map_no, rec_no)
 		
 		# TODO: delete when visualization on website is confirmed
 		# process image to be saved
-		img_to_save = img_array.copy()
+		img_to_save = rec_array.copy()
 		# use self.ch_dim - 1 as we have removed batch dimension
 		if img_to_save.shape[self.ch_dim - 1] == 1:
 			# if greyscale image, remove inner dimension before save
@@ -494,11 +482,11 @@ class DeconvolutionModel:
 
 		# save the resulting image to disk
 		# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-		scipy.misc.toimage(img_to_save).save(join(self.output_folder, img_name + '.png'))
+		scipy.misc.toimage(img_to_save).save(join(dirname(__file__), 'deconv_output', rec_name + '.png'))
 		
-		# print('\nImage has been saved as {!s}.png\n'.format(img_name))
+		# print('\nImage has been saved as {!s}.png\n'.format(rec_name))
 		
-		return img_array, img_name
+		return rec_array, rec_name
 
 
 # generates a recreated pooling input from pooling output and pooling configuration

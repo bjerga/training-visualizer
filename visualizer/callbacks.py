@@ -164,9 +164,9 @@ class SaliencyMaps(Callback):
 			self.counter = 0
 
 
-class DeconvolutionReconstruction(Callback):
+class Deconvolution(Callback):
 	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):
-		super(DeconvolutionReconstruction, self).__init__()
+		super(Deconvolution, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
@@ -185,14 +185,18 @@ class DeconvolutionReconstruction(Callback):
 		self.feat_map_nos = feat_map_nos
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img, self.results_folder)
+		self.deconv_model = DeconvolutionModel(self.model, self.img)
 	
 	def on_batch_end(self, batch, logs=None):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
-			self.deconv_model.produce_reconstruction_with_fixed_image(self.feat_map_layer_no,
-																	  self.feat_map_amount,
-																	  self.feat_map_nos)
+			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
+																						 self.feat_map_amount,
+																						 self.feat_map_nos)
+			
+			# save reconstructions as pickle
+			with open(join(self.results_folder, 'deconvolution.pickle'), 'wb') as f:
+				pickle.dump(reconstructions, f)
 			
 			self.counter = 0
 		

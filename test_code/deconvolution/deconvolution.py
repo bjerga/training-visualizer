@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 
 from time import time
 from os.path import dirname, join
@@ -45,7 +46,7 @@ def deconv_example():
 	
 	print('\nCreating deconvolution model')
 	start_time = time()
-	deconv_model = DeconvolutionModel(conv_model, img, output_path)
+	deconv_model = DeconvolutionModel(conv_model, img)
 	print('\nTime to create was {:.4f} seconds'.format(time() - start_time))
 	
 	# note that layers are zero indexed
@@ -57,11 +58,24 @@ def deconv_example():
 	start_time = time()
 	
 	if choose_max_images:
-		deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, 3)
-		# deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
+		reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no = deconv_model.produce_reconstructions_from_top_images(feat_map_layer_no, 100, 5, 3)
+		# reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no = deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
+
+		# save reconstructions as pickle
+		with open(join(dirname(__file__), 'deconv_output', 'deconvolution.pickle'), 'wb') as f:
+			pickle.dump(reconstructions_by_feat_map_no, f)
+			
+		# save max images as pickle
+		with open(join(dirname(__file__), 'deconv_output', 'deconv_max_images.pickle'), 'wb') as f:
+			pickle.dump(max_imgs_info_by_feat_map_no, f)
+	
 	else:
-		deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, 10)
-		# deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
+		reconstructions = deconv_model.produce_reconstructions_with_fixed_image(feat_map_layer_no, 10)
+		# reconstructions = deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
+		
+		# save as pickle
+		with open(join(dirname(__file__), 'deconv_output', 'deconvolution.pickle'), 'wb') as f:
+			pickle.dump(reconstructions, f)
 	
 	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))
 

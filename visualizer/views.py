@@ -285,42 +285,21 @@ def show_file_overview(filename):
 		return redirect(url_for('show_file_overview', filename=filename))
 	
 	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(), is_running=running,
-						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path)
+						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path,
+						   visualizations=app.config['VISUALIZATIONS'])
 
 
 # page for file visualization view
 @login_required
-@app.route('/uploads/<filename>/visualization', methods=['GET', 'POST'])
-def show_file_visualization(filename):
+@app.route('/uploads/<filename>/<visualization>', methods=['GET', 'POST'])
+def show_file_visualization(filename, visualization):
 
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-
-	# instantiate the form that is the dropdown menu for selecting visualization
-	form = VisualizationForm()
-
-	# get visualization choice from dropdown, or default to the first of the list
-	if form.validate_on_submit():
-		visualization = request.form.get('visualization')
-	else:
-		visualization = form.visualization.choices[0][0]
 		
 	plot = get_bokeh_plot(filename, visualization)
 
-	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, form=form)
-
-
-# page for training progress view
-@login_required
-@app.route('/uploads/<filename>/training_progress')
-def show_file_training_progress(filename):
-
-	# get information about file
-	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-
-	plot = get_bokeh_plot(filename, 'training_progress')
-
-	return render_template('show_file_training_progress.html', filename=filename, meta=meta, plot=plot)
+	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, visualizations=app.config['VISUALIZATIONS'])
 
 
 # define how to run a program using new processes

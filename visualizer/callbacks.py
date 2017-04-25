@@ -48,6 +48,7 @@ class TrainingProgress(Callback):
 		super(TrainingProgress, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.batches_in_epoch = None
+		self.epoch = 0
 
 	def on_train_begin(self, logs={}):
 		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
@@ -62,13 +63,14 @@ class TrainingProgress(Callback):
 		# write new accuracy line
 		with open(join(self.results_folder, 'training_progress.txt'), 'a') as f:
 			# saves accuracy at each finished training batch as lines of "x-value acc loss"
-			f.write("{0} {1} {2}\n".format(batch / self.batches_in_epoch, logs['acc'], logs['loss']))
+			f.write("{} {} {}\n".format(self.epoch + (batch / self.batches_in_epoch), logs['acc'], logs['loss']))
 
 	def on_epoch_end(self, epoch, logs={}):
+		self.epoch = epoch + 1
 		if self.params['do_validation']:
 			with open(join(self.results_folder, 'training_progress_val.txt'), 'a') as f:
 				# saves validation accuracy at each finished training epoch
-				f.write("{0} {1} {2}\n".format(epoch, logs['val_acc'], logs['val_loss']))
+				f.write("{} {:.5f} {:.5f}\n".format(epoch + 1, logs['val_acc'], logs['val_loss']))
 
 
 # saves activation arrays for each layer as tuples: (layer-name, array)

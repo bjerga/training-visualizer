@@ -1,5 +1,6 @@
 from os.path import join
-from bokeh.models import ColumnDataSource, Line, Div, Paragraph, SingleIntervalTicker, Range1d, DataRange1d
+from bokeh.models import ColumnDataSource, Line, Div, Paragraph, SingleIntervalTicker, Range1d, DataRange1d, Circle, \
+	HoverTool
 from bokeh.plotting import figure, curdoc
 from bokeh.layouts import layout
 
@@ -20,7 +21,7 @@ grid = []
 div = Div(text="<h3>Visualization of the training progress</h3>", width=500)
 grid.append([div])
 
-p = Paragraph(text="There seems to be no training progress data produced yet.", width=500)
+p = Paragraph(text="There seems to be no training progress data produced yet.", width=600)
 grid.append([p])
 
 accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=900, plot_height=300)
@@ -45,14 +46,26 @@ train_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
 val_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
 
 accuracy_fig.add_glyph(train_source, Line(x='x', y='acc_y', line_color='blue'))
-accuracy_fig.add_glyph(val_source, Line(x='x', y='acc_y', line_color='green'))
+acc_render = accuracy_fig.add_glyph(val_source, Circle(x='x', y='acc_y', line_color='green', fill_color='green',
+													   fill_alpha=0.5, size=6))
+
+acc_hover = HoverTool(renderers=[acc_render], tooltips=[('Epoch', '@x'), ('Validation accuracy', '@acc_y')])
+accuracy_fig.add_tools(acc_hover)
+
 loss_fig.add_glyph(train_source, Line(x='x', y='loss_y', line_color='blue'))
-loss_fig.add_glyph(val_source, Line(x='x', y='loss_y', line_color='green'))
+loss_render = loss_fig.add_glyph(val_source, Circle(x='x', y='loss_y', line_color='green', fill_color='green',
+													fill_alpha=0.5, size=6))
+
+loss_hover = HoverTool(renderers=[loss_render], tooltips=[('Epoch', '@x'), ('Validation loss', '@loss_y')])
+loss_fig.add_tools(loss_hover)
 
 
 def update_data():
 
+	plot_val = True
+
 	data_length = len(train_source.data['x'])
+	val_data_length = len(val_source.data['x'])
 
 	try:
 		with open(join(results_path, 'training_progress.txt')) as f:
@@ -64,6 +77,15 @@ def update_data():
 	except FileNotFoundError:
 		return
 
+	try:
+		with open(join(results_path, 'training_progress_val.txt')) as f:
+			val_data = list(zip(*[line.strip().split() for line in f]))
+		new_val_data_length = len(val_data)
+		if not val_data:
+			plot_val = False
+	except FileNotFoundError:
+		plot_val = False
+
 	# find new data that should be added to the graph
 	new_train_data = dict(
 		x=train_data[0][data_length:new_data_length],
@@ -72,6 +94,15 @@ def update_data():
 	)
 
 	train_source.stream(new_train_data)
+
+	if plot_val:
+		new_val_data = dict(
+			x=val_data[0][val_data_length:new_val_data_length],
+			acc_y=val_data[1][val_data_length:new_val_data_length],
+			loss_y=val_data[2][val_data_length:new_val_data_length]
+		)
+
+		val_source.stream(new_val_data)
 
 
 document.add_root(layout(grid))

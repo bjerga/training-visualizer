@@ -9,7 +9,7 @@ from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
-from visualizer.callbacks import NetworkSaver, TrainingProgress, LayerActivations, SaliencyMaps, DeepVisualization, \
+from custom_keras.callbacks import NetworkSaver, TrainingProgress, LayerActivations, SaliencyMaps, DeepVisualization, \
 	Deconvolution
 
 # find path to save networks and results

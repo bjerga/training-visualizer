@@ -15,7 +15,7 @@ from keras.models import Model
 from keras.callbacks import Callback
 from keras.preprocessing import image
 
-from visualizer.custom_keras_models import DeconvolutionModel
+from custom_keras.models import DeconvolutionModel
 from keras.layers import Dropout
 from keras.layers import Flatten
 

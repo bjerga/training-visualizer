@@ -1,11 +1,5 @@
-from keras.callbacks import Callback
-import keras.backend as K
-from keras.preprocessing import image
-
 import numpy as np
 import pickle
-
-from PIL import Image
 
 from os import mkdir, listdir
 from os.path import join, basename
@@ -13,7 +7,14 @@ from os.path import join, basename
 from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
 
+from PIL import Image
+
+import keras.backend as K
 from keras.models import Model
+from keras.callbacks import Callback
+from keras.preprocessing import image
+
+from visualizer.custom_keras_models import DeconvolutionModel
 
 
 class NetworkSaver(Callback):
@@ -86,11 +87,11 @@ class ActivationTupleListSaver(Callback):
 		# TODO: make sure that it is OK not to handle whether the image folder is empty
 		# get visualization image corresponding to the file
 		images_folder = join(file_folder, 'images')
-		image_name = listdir(images_folder)[-1]
-		image = Image.open(join(images_folder, image_name))
+		img_name = listdir(images_folder)[-1]
+		img = Image.open(join(images_folder, img_name))
 
 		# set input tensor and reshape to (1, width, height, 1)
-		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
+		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
 	def on_epoch_end(self, batch, logs={}):
 
@@ -120,11 +121,11 @@ class SaliencyMaps(Callback):
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
-		image_name = listdir(images_folder)[-1]
-		image = Image.open(join(images_folder, image_name))
+		img_name = listdir(images_folder)[-1]
+		img = Image.open(join(images_folder, img_name))
 
 		# convert to correct format TODO: check if this is needed, and generalize
-		self.input_tensor = np.array(image)[np.newaxis, :, :, np.newaxis]
+		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -162,6 +163,43 @@ class SaliencyMaps(Callback):
 
 			self.counter = 0
 
+
+class Deconvolution(Callback):
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):
+		super(Deconvolution, self).__init__()
+		
+		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
+		
+		# find image uploaded by user to use in visualization
+		images_folder = join(file_folder, 'images')
+		img_name = listdir(images_folder)[-1]
+		pil_img = Image.open(join(images_folder, img_name))
+		
+		# convert to array and add batch dimension
+		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
+		
+		self.feat_map_layer_no = feat_map_layer_no
+		self.feat_map_amount = feat_map_amount
+		self.feat_map_nos = feat_map_nos
+	
+	def on_train_begin(self, logs=None):
+		self.deconv_model = DeconvolutionModel(self.model, self.img)
+	
+	def on_batch_end(self, batch, logs=None):
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
+			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
+																						 self.feat_map_amount,
+																						 self.feat_map_nos)
+			
+			# save reconstructions as pickle
+			with open(join(self.results_folder, 'deconvolution.pickle'), 'wb') as f:
+				pickle.dump(reconstructions, f)
+			
+			self.counter = 0
+		
 		self.counter += 1
 
 

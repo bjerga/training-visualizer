@@ -105,7 +105,7 @@ def create_model():
     return vgg_model
 
 
-# saves the visualization and a txt-file describing its creation environment
+# saves the visualization and a text file describing its creation environment
 def save_visualization(img, layer_no, neuron_no, loss_value):
     
     # create appropriate name to identify image
@@ -172,7 +172,7 @@ def create_initial_image(model_input_shape):
     return np.random.normal(0, 10, (1,) + model_input_shape[1:])
 
 
-# regularizes input image with various techniques
+# regularizes visualization with various techniques
 # each technique is activated by non-zero values for their respective global variables
 def apply_ensemble_regularization(visualization, pixel_gradients, iteration_no):
     

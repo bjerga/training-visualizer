@@ -4,13 +4,13 @@ from os.path import join, dirname
 import numpy as np
 
 from keras.models import Model
-from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, Dropout, Flatten
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Flatten
 from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
 from visualizer.callbacks import NetworkSaver, AccuracyListSaver, LossListSaver, ActivationTupleListSaver, SaliencyMaps, \
-	DeepVisualization
+	DeepVisualization, Deconvolution
 
 # find path to save networks and results
 save_path = dirname(__file__)
@@ -19,8 +19,8 @@ save_path = dirname(__file__)
 def create_model():
 	# define model
 	inputs = Input(shape=(28, 28, 1))
-	x = Convolution2D(32, 3, 3, activation='relu', border_mode='valid')(inputs)
-	x = Convolution2D(32, 3, 3, activation='relu', border_mode='valid')(x)
+	x = Conv2D(32, (3, 3), activation='relu', padding='valid')(inputs)
+	x = Conv2D(32, (3, 3), activation='relu', padding='valid')(x)
 	x = MaxPooling2D(pool_size=(2, 2))(x)
 	x = Dropout(0.25)(x)
 	x = Flatten()(x)
@@ -30,7 +30,7 @@ def create_model():
 	predictions = Dense(10, activation='softmax')(x)
 
 	# create and compile model with chosen hyperparameters
-	model = Model(input=inputs, output=predictions)
+	model = Model(inputs=inputs, outputs=predictions)
 	model.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
 	print('\nModel successfully created')
@@ -43,15 +43,17 @@ def train(model, no_of_epochs=10):
 	print('\n\nCommence MNIST model training\n')
 
 	# initialize custom callbacks
-	custom_callbacks = [NetworkSaver(save_path), AccuracyListSaver(save_path), LossListSaver(save_path), SaliencyMaps(save_path),
+	custom_callbacks = [NetworkSaver(save_path), AccuracyListSaver(save_path), LossListSaver(save_path),
+						SaliencyMaps(save_path),
 						DeepVisualization(save_path, [(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
-										  2500.0, 500, l2_decay=0.0001, blur_interval=4, blur_std=1.0)]
+										  2500.0, 500, l2_decay=0.0001, blur_interval=4, blur_std=1.0),
+						Deconvolution(save_path, feat_map_layer_no=3, feat_map_amount=3)]
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()
 
 	# train with chosen hyperparameters
-	model.fit(training_data, training_targets, nb_epoch=no_of_epochs, batch_size=128, shuffle=True,
+	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True,
 			  verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
 
 	print('\nCompleted MNIST model training\n')

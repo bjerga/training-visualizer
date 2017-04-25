@@ -1,6 +1,8 @@
 *.pyc
 .idea/
 visualizer/*.db
-visualizer/static/user_storage/
-test_code/deep_dream/output
-test_code/deep_dream/old_output
+visualizer/static/user_storage
+visualizer/deconv_input
+visualizer/deconv_max_images
+test_code/deconvolution/deconv_max_images
+test_code/deconvolution/deconv_output

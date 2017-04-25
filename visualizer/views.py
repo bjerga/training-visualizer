@@ -244,7 +244,7 @@ def show_all_files():
 
 # page for file overview
 @login_required
-@app.route('/uploads/<filename>/overview', methods=['GET', 'POST'])
+@app.route('/uploads/<filename>', methods=['GET', 'POST'])
 def show_file_overview(filename):
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
@@ -296,7 +296,8 @@ def show_file_visualization(filename, visualization):
 
 	# get information about file
 	meta = FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first()
-		
+
+	# get the correct plot given the filename and type of visualization
 	plot = get_bokeh_plot(filename, visualization)
 
 	return render_template('show_file_visualization.html', filename=filename, meta=meta, plot=plot, visualizations=app.config['VISUALIZATIONS'])

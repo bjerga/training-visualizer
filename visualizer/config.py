@@ -19,7 +19,8 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 BOKEH_SERVER = 'http://localhost:5006'
 # the different visualization techniques available
 VISUALIZATIONS = [('training_progress', 'Training Progress'), ('layer_activations', 'Layer Activations'),
-				  ('saliency_maps', 'Saliency Maps'), ('deep_visualization', 'Deep Visualization')]
+				  ('saliency_maps', 'Saliency Maps'), ('deconvolution', 'Deconvolution'),
+				  ('deep_visualization', 'Deep Visualization')]
 
 # what command to use for running python
 PYTHON = 'python3'

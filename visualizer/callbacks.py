@@ -189,6 +189,8 @@ class SaliencyMaps(Callback):
 
 			self.counter = 0
 
+		self.counter += 1
+
 
 class Deconvolution(Callback):
 	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):

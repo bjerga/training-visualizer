@@ -119,7 +119,7 @@ def update_data():
 	except FileNotFoundError:
 		pass
 
-
 document.add_periodic_callback(update_data, 5000)
+update_data()
 document.add_root(layout)
 

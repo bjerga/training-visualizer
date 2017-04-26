@@ -66,7 +66,7 @@ class TrainingProgress(Callback):
 			f.write("{} {} {}\n".format(self.epoch + (batch / self.batches_in_epoch), logs['acc'], logs['loss']))
 
 	def on_epoch_end(self, epoch, logs={}):
-		self.epoch = epoch + 1
+		self.epoch += 1
 		if self.params['do_validation']:
 			with open(join(self.results_folder, 'training_progress_val.txt'), 'a') as f:
 				# saves validation accuracy at each finished training epoch

@@ -29,9 +29,6 @@ images_folder = join(UPLOAD_FOLDER, user, file, 'images')
 image_name = listdir(images_folder)[-1]  # TODO: throw error here
 original_image = np.array(Image.open(join(images_folder, image_name)))
 
-# placeholder values for visualization
-saliency_maps_data = np.zeros((1, 1, 1))
-
 grid = []
 
 div = Div(text="<h3>Visualization of the saliency maps</h3>", width=500)
@@ -40,26 +37,26 @@ grid.append([div])
 p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
 grid.append([p])
 
-# flip image to display correctly in coordinate system
-saliency_maps_source = ColumnDataSource(data=dict(image=[saliency_maps_data[::-1]]))
+# flip image to display correctly in coordinate system with placeholder
+saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
 
 image_height = original_image.shape[0]
 image_width = original_image.shape[1]
 
-fig1 = figure(tools="box_zoom, reset, save", x_range=(0, image_width), y_range=(0, image_height))
-fig1.title.text = "Original Image"
-# add image, but we need to flip it to display correctly in coordinate system
+
+def create_figure(title, width, height, tools="box_zoom, reset, save"):
+	fig = figure(tools=tools, x_range=(0, width), y_range=(0, height))
+	fig.title.text = title
+	fig.axis.visible = False
+	fig.toolbar.logo = None
+	return fig
+
+
+# create figures and add to grid
+fig1 = create_figure('Original Image', image_width, image_height)
 fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
-fig1.axis.visible = False
-fig1.toolbar.logo = None
-
-fig2 = figure(tools="box_zoom, reset, save", x_range=(0, image_width), y_range=(0, image_height))
-fig2.title.text = "Saliency Map"
-img = fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
-fig2.axis.visible = False
-fig2.toolbar.logo = None
-
-img.visible = False
+fig2 = create_figure('Saliency Map', image_width, image_height)
+fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
 
 grid.append([fig1, fig2])
 
@@ -69,13 +66,12 @@ def update_data():
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
 		p.text = ""
-		img.visible = True
+		# flip image to display correctly in coordinate system
+		new_saliency_maps_data = dict(image=[saliency_maps_data[::-1]])
+		saliency_maps_source.data = new_saliency_maps_data
 	except FileNotFoundError:
-		saliency_maps_data = np.zeros((1, 1, 1))
-
-	# flip image to display correctly in coordinate system
-	new_saliency_maps_data = dict(image=[saliency_maps_data[::-1]])
-	saliency_maps_source.data = new_saliency_maps_data
+		# if no visualization has been produced yet, simply skip visualization
+		return
 
 update_data()
 

@@ -33,7 +33,7 @@ layout.children.append(p)
 layer_activation_source = ColumnDataSource(data=dict())
 
 
-def init_data_source(layer_activation_data):
+def fill_data_source(layer_activation_data):
 
 	p.text = "Visualizations are being produced..."
 	figures = []
@@ -55,8 +55,9 @@ def init_data_source(layer_activation_data):
 			total_image_height = images.shape[0]
 			total_image_width = images.shape[1]
 
+			# add image to the data source
 			layer_activation_source.add([images], name=layer_name)
-
+			# create the figure for the current layer
 			fig = create_figure(layer_activation_source, layer_name, total_image_width*5, total_image_height*5, total_image_width, total_image_height)
 			figures.append(fig)
 
@@ -64,9 +65,9 @@ def init_data_source(layer_activation_data):
 
 			width = filters.shape[0]
 
-			# need to add an axis to plot as image
+			# add image to the data source, we need to add an extra axis to plot the 1d sequence as an image
 			layer_activation_source.add([filters[np.newaxis, :]], name=layer_name)
-
+			# create the figure for the current layer
 			fig = create_figure(layer_activation_source, layer_name, width*10, 50, width, 1, tools="save")
 			figures.append(fig)
 
@@ -89,22 +90,24 @@ def update_data():
 		with open(join(results_path, 'layer_activations.pickle'), 'rb') as f:
 			layer_activation_data = pickle.load(f)
 
-		# if it is the first time data is detected, we need to initialize the data source
+		# if it is the first time data is detected, we need to fill the data source with the layers of the network
 		if create_source:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
-			init_data_source(layer_activation_data)
+			fill_data_source(layer_activation_data)
 			create_source = False
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data
 		else:
 			for layer_name, filters in layer_activation_data:
-
+				# The filters are either images or just a long array of numbers
 				if len(filters.shape) == 3:
+					# line the filters up horizontally
 					images = np.hstack([f[::-1] for f in filters])
 
 					total_image_width = images.shape[1]
 
+					# if there are more than 4 filters, split into several rows.
 					if len(filters) > 4:
 						step = math.ceil(total_image_width / 4)
 						images = np.vstack([images[:, x:x + step] for x in range(0, total_image_width, step)])
@@ -112,10 +115,11 @@ def update_data():
 					layer_activation_source.data[layer_name] = [images]
 
 				elif len(filters.shape) == 1:
-
+					# need to add an extra axis to plot 1d sequence as an image
 					layer_activation_source.data[layer_name] = [filters[np.newaxis, :]]
 
 	except FileNotFoundError:
+		# this means layer activation data has not been created yet, skip visualization
 		pass
 
 document.add_periodic_callback(update_data, 5000)

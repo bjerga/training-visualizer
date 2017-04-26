@@ -76,8 +76,6 @@ class TrainingProgress(Callback):
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class LayerActivations(Callback):
 
-	input_tensor = None
-
 	def __init__(self, file_folder, interval=10, exclude_layers=None):
 
 		super(LayerActivations, self).__init__()
@@ -100,6 +98,8 @@ class LayerActivations(Callback):
 
 	def on_batch_end(self, batch, logs={}):
 
+		self.counter += 1
+
 		# initialize layer tuple list with image
 		layer_tuples = []
 
@@ -112,29 +112,27 @@ class LayerActivations(Callback):
 
 				# check if layer should be included
 				if not isinstance(layer, tuple(self.exclude_layers)):
-					# create function using keras-backend for getting activation tensor
-					get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
 
-					# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
+					# create function using keras-backend for getting activation array
+					get_activation_array = K.function([self.model.input, K.learning_phase()], [layer.output])
+					# use function to find activation array for the chosen image
+					act_array = get_activation_array([self.input_tensor, 0])[0][0]
 
-					tensor = get_activation_tensor([self.input_tensor, 0])[0][0]
 					# scale to fit between [0.0, 255.0]
-					if tensor.max() != 0.0:
-						tensor *= (255.0 / tensor.max())
+					if act_array.max() != 0.0:
+						act_array *= (255.0 / act_array.max())
 
-					if len(tensor.shape) == 3:
+					if len(act_array.shape) == 3:
 						# get on correct format (list of filters)
-						tensor = np.rollaxis(tensor, 2)
+						act_array = np.rollaxis(act_array, 2)
 
 					# save tuple (layer name, layer's activation tensor)
-					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), tensor))
+					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array))
 
 			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 				pickle.dump(layer_tuples, f)
 
 			self.counter = 0
-
-		self.counter += 1
 
 
 class SaliencyMaps(Callback):
@@ -154,6 +152,8 @@ class SaliencyMaps(Callback):
 		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
 	def on_batch_end(self, batch, logs={}):
+
+		self.counter += 1
 
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
@@ -189,8 +189,6 @@ class SaliencyMaps(Callback):
 
 			self.counter = 0
 
-		self.counter += 1
-
 
 class Deconvolution(Callback):
 	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):
@@ -216,6 +214,9 @@ class Deconvolution(Callback):
 		self.deconv_model = DeconvolutionModel(self.model, self.img)
 	
 	def on_batch_end(self, batch, logs=None):
+
+		self.counter += 1
+
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
@@ -227,8 +228,6 @@ class Deconvolution(Callback):
 				pickle.dump(reconstructions, f)
 			
 			self.counter = 0
-		
-		self.counter += 1
 
 
 class DeepVisualization(Callback):
@@ -316,6 +315,8 @@ class DeepVisualization(Callback):
 			
 	def on_batch_end(self, batch, logs={}):
 
+		self.counter += 1
+
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 			
@@ -353,8 +354,6 @@ class DeepVisualization(Callback):
 			self.save_visualization_info(vis_info)
 			
 			self.counter = 0
-
-		self.counter += 1
 	
 	# regularizes input image with various techniques
 	# each technique is activated by non-zero values for their respective variables

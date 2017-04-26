@@ -6,3 +6,4 @@ visualizer/deconv_input
 visualizer/deconv_max_images
 test_code/deconvolution/deconv_max_images
 test_code/deconvolution/deconv_output
+custom_keras/deconv_output

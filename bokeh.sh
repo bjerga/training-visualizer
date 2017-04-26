@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 bokeh serve --allow-websocket-origin=localhost:5000 \
-	bokeh/training_progress.py \
-	bokeh/layer_activations.py \
-	bokeh/saliency_maps.py
+	custom_bokeh/training_progress.py \
+	custom_bokeh/layer_activations.py \
+	custom_bokeh/saliency_maps.py

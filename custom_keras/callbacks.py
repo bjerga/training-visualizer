@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import math
 
 from os import mkdir, listdir
 from os.path import join, basename
@@ -14,7 +15,9 @@ from keras.models import Model
 from keras.callbacks import Callback
 from keras.preprocessing import image
 
-from visualizer.custom_keras_models import DeconvolutionModel
+from custom_keras.models import DeconvolutionModel
+from keras.layers import Dropout
+from keras.layers import Flatten
 
 
 class NetworkSaver(Callback):
@@ -39,53 +42,53 @@ class NetworkSaver(Callback):
 		self.model.save(join(self.networks_folder, self.name + '.h5'))
 
 
-# saves accuracy at each finished training batch
-class AccuracyListSaver(Callback):
+class TrainingProgress(Callback):
 
 	def __init__(self, file_folder):
-		super(AccuracyListSaver, self).__init__()
+		super(TrainingProgress, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.batches_in_epoch = None
+		self.epoch = 0
 
 	def on_train_begin(self, logs={}):
+		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
 		# ensure file creation
-		with open(join(self.results_folder, 'batch_accuracy.txt'), 'w') as f:
+		with open(join(self.results_folder, 'training_progress.txt'), 'w') as f:
 			f.write('')
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'training_progress_val.txt'), 'w') as f:
+				f.write('')
 
 	def on_batch_end(self, batch, logs={}):
 		# write new accuracy line
-		with open(join(self.results_folder, 'batch_accuracy.txt'), 'a') as f:
-			f.write(str(logs['acc']) + '\n')  # saves loss at each finished training batch
+		with open(join(self.results_folder, 'training_progress.txt'), 'a') as f:
+			# saves accuracy at each finished training batch as lines of "x-value acc loss"
+			f.write("{} {} {}\n".format(self.epoch + (batch / self.batches_in_epoch), logs['acc'], logs['loss']))
 
-
-class LossListSaver(Callback):
-
-	def __init__(self, file_folder):
-		super(LossListSaver, self).__init__()
-		self.results_folder = join(file_folder, 'results')
-
-	def on_train_begin(self, logs={}):
-		# ensure file creation
-		with open(join(self.results_folder, 'batch_loss.txt'), 'w') as f:
-			f.write('')
-
-	def on_batch_end(self, batch, logs={}):
-		# write new loss line
-		with open(join(self.results_folder, 'batch_loss.txt'), 'a') as f:
-			f.write(str(logs['loss']) + '\n')
+	def on_epoch_end(self, epoch, logs={}):
+		self.epoch += 1
+		if self.params['do_validation']:
+			with open(join(self.results_folder, 'training_progress_val.txt'), 'a') as f:
+				# saves validation accuracy at each finished training epoch
+				f.write("{} {:.5f} {:.5f}\n".format(epoch + 1, logs['val_acc'], logs['val_loss']))
 
 
 # saves activation arrays for each layer as tuples: (layer-name, array)
-class ActivationTupleListSaver(Callback):
+class LayerActivations(Callback):
 
-	input_tensor = None
+	def __init__(self, file_folder, interval=10, exclude_layers=None):
 
-	def __init__(self, file_folder):
-
-		super(ActivationTupleListSaver, self).__init__()
+		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
+		self.interval = interval
+		self.counter = 0
 
-		# TODO: make sure that it is OK not to handle whether the image folder is empty
-		# get visualization image corresponding to the file
+		# needed to overcome mutable default arguments
+		if exclude_layers is None:
+			exclude_layers = [Dropout, Flatten]
+		self.exclude_layers = exclude_layers
+
+		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
 		img = Image.open(join(images_folder, img_name))
@@ -93,22 +96,43 @@ class ActivationTupleListSaver(Callback):
 		# set input tensor and reshape to (1, width, height, 1)
 		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
-	def on_epoch_end(self, batch, logs={}):
+	def on_batch_end(self, batch, logs={}):
+
+		self.counter += 1
 
 		# initialize layer tuple list with image
 		layer_tuples = []
 
-		# for all layers, get and save activation tensor
-		for layer in self.model.layers:
-			# create function using keras-backend for getting activation tensor
-			get_activation_tensor = K.function([self.model.input, K.learning_phase()], [layer.output])
+		# only update visualization at user specified intervals
+		if self.counter == self.interval:
 
-			# save tuple (layer name, layer's activation tensor)
-			# NOTE: learning phase 0 is testing and 1 is training (difference unknown as this point)
-			layer_tuples.append((layer.name, get_activation_tensor([self.input_tensor, 0])[0]))
+			for layer_no in range(len(self.model.layers)):
 
-		with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
-			pickle.dump(layer_tuples, f)
+				layer = self.model.layers[layer_no]
+
+				# check if layer should be included
+				if not isinstance(layer, tuple(self.exclude_layers)):
+
+					# create function using keras-backend for getting activation array
+					get_activation_array = K.function([self.model.input, K.learning_phase()], [layer.output])
+					# use function to find activation array for the chosen image
+					act_array = get_activation_array([self.input_tensor, 0])[0][0]
+
+					# scale to fit between [0.0, 255.0]
+					if act_array.max() != 0.0:
+						act_array *= (255.0 / act_array.max())
+
+					if len(act_array.shape) == 3:
+						# get on correct format (list of filters)
+						act_array = np.rollaxis(act_array, 2)
+
+					# save tuple (layer name, layer's activation tensor)
+					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array))
+
+			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
+				pickle.dump(layer_tuples, f)
+
+			self.counter = 0
 
 
 class SaliencyMaps(Callback):
@@ -128,6 +152,8 @@ class SaliencyMaps(Callback):
 		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
 
 	def on_batch_end(self, batch, logs={}):
+
+		self.counter += 1
 
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
@@ -158,8 +184,8 @@ class SaliencyMaps(Callback):
 			if abs_saliency.max() != 0.0:
 				abs_saliency *= (255.0 / abs_saliency.max())
 
-			file = join(self.results_folder, 'saliency_maps')
-			np.save(file, abs_saliency)
+			with open(join(self.results_folder, 'saliency_maps.pickle'), 'wb') as f:
+				pickle.dump(abs_saliency, f)
 
 			self.counter = 0
 
@@ -188,6 +214,9 @@ class Deconvolution(Callback):
 		self.deconv_model = DeconvolutionModel(self.model, self.img)
 	
 	def on_batch_end(self, batch, logs=None):
+
+		self.counter += 1
+
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
@@ -199,8 +228,6 @@ class Deconvolution(Callback):
 				pickle.dump(reconstructions, f)
 			
 			self.counter = 0
-		
-		self.counter += 1
 
 
 class DeepVisualization(Callback):
@@ -288,6 +315,8 @@ class DeepVisualization(Callback):
 			
 	def on_batch_end(self, batch, logs={}):
 
+		self.counter += 1
+
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 			
@@ -325,8 +354,6 @@ class DeepVisualization(Callback):
 			self.save_visualization_info(vis_info)
 			
 			self.counter = 0
-
-		self.counter += 1
 	
 	# regularizes input image with various techniques
 	# each technique is activated by non-zero values for their respective variables

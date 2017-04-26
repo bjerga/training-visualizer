@@ -9,8 +9,8 @@ from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
-from visualizer.callbacks import NetworkSaver, AccuracyListSaver, LossListSaver, ActivationTupleListSaver, SaliencyMaps, \
-	DeepVisualization, Deconvolution
+from custom_keras.callbacks import NetworkSaver, TrainingProgress, LayerActivations, SaliencyMaps, DeepVisualization, \
+	Deconvolution
 
 # find path to save networks and results
 save_path = dirname(__file__)
@@ -43,7 +43,7 @@ def train(model, no_of_epochs=10):
 	print('\n\nCommence MNIST model training\n')
 
 	# initialize custom callbacks
-	custom_callbacks = [NetworkSaver(save_path), AccuracyListSaver(save_path), LossListSaver(save_path),
+	custom_callbacks = [NetworkSaver(save_path), TrainingProgress(save_path), LayerActivations(save_path),
 						SaliencyMaps(save_path),
 						DeepVisualization(save_path, [(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
 										  2500.0, 500, l2_decay=0.0001, blur_interval=4, blur_std=1.0),

@@ -201,7 +201,7 @@ class DeconvolutionModel:
 				
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
 		
-		reconstructions = {}
+		reconstructions = []
 		for i in range(len(feat_maps_tuples)):
 			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
 			
@@ -212,7 +212,7 @@ class DeconvolutionModel:
 			# save reconstruction to designated folder (returns saved array and name)
 			img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i)
 			
-			reconstructions[img_name] = (img_name, img_array)
+			reconstructions.append((img_name, img_array))
 			
 		return reconstructions
 	

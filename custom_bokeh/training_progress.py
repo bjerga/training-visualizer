@@ -35,74 +35,84 @@ def create_figure(title, label_x, label_y, x_range, y_range, tools="box_zoom, re
 	fig.toolbar.logo = None
 	return fig
 
-accuracy_fig = create_figure('Accuracy', 'Epoch', 'Accuracy', DataRange1d(start=0), Range1d(0, 1))
 
+def create_circle(y, size=6):
+	return Circle(x='x', y=y, line_color='green', fill_color='green', fill_alpha=0.5, size=size)
+
+
+def create_hover_tool(render, y_title, y_value):
+	return HoverTool(renderers=[render], tooltips=[('Epoch', '@x'), (y_title, y_value)])
+
+
+# create the accuracy figure
+accuracy_fig = create_figure('Accuracy', 'Epoch', 'Accuracy', DataRange1d(start=0), Range1d(0, 1))
 grid.append([accuracy_fig])
 
+# create the loss figure
 loss_fig = create_figure('Loss', 'Epoch', 'Loss', DataRange1d(start=0), DataRange1d(start=0))
 grid.append([loss_fig])
 
+# Initialize sources for holding the data
 train_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
 val_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))
 
+# add lines for training accuracy and circles for validation accuracy
 accuracy_fig.add_glyph(train_source, Line(x='x', y='acc_y', line_color='blue'))
-acc_render = accuracy_fig.add_glyph(val_source, Circle(x='x', y='acc_y', line_color='green', fill_color='green',
-													   fill_alpha=0.5, size=6))
+acc_render = accuracy_fig.add_glyph(val_source, create_circle('acc_y'))
 
-acc_hover = HoverTool(renderers=[acc_render], tooltips=[('Epoch', '@x'), ('Validation accuracy', '@acc_y')])
-accuracy_fig.add_tools(acc_hover)
+# add a hover tool to validation accuracy circles
+accuracy_fig.add_tools(create_hover_tool(acc_render, 'Validation accuracy', '@acc_y'))
 
+# add lines for training loss and circles for validation loss
 loss_fig.add_glyph(train_source, Line(x='x', y='loss_y', line_color='blue'))
-loss_render = loss_fig.add_glyph(val_source, Circle(x='x', y='loss_y', line_color='green', fill_color='green',
-													fill_alpha=0.5, size=6))
+loss_render = loss_fig.add_glyph(val_source, create_circle('loss_y'))
 
-loss_hover = HoverTool(renderers=[loss_render], tooltips=[('Epoch', '@x'), ('Validation loss', '@loss_y')])
-loss_fig.add_tools(loss_hover)
+# add a hover tool to validation loss circles
+loss_fig.add_tools(create_hover_tool(loss_render, 'Validation loss', '@loss_y'))
 
 
 def update_data():
-
-	plot_val = True
 
 	data_length = len(train_source.data['x'])
 	val_data_length = len(val_source.data['x'])
 
 	try:
 		with open(join(results_path, 'training_progress.txt')) as f:
-			train_data = list(zip(*[line.strip().split() for line in f]))
-		if not train_data:
-			return  # this means that the file has been created but no data has been added yet
-		new_data_length = len(train_data[0])
+			training_progress_data = list(zip(*[line.strip().split() for line in f]))
+		if not training_progress_data:
+			# this means that the file has been created but no data has been added yet, skip visualization
+			return
+		new_data_length = len(training_progress_data[0])
 		p.text = ""
 	except FileNotFoundError:
+		# this means that file has not been created yet, skip visualization
 		return
 
 	try:
 		with open(join(results_path, 'training_progress_val.txt')) as f:
-			val_data = list(zip(*[line.strip().split() for line in f]))
-		new_val_data_length = len(val_data)
-		if not val_data:
-			plot_val = False
+			validation_progress_data = list(zip(*[line.strip().split() for line in f]))
+		new_val_data_length = len(validation_progress_data)
 	except FileNotFoundError:
-		plot_val = False
+		# this means that no validation data has been created, set to empty
+		validation_progress_data = []
+		new_val_data_length = 0
 
-	# find new data that should be added to the graph
-	new_train_data = dict(
-		x=train_data[0][data_length:new_data_length],
-		acc_y=train_data[1][data_length:new_data_length],
-		loss_y=train_data[2][data_length:new_data_length]
+	# find new data that should be added to the graph and stream it
+	new_training_progress_data = dict(
+		x=training_progress_data[0][data_length:new_data_length],
+		acc_y=training_progress_data[1][data_length:new_data_length],
+		loss_y=training_progress_data[2][data_length:new_data_length]
 	)
+	train_source.stream(new_training_progress_data)
 
-	train_source.stream(new_train_data)
-
-	if plot_val:
-		new_val_data = dict(
-			x=val_data[0][val_data_length:new_val_data_length],
-			acc_y=val_data[1][val_data_length:new_val_data_length],
-			loss_y=val_data[2][val_data_length:new_val_data_length]
+	# if there is any data for validation, find the new data that should be added to the graph and stream it
+	if validation_progress_data:
+		new_validation_progress_data = dict(
+			x=validation_progress_data[0][val_data_length:new_val_data_length],
+			acc_y=validation_progress_data[1][val_data_length:new_val_data_length],
+			loss_y=validation_progress_data[2][val_data_length:new_val_data_length]
 		)
-
-		val_source.stream(new_val_data)
+		val_source.stream(new_validation_progress_data)
 
 
 document.add_root(layout(grid))

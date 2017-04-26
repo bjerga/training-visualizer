@@ -24,22 +24,22 @@ grid.append([div])
 p = Paragraph(text="There seems to be no training progress data produced yet.", width=600)
 grid.append([p])
 
-accuracy_fig = figure(tools="box_zoom, reset, save", plot_width=900, plot_height=300)
-accuracy_fig.title.text = ('Accuracy')
-accuracy_fig.xaxis.axis_label = 'Epoch'
-accuracy_fig.yaxis.axis_label = 'Accuracy'
-accuracy_fig.x_range = DataRange1d(start=0)
-accuracy_fig.y_range = Range1d(0, 1)
-accuracy_fig.toolbar.logo = None
+
+def create_figure(title, label_x, label_y, x_range, y_range, tools="box_zoom, reset, save"):
+	fig = figure(tools=tools, plot_width=900, plot_height=300)
+	fig.title.text = title
+	fig.xaxis.axis_label = label_x
+	fig.yaxis.axis_label = label_y
+	fig.x_range = x_range
+	fig.y_range = y_range
+	fig.toolbar.logo = None
+	return fig
+
+accuracy_fig = create_figure('Accuracy', 'Epoch', 'Accuracy', DataRange1d(start=0), Range1d(0, 1))
+
 grid.append([accuracy_fig])
 
-loss_fig = figure(tools="box_zoom, reset, save", plot_width=900, plot_height=300)
-loss_fig.title.text = ('Loss')
-loss_fig.xaxis.axis_label = 'Epoch'
-loss_fig.yaxis.axis_label = 'Loss'
-loss_fig.x_range = DataRange1d(start=0)
-loss_fig.y_range = DataRange1d(start=0)
-loss_fig.toolbar.logo = None
+loss_fig = create_figure('Loss', 'Epoch', 'Loss', DataRange1d(start=0), DataRange1d(start=0))
 grid.append([loss_fig])
 
 train_source = ColumnDataSource(data=dict(x=[], acc_y=[], loss_y=[]))

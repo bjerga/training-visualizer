@@ -33,7 +33,7 @@ layout.children.append(p)
 layer_activation_source = ColumnDataSource(data=dict())
 
 
-def create_figures(layer_activation_data):
+def init_data_source(layer_activation_data):
 
 	p.text = "Visualizations are being produced..."
 	figures = []
@@ -57,12 +57,7 @@ def create_figures(layer_activation_data):
 
 			layer_activation_source.add([images], name=layer_name)
 
-			fig = figure(tools="box_zoom, reset, save", plot_width=total_image_width*5, plot_height=total_image_height*5, x_range=(0, total_image_width), y_range=(0, total_image_height))
-			fig.title.text = layer_name
-			fig.image(image=layer_name, x=0, y=0, dw=total_image_width, dh=total_image_height, source=layer_activation_source)
-			fig.axis.visible = False
-			fig.toolbar.logo = None
-
+			fig = create_figure(layer_activation_source, layer_name, total_image_width*5, total_image_height*5, total_image_width, total_image_height)
 			figures.append(fig)
 
 		elif len(filters.shape) == 1:
@@ -72,16 +67,20 @@ def create_figures(layer_activation_data):
 			# need to add an axis to plot as image
 			layer_activation_source.add([filters[np.newaxis, :]], name=layer_name)
 
-			fig = figure(tools="save", plot_width=width*10, plot_height=50, x_range=(0, width), y_range=(0, 1))
-			fig.title.text = layer_name
-			fig.image(image=layer_name, x=0, y=0, dw=width, dh=1, source=layer_activation_source)
-			fig.axis.visible = False
-			fig.toolbar.logo = None
-
+			fig = create_figure(layer_activation_source, layer_name, width*10, 50, width, 1, tools="save")
 			figures.append(fig)
 
 	layout.children.append(column(figures))
 	p.text = ""
+
+
+def create_figure(source, image_name, plot_width, plot_height, dw, dh, tools="box_zoom, reset, save"):
+	fig = figure(tools=tools, plot_width=plot_width, plot_height=plot_height, x_range=(0, dw), y_range=(0, dh))
+	fig.title.text = image_name
+	fig.image(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
+	fig.axis.visible = False
+	fig.toolbar.logo = None
+	return fig
 
 
 def update_data():
@@ -94,7 +93,7 @@ def update_data():
 		if create_source:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
-			create_figures(layer_activation_data)
+			init_data_source(layer_activation_data)
 			create_source = False
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data

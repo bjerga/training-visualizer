@@ -348,7 +348,7 @@ class DeepVisualization(Callback):
 				visualization = self.deprocess(visualization)
 				
 				# add to list of all visualization info
-				vis_info.append((visualization, layer_no, neuron_no, loss_value))
+				vis_info.append((visualization, self.model.layers[layer_no].name, neuron_no, loss_value))
 				
 			# save visualization images, complete with info about creation environment
 			self.save_visualization_info(vis_info)
@@ -504,7 +504,7 @@ class DeepVisualization(Callback):
 		
 		# to hold easily readable information about visualizations' creation environments
 		env_info = ''
-		
+
 		for vis_array, layer_no, neuron_no, loss_value in vis_info:
 		
 			# create appropriate name to identify image
@@ -548,5 +548,5 @@ class DeepVisualization(Callback):
 			f.write(env_info)
 	
 		# write visualization info to pickle file
-		with open(join(self.results_folder, 'deep_vis.pickle'), 'wb') as f:
+		with open(join(self.results_folder, 'deep_visualization.pickle'), 'wb') as f:
 			pickle.dump(vis_info, f)

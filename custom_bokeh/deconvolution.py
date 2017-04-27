@@ -40,10 +40,6 @@ def fill_data_source(deconvolution_data):
 
 	for i in range(len(deconvolution_data)):
 
-		print(deconvolution_data)
-
-		print(deconvolution_data[i])
-
 		layer_name = deconvolution_data[i][0]
 		array = deconvolution_data[i][1]
 

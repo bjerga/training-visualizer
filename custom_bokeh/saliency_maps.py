@@ -3,7 +3,7 @@ from os import listdir
 from bokeh.io import curdoc
 import numpy as np
 from bokeh.layouts import layout
-from bokeh.models import ColumnDataSource, Div, Paragraph
+from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d
 
 from os.path import join
 
@@ -44,8 +44,8 @@ image_height = original_image.shape[0]
 image_width = original_image.shape[1]
 
 
-def create_figure(title, width, height, tools="box_zoom, reset, save"):
-	fig = figure(tools=tools, x_range=(0, width), y_range=(0, height))
+def create_figure(title, x_range, y_range, tools="box_zoom, reset, save, pan"):
+	fig = figure(tools=tools, x_range=x_range, y_range=y_range)
 	fig.title.text = title
 	fig.axis.visible = False
 	fig.toolbar.logo = None
@@ -53,9 +53,12 @@ def create_figure(title, width, height, tools="box_zoom, reset, save"):
 
 
 # create figures and add to grid
-fig1 = create_figure('Original Image', image_width, image_height)
+range_x = Range1d(0, image_width, bounds=(0, image_width))
+range_y = Range1d(0, image_height, bounds=(0, image_height))
+
+fig1 = create_figure('Original Image', range_x, range_y)
 fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
-fig2 = create_figure('Saliency Map', image_width, image_height)
+fig2 = create_figure('Saliency Map', fig1.x_range, fig1.y_range)
 fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
 
 grid.append([fig1, fig2])

@@ -1,6 +1,6 @@
 from os.path import join
 from bokeh.io import curdoc
-from bokeh.layouts import column
+from bokeh.layouts import gridplot
 from bokeh.models import Div, ColumnDataSource, Paragraph, Column
 from bokeh.plotting import figure
 import pickle
@@ -71,7 +71,8 @@ def fill_data_source(layer_activation_data):
 			fig = create_figure(layer_activation_source, layer_name, width*10, 50, width, 1, tools="save")
 			figures.append(fig)
 
-	layout.children.append(column(figures))
+	grid = gridplot(figures, ncols=1, toolbar_options=dict(logo=None))
+	layout.children.append(grid)
 	p.text = ""
 
 
@@ -79,6 +80,8 @@ def create_figure(source, image_name, plot_width, plot_height, dw, dh, tools="bo
 	fig = figure(tools=tools, plot_width=plot_width, plot_height=plot_height, x_range=(0, dw), y_range=(0, dh))
 	fig.title.text = image_name
 	fig.image(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
+	fig.outline_line_color = "black"
+	fig.outline_line_width = 3
 	fig.axis.visible = False
 	fig.toolbar.logo = None
 	return fig

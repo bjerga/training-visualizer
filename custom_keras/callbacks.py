@@ -512,7 +512,7 @@ class DeepVisualization(Callback):
 			
 			# TODO: delete when visualization on website is confirmed
 			# process image to be saved
-			img_to_save = vis_array.copy()
+			'''img_to_save = vis_array.copy()
 			# use self.ch_dim - 1 as we have removed batch dimension
 			if img_to_save.shape[self.ch_dim - 1] == 1:
 				# if greyscale image, remove inner dimension before save
@@ -523,7 +523,7 @@ class DeepVisualization(Callback):
 			
 			# save the resulting image to disk
 			# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-			toimage(img_to_save).save(join(self.results_folder, img_name + '.png'))
+			toimage(img_to_save).save(join(self.results_folder, img_name + '.png'))'''
 			
 			# also save a txt-file containing information about creation environment and obtained loss
 			env_info += 'Image "{}.png" was created from neuron {} in layer {}, using the following hyperparameters:\n\n' \

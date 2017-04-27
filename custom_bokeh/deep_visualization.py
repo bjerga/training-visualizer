@@ -1,6 +1,6 @@
 from bokeh.io import curdoc
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Div, Paragraph, Column, FixedTicker
+from bokeh.models import ColumnDataSource, Div, Paragraph, Column
 
 from os.path import join
 
@@ -49,7 +49,8 @@ def fill_data_source(deep_visualization_data):
 		fig = create_figure(deep_visualization_source, name, title, array.shape[0], array.shape[1])
 		figures.append(fig)
 
-	document.add_root(gridplot(figures, ncols=2, toolbar_options=dict(logo=None)))
+	grid = gridplot(figures, ncols=2, toolbar_options=dict(logo=None))
+	layout.children.append(grid)
 	p.text = ""
 
 

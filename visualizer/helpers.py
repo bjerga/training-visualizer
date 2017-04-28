@@ -2,7 +2,7 @@ import subprocess
 from sys import exc_info
 from os import listdir, mkdir
 from os.path import join, relpath, basename
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 from flask import url_for
 from flask_login import current_user
@@ -167,7 +167,7 @@ def create_folders(base_path, new_folders):
 
 def get_bokeh_plot(filename, app_path):
 	# get the script for a given visualization from the bokeh server
-	script = autoload_server(model=None, url=join(BOKEH_SERVER, app_path))
+	script = autoload_server(model=None, url=urljoin(BOKEH_SERVER, app_path))
 
 	# set the correct query parameters
 	params = {'user': get_current_user(), 'file': get_wo_ext(filename)}

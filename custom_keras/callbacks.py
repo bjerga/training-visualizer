@@ -76,7 +76,7 @@ class TrainingProgress(Callback):
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class LayerActivations(Callback):
 
-	def __init__(self, file_folder, interval=10, exclude_layers=None):
+	def __init__(self, file_folder, exclude_layers=None, custom_preprocess=None, interval=10):
 
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
@@ -91,10 +91,16 @@ class LayerActivations(Callback):
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		img = Image.open(join(images_folder, img_name))
-
-		# set input tensor and reshape to (1, width, height, 1)
-		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
+		
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		
+		# if supplied, apply custom preprocessing
+		if custom_preprocess is not None:
+			self.img_array = custom_preprocess(self.img_array)
+		
+		# add batch dimension
+		self.img_array = np.expand_dims(self.img_array, 0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -116,7 +122,10 @@ class LayerActivations(Callback):
 					# create function using keras-backend for getting activation array
 					get_activation_array = K.function([self.model.input, K.learning_phase()], [layer.output])
 					# use function to find activation array for the chosen image
-					act_array = get_activation_array([self.input_tensor, 0])[0][0]
+					act_array = get_activation_array([self.img_array, 0])[0]
+					
+					# remove batch dimension
+					act_array = act_array[0]
 
 					# scale to fit between [0.0, 255.0]
 					if act_array.max() != 0.0:
@@ -137,19 +146,40 @@ class LayerActivations(Callback):
 
 class SaliencyMaps(Callback):
 
-	def __init__(self, file_folder, interval=10):
+	def __init__(self, file_folder, custom_preprocess=None, custom_postprocess=None, interval=10):
 		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
+		
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		img = Image.open(join(images_folder, img_name))
+		
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		
+		# if supplied, apply custom preprocessing
+		if self.custom_preprocess is not None:
+			self.img_array = self.custom_preprocess(self.img_array)
+		
+		# add batch dimension
+		self.img_array = np.expand_dims(self.img_array, 0)
+		
+	def on_train_begin(self, logs=None):
 
-		# convert to correct format TODO: check if this is needed, and generalize
-		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
+		# set which output tensor of model to use
+		self.output_tensor = self.model.output
+		# if last layer uses softmax activation
+		if self.model.layers[-1].get_config()['activation'] == 'softmax':
+			# update chosen output tensor to be output tensor of second to last layer
+			self.output_tensor = self.model.layers[-2].output
+
+		# set prediction function based on output tensor chosen
+		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -158,24 +188,28 @@ class SaliencyMaps(Callback):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 
-			output_layer = self.model.layers[-1]
-			# ignore the top layer of prediction if it is a softmax layer
-			if output_layer.get_config()['activation'] == 'softmax':
-				output_layer = self.model.layers[-2]
-
-			predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
 			# predict using the chosen image
-			predictions = predict_func([self.input_tensor, 0])[0]
+			predictions = self.predict_func([self.img_array, 0])[0]
 
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
 			# compute the gradient of the input with respect to the loss
-			loss = output_layer.output[0, max_class]
+			loss = self.output_tensor[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
 			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])
-			saliency = get_saliency_function([self.input_tensor, 0])[0][0][:, :, ::-1]
+			saliency = get_saliency_function([self.img_array, 0])[0]
+			
+			# remove batch dimension
+			saliency = saliency[0]
+			
+			# change from BGR to RGB
+			saliency = saliency[:, :, ::-1]
+			
+			# TODO: check if custom postprocessing is necessary or even harmful
+			if self.custom_postprocess is not None:
+				saliency = self.custom_postprocess(saliency)
 
 			# get the absolute value of the saliency
 			abs_saliency = np.abs(saliency)
@@ -191,7 +225,7 @@ class SaliencyMaps(Callback):
 
 
 class Deconvolution(Callback):
-	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None, custom_postprocess=None, interval=100):
 		super(Deconvolution, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
@@ -201,17 +235,20 @@ class Deconvolution(Callback):
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		pil_img = Image.open(join(images_folder, img_name))
 		
-		# convert to array and add batch dimension
-		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
 		
 		self.feat_map_layer_no = feat_map_layer_no
 		self.feat_map_amount = feat_map_amount
 		self.feat_map_nos = feat_map_nos
+		
+		# save pre- and postprocessing methods
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img)
+		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess)
 	
 	def on_batch_end(self, batch, logs=None):
 

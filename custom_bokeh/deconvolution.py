@@ -43,7 +43,7 @@ layout.children.append(p)
 image_height = original_image.shape[0]
 image_width = original_image.shape[1]
 
-# create plot for original image
+# create plot for the original image
 img_fig = figure(tools="box_zoom, reset, save, pan")
 img_fig.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
 img_fig.x_range = Range1d(0, image_width, bounds=(0, image_width))
@@ -66,6 +66,7 @@ def fill_data_source(deconvolution_data):
 	p.text = "Visualizations are being produced..."
 	figures = []
 
+	# loop through feature maps
 	for i in range(len(deconvolution_data)):
 
 		layer_name = deconvolution_data[i][0]
@@ -83,6 +84,7 @@ def fill_data_source(deconvolution_data):
 		fig.y_range = img_fig.y_range
 		figures.append(fig)
 
+	# make a grid of the feature maps
 	grid = gridplot(figures, ncols=4, toolbar_options=dict(logo=None))
 	layout.children.append(grid)
 	p.text = ""
@@ -105,12 +107,14 @@ def update_data():
 		with open(join(results_path, 'deconvolution.pickle'), 'rb') as f:
 			deconvolution_data = pickle.load(f)
 
+		# if it is the first time data is detected, we need to fill the data source with the images
 		if create_source:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
 			fill_data_source(deconvolution_data)
 			create_source = False
 			document.add_periodic_callback(update_data, 5000)
+		# if not, we can simply update the data
 		else:
 			for i in range(len(deconvolution_data)):
 				layer_name = deconvolution_data[i][0]
@@ -119,8 +123,10 @@ def update_data():
 				deconvolution_source.data[name] = [array[::-1]]
 
 	except FileNotFoundError:
+		# this means deconvolution data has not been created yet, skip visualization
 		return
 	except EOFError:
+		# this means deconvolution data has been created, but is empty, skip visualization
 		return
 
 document.add_root(layout)

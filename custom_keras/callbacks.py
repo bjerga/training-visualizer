@@ -1,23 +1,72 @@
 import numpy as np
 import pickle
-import math
 
+from math import ceil
 from os import mkdir, listdir
 from os.path import join, basename
 
 from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
-
 from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
-from keras.callbacks import Callback
+from keras.layers import Dropout, Flatten
 from keras.preprocessing import image
+from keras.callbacks import Callback
 
 from custom_keras.models import DeconvolutionModel
-from keras.layers import Dropout
-from keras.layers import Flatten
+
+
+# choose which layers to exclude from layer activation visualization by default
+EXCLUDE_LAYERS = (Dropout, Flatten)
+
+
+class CustomCallbacks:
+
+	def __init__(self, file_folder, custom_preprocess=None, custom_postprocess=None, base_interval=10):
+		
+		self.file_folder = file_folder
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
+		self.base_interval = base_interval
+		
+		# add list to store all callbacks registered in
+		self.callback_list = []
+		
+	def get_list(self):
+		return self.callback_list
+		
+	def register_network_saver(self):
+		self.callback_list.append(NetworkSaver(self.file_folder))
+		
+	def register_training_progress(self):
+		self.callback_list.append(TrainingProgress(self.file_folder))
+		
+	def register_layer_activations(self, exclude_layers=EXCLUDE_LAYERS, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(LayerActivations(self.file_folder, exclude_layers, self.custom_preprocess, interval))
+		
+	def register_saliency_maps(self, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(SaliencyMaps(self.file_folder, self.custom_preprocess, self.custom_postprocess, interval))
+		
+	def register_deconvolution(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(Deconvolution(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
+												self.custom_preprocess, self.custom_postprocess, interval))
+		
+	def register_deep_visualization(self, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
+									blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
+									abs_contribution_percentile=0, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(DeepVisualization(self.file_folder, neurons_to_visualize, learning_rate, no_of_iterations,
+													l2_decay, blur_interval, blur_std, value_percentile, norm_percentile,
+													contribution_percentile, abs_contribution_percentile, interval))
 
 
 class NetworkSaver(Callback):
@@ -51,7 +100,7 @@ class TrainingProgress(Callback):
 		self.epoch = 0
 
 	def on_train_begin(self, logs={}):
-		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
+		self.batches_in_epoch = ceil(self.params['samples'] / self.params['batch_size'])
 		# ensure file creation
 		with open(join(self.results_folder, 'training_progress.txt'), 'w') as f:
 			f.write('')
@@ -76,16 +125,13 @@ class TrainingProgress(Callback):
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class LayerActivations(Callback):
 
-	def __init__(self, file_folder, exclude_layers=None, custom_preprocess=None, interval=10):
+	def __init__(self, file_folder, exclude_layers=EXCLUDE_LAYERS, custom_preprocess=None, interval=10):
 
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
 
-		# needed to overcome mutable default arguments
-		if exclude_layers is None:
-			exclude_layers = [Dropout, Flatten]
 		self.exclude_layers = exclude_layers
 
 		# find image uploaded by user to use in visualization
@@ -385,6 +431,7 @@ class DeepVisualization(Callback):
 				visualization = self.deprocess(visualization)
 				
 				# add to list of all visualization info
+				# use self.model instead of self.vis_model to get original layer name if last layer
 				vis_info.append((visualization, self.model.layers[layer_no].name, neuron_no, loss_value))
 				
 			# save visualization images, complete with info about creation environment

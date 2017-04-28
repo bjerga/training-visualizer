@@ -1,5 +1,5 @@
 from time import time
-from os.path import join, dirname
+from os.path import dirname
 
 import numpy as np
 
@@ -9,8 +9,7 @@ from keras.datasets import mnist
 from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
-from custom_keras.callbacks import NetworkSaver, TrainingProgress, LayerActivations, SaliencyMaps, DeepVisualization, \
-	Deconvolution
+from custom_keras.callbacks import CustomCallbacks
 
 # find path to save networks and results
 save_path = dirname(__file__)
@@ -39,22 +38,24 @@ def create_model():
 
 
 def train(model, no_of_epochs=10):
-	# train top layers of model (self-defined layers)
 	print('\n\nCommence MNIST model training\n')
-
+	
 	# initialize custom callbacks
-	custom_callbacks = [NetworkSaver(save_path), TrainingProgress(save_path), LayerActivations(save_path),
-						SaliencyMaps(save_path),
-						DeepVisualization(save_path, [(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
-										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100),
-						Deconvolution(save_path, feat_map_layer_no=3, feat_map_amount=3)]
+	callbacks = CustomCallbacks(save_path)
+	callbacks.register_saliency_maps()
+	callbacks.register_training_progress()
+	callbacks.register_layer_activations()
+	callbacks.register_saliency_maps()
+	callbacks.register_deconvolution(3, 5, interval=100)
+	callbacks.register_deep_visualization([(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
+										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100)
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()
 
 	# train with chosen hyperparameters
-	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True,
-			  verbose=1, callbacks=custom_callbacks, validation_data=(test_data, test_targets))
+	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True, verbose=1,
+			  callbacks=callbacks.get_list(), validation_data=(test_data, test_targets))
 
 	print('\nCompleted MNIST model training\n')
 

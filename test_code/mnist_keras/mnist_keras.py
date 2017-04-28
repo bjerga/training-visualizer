@@ -46,7 +46,7 @@ def train(model, no_of_epochs=10):
 	custom_callbacks = [NetworkSaver(save_path), TrainingProgress(save_path), LayerActivations(save_path),
 						SaliencyMaps(save_path),
 						DeepVisualization(save_path, [(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
-										  2500.0, 500, l2_decay=0.0001, blur_interval=4, blur_std=1.0),
+										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100),
 						Deconvolution(save_path, feat_map_layer_no=3, feat_map_amount=3)]
 
 	# get data

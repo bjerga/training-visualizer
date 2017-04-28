@@ -2,10 +2,8 @@ import numpy as np
 import tensorflow as tf
 import theano.tensor as tht
 import scipy.misc
-import pickle
 
 from time import time
-from os import listdir
 from os.path import dirname, join
 
 import keras.backend as K
@@ -23,16 +21,12 @@ from io import BytesIO
 # define layers from which we can create a deconvolution model
 USABLE_LAYERS = (InputLayer, Conv2D, MaxPooling2D)
 
-# TODO: delete when done with testing
-is_VGG16 = False
-VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
-
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img):
+	def __init__(self, link_model, input_img, custom_preprocess=None, custom_postprocess=None):
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
@@ -45,7 +39,9 @@ class DeconvolutionModel:
 			self.ch_dim = 1
 		
 		self.link_model = link_model
-		self.input_img = input_img
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
+		self.input_img = self.preprocess_img(input_img)
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 	
@@ -429,25 +425,25 @@ class DeconvolutionModel:
 			
 		return chosen_images_dict, max_imgs_info_by_feat_map_no
 	
-	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.
-	
-	# TODO: modify when done with testing
+	def preprocess_img(self, img_array):
+		
+		# apply custom preprocessing if supplied
+		if self.custom_preprocess is not None:
+			img_array = self.custom_preprocess(img_array)
+			
+		# expand with batch dimension
+		img_array = np.expand_dims(img_array, 0)
+		
+		return img_array
+		
 	# NOTE: throws requests.exceptions.RequestException, ValueError, OSError
 	def load_image_from_url(self, url):
 		response = requests.get(url, timeout=5)
 		
-		pil_img = Image.open(BytesIO(response.content))
-		img_array = image.img_to_array(pil_img)
-		img_array = scipy.misc.imresize(img_array, (224, 224))
-		img_array = img_array.astype('float64')
+		img_array = image.img_to_array(Image.open(BytesIO(response.content)))
+		img_array = self.preprocess_img(img_array)
 		
-		if is_VGG16:
-			if K.image_data_format() == 'channels_last':
-				img_array -= VGG16_MEAN_VALUES.reshape((1, 1, 3))
-			else:
-				img_array -= VGG16_MEAN_VALUES.reshape((3, 1, 1))
-		
-		return np.expand_dims(img_array, axis=0)
+		return img_array
 	
 	# TODO: modify when done with testing
 	# processes and saves the reconstruction and returns processed array and name
@@ -460,9 +456,9 @@ class DeconvolutionModel:
 		if K.image_data_format() == 'channels_first':
 			# alter dimensions from (color, height, width) to (height, width, color)
 			rec_array = rec_array.transpose((1, 2, 0))
-		
-		if is_VGG16:
-			rec_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
+			
+		if self.custom_postprocess is not None:
+			rec_array = self.custom_postprocess(rec_array)
 		
 		# clip in [0, 255] and convert to uint8
 		rec_array = rec_array.clip(0, 255).astype('uint8')
@@ -478,6 +474,7 @@ class DeconvolutionModel:
 		# use self.ch_dim - 1 as we have removed batch dimension
 		if img_to_save.shape[self.ch_dim - 1] == 1:
 			# if greyscale image, remove inner dimension before save
+			# TODO: when this is deleted, also check necessity of self.row_dim and self.col_dim
 			img_to_save = img_to_save.reshape((img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
 
 		# save the resulting image to disk

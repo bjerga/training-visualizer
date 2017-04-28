@@ -24,6 +24,8 @@ val_data_path = join(imagenet_path, 'val_data')
 train_data_names = listdir(train_data_path)
 train_data_amount = len(train_data_names)
 
+MEAN_VALUES = np.array([103.939, 116.779, 123.68])
+
 with open(join(imagenet_path, 'wnid_index_map.pickle'), 'rb') as f:
 	wnid_index_map = pickle.load(f)
 
@@ -82,7 +84,7 @@ def load_image(img_path, img_name):
 	img = image.load_img(join(img_path, img_name))
 	return image.img_to_array(img)
 
-def preprocess_data(img_array, target_size, mean_values=np.array([103.939, 116.779, 123.68])):
+def preprocess_data(img_array, target_size):
 	
 	# change size of image
 	img = image.array_to_img(img_array)
@@ -93,15 +95,15 @@ def preprocess_data(img_array, target_size, mean_values=np.array([103.939, 116.7
 	
 	# subtract mean values
 	if K.image_data_format() == 'channels_last':
-		img_array -= mean_values.reshape((1, 1, 3))
+		img_array -= MEAN_VALUES.reshape((1, 1, 3))
 	else:
-		img_array -= mean_values.reshape((3, 1, 1))
+		img_array -= MEAN_VALUES.reshape((3, 1, 1))
 	
 	return img_array
 
 
-def postprocess_data(img_array, mean_values=np.array([103.939, 116.779, 123.68])):
-	img_array += mean_values.reshape((1, 1, 3))
+def postprocess_data(img_array):
+	img_array += MEAN_VALUES.reshape((1, 1, 3))
 	return img_array
 
 

@@ -100,7 +100,13 @@ class TrainingProgress(Callback):
 		self.epoch = 0
 
 	def on_train_begin(self, logs={}):
-		self.batches_in_epoch = ceil(self.params['samples'] / self.params['batch_size'])
+		try:
+			# assume regular fit-method is being used
+			self.batches_in_epoch = ceil(self.params['samples'] / self.params['batch_size'])
+		except KeyError:
+			# params are missing 'batch_size' key, fit_generator is being used
+			self.batches_in_epoch = self.params['steps']
+
 		# ensure file creation
 		with open(join(self.results_folder, 'training_progress.txt'), 'w') as f:
 			f.write('')

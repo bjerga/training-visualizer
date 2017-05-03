@@ -7,6 +7,9 @@ from os.path import join, dirname
 import numpy as np
 
 import keras.backend as K
+from keras.models import Model
+from keras.layers import Input, Flatten, Dense, Conv2D, MaxPooling2D
+from keras.optimizers import RMSprop
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
 from keras.utils.np_utils import to_categorical
@@ -36,9 +39,66 @@ def create_model(input_shape):
 	# define model
 	model = VGG16(include_top=True, weights=None, input_shape=input_shape)
 	model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
-	
+
+	# model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
+	# # for i in range(len(model.layers[:-4])):
+	# for i in range(len(model.layers)):
+	# 	model.layers[i].trainable = False
+	# model.compile(optimizer=RMSprop(lr=0.0000000000001), loss='categorical_crossentropy', metrics=['accuracy'])
+
 	print('\nModel successfully created')
 	
+	return model
+
+
+def create_model_new_top(input_shape):
+
+	img_input = Input(shape=input_shape)
+
+	# Block 1
+	x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
+	x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv2')(x)
+	x = MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool')(x)
+
+	# Block 2
+	x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv1')(x)
+	x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv2')(x)
+	x = MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool')(x)
+
+	# Block 3
+	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv1')(x)
+	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv2')(x)
+	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv3')(x)
+	x = MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool')(x)
+
+	# Block 4
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv1')(x)
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv2')(x)
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv3')(x)
+	x = MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool')(x)
+
+	# Block 5
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv1')(x)
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv2')(x)
+	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
+	x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
+
+	# Classification block
+	x = Flatten(name='flatten')(x)
+	x = Dense(4096, activation='relu', name='fc1')(x)
+	x = Dense(4096, activation='relu', name='fc2')(x)
+	x = Dense(1000, activation='softmax', name='predictions')(x)
+
+	base_model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
+
+	model = Model(inputs=img_input, outputs=x)
+
+	for i in range(len(base_model.layers[:-4])):
+		model.layers[i].set_weights(base_model.layers[i].get_weights())
+		model.layers[i].trainable = False
+
+	model.compile(optimizer=RMSprop(lr=0.000001), loss='categorical_crossentropy', metrics=['accuracy'])
+
 	return model
 
 
@@ -46,7 +106,7 @@ def train(model, no_of_epochs=50):
 	# train top layers of model (self-defined layers)
 	print('\n\nCommence VGG16 model training\n')
 
-	batch_size = 256
+	batch_size = 64
 	steps_per_epoch = ceil(train_data_amount / batch_size)
 	
 	# initialize custom callbacks
@@ -56,32 +116,35 @@ def train(model, no_of_epochs=50):
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution(18, 10, interval=100)
-	callbacks.register_deep_visualization(
-		[(-1, 402), (-1, 587), (-1, 950)],
-		2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100)
+	callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 100, l2_decay=0.0001,
+										  blur_interval=4, blur_std=1.0, interval=100)
 
 	print('Steps per epoch:', steps_per_epoch)
-	
-	model.fit_generator(generator=data_generator(), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs, verbose=1,
-						callbacks=callbacks.get_list())
+
+	model.fit_generator(generator=data_generator(batch_size), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs,
+						verbose=1, max_q_size=5, callbacks=callbacks.get_list())
 	
 	print('\nCompleted VGG16 model training\n')
 	
 	return model
 
-def data_generator():
+def data_generator(batch_size):
 	
 	while True:
-		random_dir = np.random.choice(train_img_directories)
-		dir_path = join(train_data_path, random_dir)
-		img_name = np.random.choice(listdir(dir_path))
+		x_data = []
+		y_data = []
 
-		x_data = preprocess_data(load_image(dir_path, img_name))
-		x_data = np.expand_dims(x_data, 0)
+		random_directories = np.random.choice(train_img_directories, batch_size)
 
-		y_data = to_categorical([wnid_index_map[random_dir]], 1000)
+		for directory in random_directories:
+			dir_path = join(train_data_path, directory)
+			img_name = np.random.choice(listdir(dir_path))
 
-		yield x_data, y_data
+			x_data.append(preprocess_data(load_image(dir_path, img_name)))
+
+			y_data.append(wnid_index_map[directory])
+
+		yield np.array(x_data), to_categorical(y_data, 1000)
 
 def load_image(img_path, img_name):
 	img = image.load_img(join(img_path, img_name))
@@ -98,8 +161,12 @@ def preprocess_data(img_array, target_size=(224, 224)):
 	
 	# subtract mean values
 	if K.image_data_format() == 'channels_last':
+		# TODO: change to BGR? used in keras application
+		img_array = img_array[:, :, ::-1]
 		img_array -= MEAN_VALUES.reshape((1, 1, 3))
 	else:
+		# TODO: change to BGR? used in keras application
+		img_array = img_array[::-1, :, :]
 		img_array -= MEAN_VALUES.reshape((3, 1, 1))
 	
 	return img_array
@@ -121,7 +188,8 @@ def main():
 		input_shape = (3, 224, 224)
 
 	model = create_model(input_shape)
-	
+	# model = create_model_new_top(input_shape)
+
 	model = train(model)
 	
 	print('This took %.2f seconds' % (time() - start_time))

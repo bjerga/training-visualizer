@@ -4,6 +4,8 @@ from bokeh.models import ColumnDataSource, Div, Paragraph, Column
 
 from os.path import join
 
+import numpy as np
+
 from bokeh.plotting import figure
 import pickle
 
@@ -30,6 +32,15 @@ layout = Column(children=[div])
 p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
 layout.children.append(p)
 
+
+# convert image from 3-dimensional to 2-dimensional
+def process_rgba_image(img):
+	if img.shape[2] == 3:
+		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
+	img = np.squeeze(img.view(np.uint32))
+	return img
+
+
 deep_visualization_source = ColumnDataSource(data=dict())
 
 
@@ -44,10 +55,16 @@ def fill_data_source(deep_visualization_data):
 		name = "{}_{}".format(layer_name, neuron_no)
 		title = "Neuron #{} in {}".format(neuron_no, layer_name)
 
+		# process if rgb image
+		rgb = False
+		if array.ndim > 2:
+			array = process_rgba_image(array)
+			rgb = True
+
 		# add image to the data source
 		deep_visualization_source.add([array[::-1]], name=name)
 
-		fig = create_figure(deep_visualization_source, name, title, array.shape[0], array.shape[1])
+		fig = create_figure(rgb, deep_visualization_source, name, title, array.shape[0], array.shape[1])
 		figures.append(fig)
 
 	# make a grid of the neurons
@@ -56,10 +73,14 @@ def fill_data_source(deep_visualization_data):
 	p.text = ""
 
 
-def create_figure(source, image_name, title, dw, dh, tools="box_zoom, reset, save"):
+def create_figure(rgb, source, image_name, title, dw, dh, tools="box_zoom, reset, save"):
 	fig = figure(tools=tools, plot_width=250, plot_height=250, x_range=(0, dw), y_range=(0, dh))
 	fig.title.text = title
-	fig.image(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
+
+	if rgb:
+		fig.image_rgba(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
+	else:
+		fig.image(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
 	fig.outline_line_color = "black"
 	fig.outline_line_width = 3
 	fig.axis.visible = False
@@ -83,6 +104,11 @@ def update_data():
 		else:
 			for array, layer_name, neuron_no, loss_value in deep_visualization_data:
 				name = "{}_{}".format(layer_name, neuron_no)
+
+				# process if rgb image
+				if array.ndim > 2:
+					array = process_rgba_image(array)
+
 				deep_visualization_source.data[name] = [array[::-1]]
 
 	except FileNotFoundError:

@@ -57,9 +57,28 @@ range_x = Range1d(0, image_width, bounds=(0, image_width))
 range_y = Range1d(0, image_height, bounds=(0, image_height))
 
 fig1 = create_figure('Original Image', range_x, range_y)
-fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
 fig2 = create_figure('Saliency Map', fig1.x_range, fig1.y_range)
-fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
+
+
+def is_rgba(img):
+	return img.ndim > 2
+
+
+# convert image from 3-dimensional to 2-dimensional
+def process_rgba_image(img):
+	if img.shape[2] == 3:
+		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
+	img = np.squeeze(img.view(np.uint32))
+	return img
+
+
+# check if image is rgb or grayscale
+if is_rgba(original_image):
+	fig1.image_rgba(image=[process_rgba_image(original_image[::-1])], x=0, y=0, dw=image_width, dh=image_height)
+	fig2.image_rgba(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
+else:
+	fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
+	fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
 
 grid.append([fig1, fig2])
 
@@ -69,7 +88,12 @@ def update_data():
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
 		p.text = ""
-		# flip image to display correctly in coordinate system
+
+		# process if rgb image
+		if is_rgba(saliency_maps_data):
+			saliency_maps_data = process_rgba_image(saliency_maps_data.astype('uint8'))
+
+		# need to flip image
 		new_saliency_maps_data = dict(image=[saliency_maps_data[::-1]])
 		saliency_maps_source.data = new_saliency_maps_data
 	except FileNotFoundError:

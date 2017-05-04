@@ -43,21 +43,21 @@ def fill_data_source(layer_activation_data):
 		# The filters are either images or just a long array of numbers
 		if len(filters.shape) == 3:
 
-			print("{}: {} filters with size {}".format(layer_name, len(filters), filters[0].shape))
-			# line the filters up horizontally
-			images = np.hstack([f[::-1] for f in filters])
+			# line the filters up horizontally and pad them with white to separate the filters
+			images = np.hstack([np.pad(f[::-1], 1, 'constant', constant_values=255) for f in filters])
 
 			total_image_width = images.shape[1]
 
-			# if there are more than 4 filters, split into several rows.
-			if len(filters) > 8:
-				step = math.ceil(total_image_width / 8)
+			# TODO check if this always looks good, may need to generalize
+			# if there are more than 16 filters, split into 8 rows.
+			no_of_rows = 8
+			no_of_cols = 16
+			if len(filters) > no_of_cols:
+				step = math.ceil(total_image_width / no_of_rows)
 				images = np.vstack([images[:, x:x + step] for x in range(0, total_image_width, step)])
 
 			total_image_height = images.shape[0]
 			total_image_width = images.shape[1]
-
-			print("Total height: {}, total width: {}".format(total_image_height, total_image_width))
 
 			# add image to the data source
 			layer_activation_source.add([images], name=layer_name)
@@ -66,8 +66,6 @@ def fill_data_source(layer_activation_data):
 			figures.append(fig)
 
 		elif len(filters.shape) == 1:
-
-			print("{}: {} filters with size {}".format(layer_name, 1, filters.shape[0]))
 
 			width = filters.shape[0]
 
@@ -104,41 +102,51 @@ def update_data():
 		with open(join(results_path, 'layer_activations.pickle'), 'rb') as f:
 			layer_activation_data = pickle.load(f)
 
-		print(len(layer_activation_data))
-
 		# if it is the first time data is detected, we need to fill the data source with the layers of the network
 		if create_source:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
-			#document.remove_periodic_callback(update_data)
+			document.remove_periodic_callback(update_data)
 			fill_data_source(layer_activation_data)
 			create_source = False
-			#document.add_periodic_callback(update_data, 5000)
+			# allow some time for the layer activations to load TODO: generalize this
+			document.add_periodic_callback(update_data, 90000)
 		# if not, we can simply update the data
 		else:
+			# dictionary to hold new images
+			new_layer_activation_data = {}
+
 			for layer_name, filters in layer_activation_data:
+
 				# The filters are either images or just a long array of numbers
 				if len(filters.shape) == 3:
-					# line the filters up horizontally
-					images = np.hstack([f[::-1] for f in filters])
+
+					# line the filters up horizontally and pad them with white to separate the filters
+					images = np.hstack([np.pad(f[::-1], 1, 'constant', constant_values=255) for f in filters])
 
 					total_image_width = images.shape[1]
 
-					# if there are more than 4 filters, split into several rows.
-					if len(filters) > 4:
-						step = math.ceil(total_image_width / 4)
+					# TODO check if this always looks good, may need to generalize
+					# if there are more than 16 filters, split into 8 rows.
+					no_of_rows = 8
+					no_of_cols = 16
+					if len(filters) > no_of_cols:
+						step = math.ceil(total_image_width / no_of_rows)
 						images = np.vstack([images[:, x:x + step] for x in range(0, total_image_width, step)])
 
-					layer_activation_source.data[layer_name] = [images]
+					new_layer_activation_data[layer_name] = [images]
 
 				elif len(filters.shape) == 1:
 					# need to add an extra axis to plot 1d sequence as an image
-					layer_activation_source.data[layer_name] = [filters[np.newaxis, :]]
+					new_layer_activation_data[layer_name] = [filters[np.newaxis, :]]
+
+			# update all images
+			layer_activation_source.data = new_layer_activation_data
 
 	except FileNotFoundError:
 		# this means layer activation data has not been created yet, skip visualization
 		pass
 
-#document.add_periodic_callback(update_data, 5000)
+document.add_periodic_callback(update_data, 10000)
 update_data()
 document.add_root(layout)
 

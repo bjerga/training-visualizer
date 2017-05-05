@@ -56,18 +56,9 @@ def get_saliency_function(model_input, model_output, class_index):
 
 def show_images(img_original, saliency, class_label):
 
-
-	# convert saliency from BGR to RGB
-	saliency = saliency[:, :, ::-1]
-	# reset zero-centering by adding mean pixel <-- maybe not necessary?
-	#saliency[:, :, 0] += 103.939
-	#saliency[:, :, 1] += 116.779
-	#saliency[:, :, 2] += 123.68
-
-
 	# plot the original image and the three saliency map variants
 	plt.figure(figsize=(10, 10), facecolor='w')
-	plt.suptitle("Saliency maps for class: " + class_label)
+	# plt.suptitle("Saliency maps for class: " + class_label)
 	#plt.suptitle("Class: " + classes[max_class] + ". Saliency: " + title)
 
 	plt.subplot(2, 2, 1)
@@ -105,7 +96,7 @@ def main():
 	# Creates the VGG model without the softmax layer
 	model = create_model()
 
-	img_path = 'cat.jpg'
+	img_path = 'cat2.jpg'
 	img = image.load_img(img_path, target_size=(224, 224))
 
 	x = process_input(img)

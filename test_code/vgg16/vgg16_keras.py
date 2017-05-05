@@ -115,7 +115,7 @@ def train(model, no_of_epochs=50):
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution(18, 10, interval=10)
+	callbacks.register_deconvolution_network(18, 10, interval=10)
 	callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
 										  blur_interval=4, blur_std=1.0, interval=10)
 
@@ -158,8 +158,8 @@ def preprocess_data(img_array, target_size=(224, 224)):
 	if img.size != height_weight_tuple:
 		img = img.resize(height_weight_tuple)
 		img_array = image.img_to_array(img)
-
-	# subtract mean values
+	
+	# change to BGR and subtract mean values
 	if K.image_data_format() == 'channels_last':
 		img_array = img_array[:, :, ::-1]
 		img_array -= MEAN_VALUES.reshape((1, 1, 3))
@@ -171,7 +171,7 @@ def preprocess_data(img_array, target_size=(224, 224)):
 
 
 def postprocess_data(img_array):
-	# TODO: change back to RGB
+	# change back to RGB
 	img_array = img_array[:, :, ::-1]
 
 	# subtract mean values

@@ -57,7 +57,7 @@ class DeconvolutionModel:
 		
 		start_time = time()
 		
-		# create layer map between conv. layers and deconv. layers
+		# create layer map between conv. model layers and deconv. model layers
 		layer_map = {}
 		
 		# get info used to create unpooling layers
@@ -75,17 +75,16 @@ class DeconvolutionModel:
 			
 			# if convolution layer in linked model
 			if isinstance(layer, Conv2D):
-				# add activation before deconvolution layer
+				# add activation before transposed convolution layer
 				x = Activation(layer.activation)(x)
 				
-				# add deconvolution layer (called Conv2DTranspose in Keras)
+				# add transposed convolution layer
 				x = Conv2DTranspose(filters=layer.input_shape[self.ch_dim],
 									kernel_size=layer.kernel_size,
 									strides=layer.strides,
 									padding=layer.padding,
 									data_format=layer.data_format,
 									dilation_rate=layer.dilation_rate,
-									# weights=flip_weights(layer.get_weights()),
 									weights=[layer.get_weights()[0]],
 									use_bias=False)(x)
 				

@@ -34,7 +34,7 @@ original_image = np.array(Image.open(join(images_folder, image_name)))
 # this is needed to avoid error when the script is just started
 create_source = True
 
-div = Div(text="<h3>Deconvolution</h3>", width=500)
+div = Div(text="<h3>Deconvolution Network</h3>", width=500)
 layout = Column(children=[div])
 
 p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
@@ -128,7 +128,7 @@ def create_figure(rgb, source, image_name, title, dw, dh, tools="box_zoom, reset
 def update_data():
 	global create_source
 	try:
-		with open(join(results_path, 'deconvolution.pickle'), 'rb') as f:
+		with open(join(results_path, 'deconvolution_network.pickle'), 'rb') as f:
 			deconvolution_data = pickle.load(f)
 
 		# if it is the first time data is detected, we need to fill the data source with the images

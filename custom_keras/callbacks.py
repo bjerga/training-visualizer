@@ -53,11 +53,11 @@ class CustomCallbacks:
 			interval = self.base_interval
 		self.callback_list.append(SaliencyMaps(self.file_folder, self.custom_preprocess, self.custom_postprocess, interval))
 		
-	def register_deconvolution(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=None):
+	def register_deconvolution_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=None):
 		if interval is None:
 			interval = self.base_interval
-		self.callback_list.append(Deconvolution(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
-												self.custom_preprocess, self.custom_postprocess, interval))
+		self.callback_list.append(DeconvolutionNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
+													   self.custom_preprocess, self.custom_postprocess, interval))
 		
 	def register_deep_visualization(self, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 									blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
@@ -256,9 +256,6 @@ class SaliencyMaps(Callback):
 			# remove batch dimension
 			saliency = saliency[0]
 			
-			# change from BGR to RGB
-			saliency = saliency[:, :, ::-1]
-			
 			# TODO: check if custom postprocessing is necessary or even harmful
 			if self.custom_postprocess is not None:
 				saliency = self.custom_postprocess(saliency)
@@ -276,9 +273,9 @@ class SaliencyMaps(Callback):
 			self.counter = 0
 
 
-class Deconvolution(Callback):
+class DeconvolutionNetwork(Callback):
 	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None, custom_postprocess=None, interval=100):
-		super(Deconvolution, self).__init__()
+		super(DeconvolutionNetwork, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
@@ -313,7 +310,7 @@ class Deconvolution(Callback):
 																						 self.feat_map_nos)
 			
 			# save reconstructions as pickle
-			with open(join(self.results_folder, 'deconvolution.pickle'), 'wb') as f:
+			with open(join(self.results_folder, 'deconvolution_network.pickle'), 'wb') as f:
 				pickle.dump(reconstructions, f)
 			
 			self.counter = 0

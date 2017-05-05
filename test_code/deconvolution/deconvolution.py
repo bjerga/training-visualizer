@@ -27,7 +27,7 @@ def load_image_from_file(img_name):
 
 
 def deconv_example():
-	img_name = 'dog.jpg'
+	img_name = 'cat.jpg'
 	img = load_image_from_file(img_name)
 	
 	if K.image_data_format() == 'channels_last':
@@ -63,7 +63,7 @@ def deconv_example():
 		# reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no = deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
 
 		# save reconstructions as pickle
-		with open(join(dirname(__file__), 'deconv_output', 'deconvolution.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'deconv_output', 'deconvolution_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions_by_feat_map_no, f)
 			
 		# save max images as pickle
@@ -75,7 +75,7 @@ def deconv_example():
 		# reconstructions = deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
 		
 		# save as pickle
-		with open(join(dirname(__file__), 'deconv_output', 'deconvolution.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'deconv_output', 'deconvolution_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions, f)
 	
 	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))
@@ -91,14 +91,17 @@ def custom_preprocess(img_array):
 		img_array = image.img_to_array(img)
 	
 	if K.image_data_format() == 'channels_last':
+		img_array = img_array[:, :, ::-1]
 		img_array -= MEAN_VALUES.reshape((1, 1, 3))
 	else:
+		img_array = img_array[::-1, :, :]
 		img_array -= MEAN_VALUES.reshape((3, 1, 1))
 		
 	return img_array
 
 
 def custom_postprocess(img_array):
+	img_array = img_array[:, :, ::-1]
 	img_array += MEAN_VALUES.reshape((1, 1, 3))
 	return img_array
 	

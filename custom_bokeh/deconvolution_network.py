@@ -6,13 +6,12 @@ from bokeh.models import ColumnDataSource, Div, Paragraph, Column, Range1d
 
 from os.path import join
 
-import numpy as np
-
 from bokeh.plotting import figure
 from PIL import Image
 import pickle
 
 from visualizer.config import UPLOAD_FOLDER
+from custom_bokeh.helpers import *
 
 document = curdoc()
 args = document.session_context.request.arguments
@@ -42,21 +41,6 @@ layout.children.append(p)
 
 image_height = orig_img.shape[0]
 image_width = orig_img.shape[1]
-
-
-# convert image from 3- or 4-dimensional to 2-dimensional
-def process_image_dim(img):
-	# image has correct number of dimensions
-	if img.ndim == 2:
-		return img
-	# image has 3 dimensions, but is grayscale
-	if img.shape[2] == 1:
-		return img[:, :, 0]
-	# image has 3 dimensions, and is rgb
-	if img.shape[2] == 3:
-		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
-	img = np.squeeze(img.view(np.uint32))
-	return img
 
 
 def is_grayscale(img):

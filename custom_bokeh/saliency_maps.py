@@ -1,7 +1,6 @@
 from os import listdir
 
 from bokeh.io import curdoc
-import numpy as np
 from bokeh.layouts import layout
 from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d
 
@@ -12,6 +11,7 @@ from PIL import Image
 import pickle
 
 from visualizer.config import UPLOAD_FOLDER
+from custom_bokeh.helpers import *
 
 document = curdoc()
 
@@ -27,7 +27,7 @@ results_path = join(UPLOAD_FOLDER, user, file, 'results')
 # get original image
 images_folder = join(UPLOAD_FOLDER, user, file, 'images')
 image_name = listdir(images_folder)[-1]  # TODO: throw error here
-original_image = np.array(Image.open(join(images_folder, image_name)))
+orig_img = np.array(Image.open(join(images_folder, image_name)))
 
 grid = []
 
@@ -40,8 +40,8 @@ grid.append([p])
 # flip image to display correctly in coordinate system with placeholder
 saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
 
-image_height = original_image.shape[0]
-image_width = original_image.shape[1]
+image_height = orig_img.shape[0]
+image_width = orig_img.shape[1]
 
 
 def create_figure(title, x_range, y_range, tools="box_zoom, reset, save, pan"):
@@ -52,37 +52,25 @@ def create_figure(title, x_range, y_range, tools="box_zoom, reset, save, pan"):
 	return fig
 
 
-# create figures and add to grid
-range_x = Range1d(0, image_width, bounds=(0, image_width))
-range_y = Range1d(0, image_height, bounds=(0, image_height))
+# create plot for the original image
+orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="box_zoom, reset, save, pan",
+					outline_line_color="black", outline_line_width=3)
+orig_img_fig.x_range = Range1d(0, image_width, bounds=(0, image_width))
+orig_img_fig.y_range = Range1d(0, image_height, bounds=(0, image_height))
+orig_img_fig.axis.visible = False
 
-fig1 = create_figure('Original Image', range_x, range_y)
-fig2 = create_figure('Saliency Map', fig1.x_range, fig1.y_range)
+add_image_from_array(orig_img_fig, orig_img)
 
+# create plot for the saliency maps image
+saliency_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="box_zoom, reset, save, pan",
+					outline_line_color="black", outline_line_width=3)
+saliency_fig.x_range = orig_img_fig.x_range
+saliency_fig.y_range = orig_img_fig.y_range
+saliency_fig.axis.visible = False
 
-def is_rgba(img):
-	return img.ndim > 2
+add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False)
 
-
-# convert image from 3-dimensional to 2-dimensional
-def process_rgba_image(img):
-	if img.shape[2] == 1:
-		return img[:, :, 0]
-	if img.shape[2] == 3:
-		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
-	img = np.squeeze(img.view(np.uint32))
-	return img
-
-
-# check if image is rgb or grayscale
-if is_rgba(original_image):
-	fig1.image_rgba(image=[process_rgba_image(original_image[::-1])], x=0, y=0, dw=image_width, dh=image_height)
-	fig2.image_rgba(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
-else:
-	fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
-	fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
-
-grid.append([fig1, fig2])
+grid.append([orig_img_fig, saliency_fig])
 
 
 def update_data():
@@ -90,14 +78,8 @@ def update_data():
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
 		p.text = ""
-
-		# process if rgb image
-		if is_rgba(saliency_maps_data):
-			saliency_maps_data = process_rgba_image(saliency_maps_data.astype('uint8'))
-
-		# need to flip image
-		new_saliency_maps_data = dict(image=[saliency_maps_data[::-1]])
-		saliency_maps_source.data = new_saliency_maps_data
+		img = process_image_dim(saliency_maps_data.astype('uint8'))
+		saliency_maps_source.data['image'] = [img[::-1]]
 	except FileNotFoundError:
 		# if no visualization has been produced yet, simply skip visualization
 		return

@@ -255,6 +255,10 @@ class SaliencyMaps(Callback):
 			
 			# remove batch dimension
 			saliency = saliency[0]
+
+			if K.image_data_format() == 'channels_first':
+				# alter dimensions from (color, height, width) to (height, width, color)
+				saliency = saliency.transpose((1, 2, 0))
 			
 			# TODO: check if custom postprocessing is necessary or even harmful
 			if self.custom_postprocess is not None:
@@ -262,10 +266,20 @@ class SaliencyMaps(Callback):
 
 			# get the absolute value of the saliency
 			abs_saliency = np.abs(saliency)
+			print(abs_saliency.shape)
+
+			# convert from rgb to grayscale (take max of each RGB value)
+			abs_saliency = np.amax(abs_saliency, axis=2)
+			print(abs_saliency.shape)
+			# reshape
+			abs_saliency = np.expand_dims(abs_saliency, axis=3)
+			print(abs_saliency.shape)
 
 			# scale to fit between [0.0, 255.0]
 			if abs_saliency.max() != 0.0:
 				abs_saliency *= (255.0 / abs_saliency.max())
+			# clip in [0, 255], and convert to uint8
+			# abs_saliency = np.clip(abs_saliency, 0, 255).astype('uint8')
 
 			with open(join(self.results_folder, 'saliency_maps.pickle'), 'wb') as f:
 				pickle.dump(abs_saliency, f)
@@ -305,6 +319,11 @@ class DeconvolutionNetwork(Callback):
 
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
+
+			# update weights
+			self.deconv_model.update_weights()
+
+			# produce reconstructions
 			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
 																						 self.feat_map_amount,
 																						 self.feat_map_nos)
@@ -432,7 +451,7 @@ class DeepVisualization(Callback):
 					visualization = self.apply_ensemble_regularization(visualization, pixel_gradients, i)
 					
 				# process visualization to match with standard image dimensions
-				visualization = self.deprocess(visualization)
+				visualization = to_image_standard(visualization, self.custom_postprocess)
 				
 				# add to list of all visualization info
 				# use self.model instead of self.vis_model to get original layer name if last layer
@@ -571,24 +590,6 @@ class DeepVisualization(Callback):
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])
 	
-	# utility function used to convert an array into a savable image array
-	def deprocess(self, vis_array):
-		
-		# remove batch dimension, and alter color dimension accordingly
-		img_array = vis_array[0]
-		
-		if K.image_data_format() == 'channels_first':
-			# alter dimensions from (color, height, width) to (height, width, color)
-			img_array = img_array.transpose((1, 2, 0))
-
-		if self.custom_postprocess is not None:
-			img_array = self.custom_postprocess(img_array)
-		
-		# clip in [0, 255], and convert to uint8
-		img_array = np.clip(img_array, 0, 255).astype('uint8')
-		
-		return img_array
-	
 	# TODO: delete image saving part (modify, but don't delete info text) when done with testing
 	# saves the visualization and a txt-file describing its creation environment
 	def save_visualization_info(self, vis_info):
@@ -641,3 +642,22 @@ class DeepVisualization(Callback):
 		# write visualization info to pickle file
 		with open(join(self.results_folder, 'deep_visualization.pickle'), 'wb') as f:
 			pickle.dump(vis_info, f)
+
+
+# utility function used to convert an array into a savable image array
+def to_image_standard(img_array, custom_postprocess):
+
+	# remove batch dimension, and alter color dimension accordingly
+	img_array = img_array[0]
+
+	if K.image_data_format() == 'channels_first':
+		# alter dimensions from (color, height, width) to (height, width, color)
+		img_array = img_array.transpose((1, 2, 0))
+
+	if custom_postprocess is not None:
+		img_array = custom_postprocess(img_array)
+
+	# clip in [0, 255], and convert to uint8
+	img_array = np.clip(img_array, 0, 255).astype('uint8')
+
+	return img_array

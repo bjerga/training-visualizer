@@ -154,6 +154,13 @@ class DeconvolutionModel:
 		self.input_img = new_img
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
+
+	# update weights for all transposed convolution layers
+	def update_weights(self):
+		for link_layer_no in self.layer_map.keys():
+			deconv_layer_no = self.layer_map[link_layer_no]
+			if isinstance(self.deconv_model.layers[deconv_layer_no], Conv2DTranspose):
+				self.deconv_model.layers[deconv_layer_no].set_weights([self.link_model.layers[link_layer_no].get_weights()[0]])
 	
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
@@ -507,7 +514,7 @@ class MaxUnpooling2D(_Pooling2D):
 			self.col_dim = 3
 			self.ch_dim = 1
 		
-		# create placeholder values for pooling input and output
+		# save values for pooling input and output
 		self.pool_input = pool_input
 		self.pool_output = pool_output
 		

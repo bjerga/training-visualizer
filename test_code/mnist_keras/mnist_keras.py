@@ -42,11 +42,11 @@ def train(model, no_of_epochs=10):
 	
 	# initialize custom callbacks
 	callbacks = CustomCallbacks(save_path)
-	callbacks.register_saliency_maps()
+	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(3, 5, interval=100)
+	callbacks.register_deconvolution_network(3, 16, interval=10)
 	callbacks.register_deep_visualization([(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
 										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100)
 

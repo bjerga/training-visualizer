@@ -37,14 +37,14 @@ with open(join(imagenet_path, 'wnid_index_map.pickle'), 'rb') as f:
 
 def create_model(input_shape):
 	# define model
-	model = VGG16(include_top=True, weights=None, input_shape=input_shape)
-	model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+	# model = VGG16(include_top=True, weights=None, input_shape=input_shape)
+	# model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
-	# model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
-	# # for i in range(len(model.layers[:-4])):
-	# for i in range(len(model.layers)):
-	# 	model.layers[i].trainable = False
-	# model.compile(optimizer=RMSprop(lr=0.0000000000001), loss='categorical_crossentropy', metrics=['accuracy'])
+	model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
+	# for i in range(len(model.layers[:-4])):
+	for i in range(len(model.layers)):
+		model.layers[i].trainable = False
+	model.compile(optimizer=RMSprop(lr=0.0000000000001), loss='categorical_crossentropy', metrics=['accuracy'])
 
 	print('\nModel successfully created')
 	
@@ -111,13 +111,13 @@ def train(model, no_of_epochs=50):
 	
 	# initialize custom callbacks
 	callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
-	callbacks.register_saliency_maps()
+	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution_network(18, 10, interval=10)
-	callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
-										  blur_interval=4, blur_std=1.0, interval=10)
+	# callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
+	# 									  blur_interval=4, blur_std=1.0, interval=10)
 
 	print('Steps per epoch:', steps_per_epoch)
 

@@ -149,9 +149,10 @@ class DeconvolutionModel:
 		# return last layer examined as start layer of deconvolution model, and info needed for unpooling
 		return layer_no - 1, unpool_info
 	
-	# update model with by creating new model with updated unpooling layers (unpooling is image specific)
-	def update_deconv_model(self, new_img):
-		self.input_img = new_img
+	# update model with by creating new model with updated layers
+	def update_deconv_model(self, new_img=None):
+		if new_img is not None:
+			self.input_img = new_img
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
 

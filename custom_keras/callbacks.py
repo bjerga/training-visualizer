@@ -321,7 +321,7 @@ class DeconvolutionNetwork(Callback):
 		if self.counter == self.interval:
 
 			# update weights
-			self.deconv_model.update_weights()
+			self.deconv_model.update_deconv_model()
 
 			# produce reconstructions
 			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,

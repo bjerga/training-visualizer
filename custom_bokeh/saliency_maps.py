@@ -2,7 +2,7 @@ from os import listdir
 
 from bokeh.io import curdoc
 from bokeh.layouts import layout
-from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d
+from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d, BoxZoomTool
 
 from os.path import join
 
@@ -40,35 +40,30 @@ grid.append([p])
 # flip image to display correctly in coordinate system with placeholder
 saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
 
-image_height = orig_img.shape[0]
-image_width = orig_img.shape[1]
-
-
-def create_figure(title, x_range, y_range, tools="box_zoom, reset, save, pan"):
-	fig = figure(tools=tools, x_range=x_range, y_range=y_range)
-	fig.title.text = title
-	fig.axis.visible = False
-	fig.toolbar.logo = None
-	return fig
-
+orig_img_height = orig_img.shape[0]
+orig_img_width = orig_img.shape[1]
 
 # create plot for the original image
-orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="box_zoom, reset, save, pan",
+orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
 					outline_line_color="black", outline_line_width=3)
-orig_img_fig.x_range = Range1d(0, image_width, bounds=(0, image_width))
-orig_img_fig.y_range = Range1d(0, image_height, bounds=(0, image_height))
+orig_img_fig.x_range = Range1d(0, orig_img_height, bounds=(0, orig_img_height))
+orig_img_fig.y_range = Range1d(0, orig_img_width, bounds=(0, orig_img_width))
+orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
 orig_img_fig.axis.visible = False
+orig_img_fig.toolbar.logo = None
 
 add_image_from_array(orig_img_fig, orig_img)
 
 # create plot for the saliency maps image
-saliency_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="box_zoom, reset, save, pan",
+saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="reset, save, pan",
 					outline_line_color="black", outline_line_width=3)
 saliency_fig.x_range = orig_img_fig.x_range
 saliency_fig.y_range = orig_img_fig.y_range
+saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
 saliency_fig.axis.visible = False
+saliency_fig.toolbar.logo = None
 
-add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False)
+add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False, always_grayscale=True)
 
 grid.append([orig_img_fig, saliency_fig])
 

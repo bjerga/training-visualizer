@@ -259,27 +259,22 @@ class SaliencyMaps(Callback):
 			if K.image_data_format() == 'channels_first':
 				# alter dimensions from (color, height, width) to (height, width, color)
 				saliency = saliency.transpose((1, 2, 0))
-			
-			# TODO: check if custom postprocessing is necessary or even harmful
-			if self.custom_postprocess is not None:
-				saliency = self.custom_postprocess(saliency)
 
 			# get the absolute value of the saliency
 			abs_saliency = np.abs(saliency)
-			print(abs_saliency.shape)
 
-			# convert from rgb to grayscale (take max of each RGB value)
+			# convert from RGB to greyscale (take max of each RGB value)
 			abs_saliency = np.amax(abs_saliency, axis=2)
-			print(abs_saliency.shape)
-			# reshape
+
+			# add inner channel dimension
 			abs_saliency = np.expand_dims(abs_saliency, axis=3)
-			print(abs_saliency.shape)
 
 			# scale to fit between [0.0, 255.0]
 			if abs_saliency.max() != 0.0:
 				abs_saliency *= (255.0 / abs_saliency.max())
-			# clip in [0, 255], and convert to uint8
-			# abs_saliency = np.clip(abs_saliency, 0, 255).astype('uint8')
+
+			# convert to uint8
+			abs_saliency = abs_saliency.astype('uint8')
 
 			with open(join(self.results_folder, 'saliency_maps.pickle'), 'wb') as f:
 				pickle.dump(abs_saliency, f)

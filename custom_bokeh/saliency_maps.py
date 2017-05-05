@@ -66,6 +66,8 @@ def is_rgba(img):
 
 # convert image from 3-dimensional to 2-dimensional
 def process_rgba_image(img):
+	if img.shape[2] == 1:
+		return img[:, :, 0]
 	if img.shape[2] == 3:
 		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
 	img = np.squeeze(img.view(np.uint32))

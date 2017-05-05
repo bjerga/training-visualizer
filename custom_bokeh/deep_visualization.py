@@ -35,10 +35,12 @@ layout.children.append(p)
 
 # convert image from 3-dimensional to 2-dimensional
 def process_rgba_image(img):
+	if img.shape[2] == 1:
+		return False, img[:, :, 0]
 	if img.shape[2] == 3:
 		img = np.dstack([img, np.ones(img.shape[:2], np.uint8) * 255])
 	img = np.squeeze(img.view(np.uint32))
-	return img
+	return True, img
 
 
 deep_visualization_source = ColumnDataSource(data=dict())
@@ -58,8 +60,7 @@ def fill_data_source(deep_visualization_data):
 		# process if rgb image
 		rgb = False
 		if array.ndim > 2:
-			array = process_rgba_image(array)
-			rgb = True
+			rgb, array = process_rgba_image(array)
 
 		# add image to the data source
 		deep_visualization_source.add([array[::-1]], name=name)
@@ -107,7 +108,7 @@ def update_data():
 
 				# process if rgb image
 				if array.ndim > 2:
-					array = process_rgba_image(array)
+					_, array = process_rgba_image(array)
 
 				deep_visualization_source.data[name] = [array[::-1]]
 

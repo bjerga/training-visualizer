@@ -66,7 +66,7 @@ class CustomCallbacks:
 			interval = self.base_interval
 		self.callback_list.append(DeepVisualization(self.file_folder, neurons_to_visualize, learning_rate, no_of_iterations,
 													l2_decay, blur_interval, blur_std, value_percentile, norm_percentile,
-													contribution_percentile, abs_contribution_percentile, interval))
+													contribution_percentile, abs_contribution_percentile, self.custom_postprocess, interval))
 
 
 class NetworkSaver(Callback):
@@ -350,7 +350,7 @@ class DeepVisualization(Callback):
 	# chosen neurons to visualize must be a list with elements on form tuple(layer number, neuron number)
 	def __init__(self, file_folder, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 				 blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
-				 abs_contribution_percentile=0, interval=1000):
+				 abs_contribution_percentile=0, custom_postprocess=None, interval=1000):
 		
 		super(DeepVisualization, self).__init__()
 		
@@ -363,6 +363,7 @@ class DeepVisualization(Callback):
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
+		self.custom_postprocess = custom_postprocess
 		
 		# vanilla (required) values
 		self.neurons_to_visualize = neurons_to_visualize
@@ -582,6 +583,9 @@ class DeepVisualization(Callback):
 		if K.image_data_format() == 'channels_first':
 			# alter dimensions from (color, height, width) to (height, width, color)
 			img_array = img_array.transpose((1, 2, 0))
+
+		if self.custom_postprocess is not None:
+			img_array = self.custom_postprocess(img_array)
 		
 		# clip in [0, 255], and convert to uint8
 		img_array = np.clip(img_array, 0, 255).astype('uint8')

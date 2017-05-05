@@ -64,6 +64,7 @@ abs_contribution_percentile = 0
 # choose whether to include regularization
 regularize = True
 
+
 # utility function used to convert an array into a savable image array
 def deprocess(vis_array):
 
@@ -75,6 +76,7 @@ def deprocess(vis_array):
         img_array = img_array.transpose((1, 2, 0))
 
     if is_VGG16:
+        img_array = img_array[:, :, ::-1]
         img_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
 
     # clip in [0, 255], and convert to uint8
@@ -285,7 +287,7 @@ def main():
 
     # select neurons to visualize for by adding (layer number, neuron number)
     # neurons_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]
-    neurons_to_visualize = [(-1, 736)]
+    neurons_to_visualize = [(-1, 402), (-1, 587), (-1, 950)]
     # neuron numbers in last layer represent the following classes:
     # 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear
 

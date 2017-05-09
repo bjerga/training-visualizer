@@ -133,8 +133,8 @@ class DeconvolutionModel:
 			# if MaxPooling2D layer, collect information needed to create corresponding MaxUnpooling2D layer
 			if isinstance(self.link_model.layers[layer_no], MaxPooling2D):
 				# compute input and output for pooling layers
-				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no,
-																			  start_layer_no, start_input)
+				pool_input = self.compute_layer_input(self.link_model, layer_no, start_layer_no, start_input)
+				pool_output = self.compute_layer_output(self.link_model, layer_no, layer_no, pool_input)
 				
 				# add to info dict
 				unpool_info[layer_no] = (pool_input, pool_output)
@@ -186,8 +186,7 @@ class DeconvolutionModel:
 			feat_maps_tuples = []
 			for feat_map_no in feat_map_nos:
 				# get conv. model output (feat maps) for desired feature map layer
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
-																   self.input_img)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 				
 				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
 				
@@ -195,15 +194,15 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
-		
+
 		reconstructions = []
 		for i in range(len(feat_maps_tuples)):
 			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
 			
 			# feed to deconv. model to produce reconstruction
-			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
-																	self.layer_map[feat_map_layer_no],
-																	processed_feat_maps)
+			reconstruction = self.compute_layer_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
+													   processed_feat_maps)
+			
 			# save reconstruction to designated folder (returns saved array and name)
 			img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i)
 			
@@ -252,8 +251,7 @@ class DeconvolutionModel:
 				self.update_deconv_model(max_img)
 				
 				# get conv. model output (feat maps) for desired feature map layer
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
-																   self.input_img)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 				
 				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
 				
@@ -261,9 +259,8 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				# feed to deconv. model to produce reconstruction
-				_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
-																		self.layer_map[feat_map_layer_no],
-																		processed_feat_maps)
+				reconstruction = self.compute_layer_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
+														   processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)
 				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i, False)
@@ -272,17 +269,18 @@ class DeconvolutionModel:
 		
 		return reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no
 	
-	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
+	def compute_layer_input(self, model, end_layer_no, start_layer_no, input_array):
 		
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								[model.layers[end_layer_no].input])
-		layer_input = input_func([start_input, 0])[0]
+		return input_func([input_array, 0])[0]
+	
+	def compute_layer_output(self, model, end_layer_no, start_layer_no, input_array):
 		
-		output_func = K.function([model.layers[end_layer_no].input, K.learning_phase()],
+		output_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								 [model.layers[end_layer_no].output])
-		layer_output = output_func([layer_input, 0])[0]
 		
-		return layer_input, layer_output
+		return output_func([input_array, 0])[0]
 	
 	def get_max_activation_and_pos(self, feat_maps, feat_map_no):
 		
@@ -320,7 +318,7 @@ class DeconvolutionModel:
 	# find feature maps with largest single element values
 	def get_max_feature_maps(self, feat_map_layer_no, amount):
 		
-		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
+		feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 		
 		max_activations = []
 		max_positions = []
@@ -378,7 +376,7 @@ class DeconvolutionModel:
 				
 				urls.append(url)
 				
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img_array)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, img_array)
 				
 				if K.image_data_format() == 'channels_last':
 					for feat_map_no in feat_map_nos:

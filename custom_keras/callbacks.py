@@ -178,6 +178,15 @@ class LayerActivations(Callback):
 					
 					# remove batch dimension
 					act_array = act_array[0]
+					
+					# if theano dimensions
+					if K.image_data_format() == 'channels_first':
+						# if greyscale image with no color dimension, add dimension
+						if len(act_array.shape) == 2:
+							act_array = np.expand_dims(act_array, 0)
+						# alter dimensions from (color, height, width) to (height, width, color)
+						if len(act_array.shape) == 3:
+							act_array = act_array.transpose((1, 2, 0))
 
 					# scale to fit between [0.0, 255.0]
 					if act_array.max() != 0.0:
@@ -256,6 +265,7 @@ class SaliencyMaps(Callback):
 			# remove batch dimension
 			saliency = saliency[0]
 			
+			# if theano dimensions
 			if K.image_data_format() == 'channels_first':
 				# if greyscale image with no color dimension, add dimension
 				if len(saliency.shape) == 2:

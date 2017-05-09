@@ -8,8 +8,7 @@ from os.path import dirname, join
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Input, InputLayer, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
-from keras.layers.pooling import _Pooling2D
+from keras.layers import Layer, Input, InputLayer, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
 from keras.preprocessing import image
 
 # for images from URLs
@@ -155,13 +154,6 @@ class DeconvolutionModel:
 			self.input_img = new_img
 		
 		self.deconv_model, self.layer_map = self.create_deconv_model()
-
-	# update weights for all transposed convolution layers
-	def update_weights(self):
-		for link_layer_no in self.layer_map.keys():
-			deconv_layer_no = self.layer_map[link_layer_no]
-			if isinstance(self.deconv_model.layers[deconv_layer_no], Conv2DTranspose):
-				self.deconv_model.layers[deconv_layer_no].set_weights([self.link_model.layers[link_layer_no].get_weights()[0]])
 	
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
@@ -496,7 +488,7 @@ class DeconvolutionModel:
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-class MaxUnpooling2D(_Pooling2D):
+class MaxUnpooling2D(Layer):
 	#########################################################
 	### these three initial methods are required by Layer ###
 	#########################################################
@@ -506,16 +498,15 @@ class MaxUnpooling2D(_Pooling2D):
 		# check backend to detect dimensions used
 		if K.image_data_format() == 'channels_last':
 			# tensorflow is used, dimension are (samples, rows, columns, channels)
-			self.row_dim = 1
-			self.col_dim = 2
+			row_dim = 1
+			col_dim = 2
 			self.ch_dim = 3
 		else:
 			# theano is used, dimension are (samples, channels, rows, columns)
-			self.row_dim = 2
-			self.col_dim = 3
+			row_dim = 2
+			col_dim = 3
 			self.ch_dim = 1
-		
-		# save values for pooling input and output
+			
 		self.pool_input = pool_input
 		self.pool_output = pool_output
 		
@@ -523,14 +514,13 @@ class MaxUnpooling2D(_Pooling2D):
 		# pool size and strides are both (rows, columns)-tuples
 		self.pool_size = pool_size
 		self.strides = strides
-		# border mode is either 'valid' or 'same'
-		self.padding = padding
 		
-		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
-		# initialize offset to 0, as it is not needed when border mode is valid
-		self.row_offset = 0
-		self.col_offset = 0
-		if self.padding == 'same':
+		# if padding is same, use offsets to correct computed pooling regions (simulates padding)
+		# initialize offset to 0, as it is not needed when padding is valid
+		row_offset = 0
+		col_offset = 0
+		# padding is either 'valid' or 'same'
+		if padding == 'same':
 			
 			if K.backend() == 'tensorflow':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
@@ -543,17 +533,15 @@ class MaxUnpooling2D(_Pooling2D):
 				
 				# find offset (to simulate padding) by computing total region space that falls outside of original tensor
 				# and divide by two to distribute to top-bottom/left-right of original tensor
-				self.row_offset = ((self.pool_output.shape[self.row_dim] - 1) * self.strides[0] +
-								   self.pool_size[0] - self.pool_input.shape[self.row_dim]) // 2
-				self.col_offset = ((self.pool_output.shape[self.col_dim] - 1) * self.strides[1] +
-								   self.pool_size[1] - self.pool_input.shape[self.col_dim]) // 2
+				row_offset = ((pool_output.shape[row_dim] - 1) * strides[0] + pool_size[0] - pool_input.shape[row_dim]) // 2
+				col_offset = ((pool_output.shape[col_dim] - 1) * strides[1] + pool_size[1] - pool_input.shape[col_dim]) // 2
 				
 				# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
 				# computed offset can be negative, but this equals no offset
-				if self.row_offset < 0:
-					self.row_offset = 0
-				if self.col_offset < 0:
-					self.col_offset = 0
+				if row_offset < 0:
+					row_offset = 0
+				if col_offset < 0:
+					col_offset = 0
 			else:
 				# when using theano, padding is always added, and a pooling region center is never in the padding.
 				# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling
@@ -564,61 +552,65 @@ class MaxUnpooling2D(_Pooling2D):
 				# in a 3X4 region.
 				
 				# set offset (to simulate padding) to lowermost and rightmost entries by default
-				self.row_offset = self.pool_size[0] - 1
-				self.col_offset = self.pool_size[1] - 1
+				row_offset = pool_size[0] - 1
+				col_offset = pool_size[1] - 1
 				
 				# if rows have a clear center, update offset
-				if self.pool_size[0] % 2 == 1:
-					self.row_offset //= 2
+				if pool_size[0] % 2 == 1:
+					row_offset //= 2
 				
 				# if columns have a clear center, update offset
-				if self.pool_size[1] % 2 == 1:
-					self.col_offset //= 2
+				if pool_size[1] % 2 == 1:
+					col_offset //= 2
+					
+		# compute region indices for every element in pooling output
+		self.region_indices = []
+		for i in range(pool_output.shape[row_dim]):
+			# compute pooling region row indices
+			start_row, end_row = self.compute_index_interval(i, 0, row_offset, pool_input.shape[row_dim])
+			
+			for j in range(pool_output.shape[col_dim]):
+				# compute pooling region column indices
+				start_col, end_col = self.compute_index_interval(j, 1, col_offset, pool_input.shape[col_dim])
+				
+				self.region_indices.append((start_row, end_row, start_col, end_col, i, j))
 		
 		super(MaxUnpooling2D, self).__init__(**kwargs)
 	
-	def _pooling_function(self, inputs, pool_size, strides, padding, data_format):
+	def call(self, inputs):
 		
-		indices = []
-		
-		# TODO: sample_no in potentially always 0, as deconv. model only ever receives one input image (images are switch specific in unpool, so >1 image for input makes no sense)
-		# for every sample
-		for sample_no in range(self.pool_output.shape[0]):
-			# for every element in pooling output
-			for i in range(self.pool_output.shape[self.row_dim]):
-				# compute pooling region row indices
-				start_row, end_row = self.compute_index_interval(i, 0, self.row_offset, self.row_dim)
-				
-				for j in range(self.pool_output.shape[self.col_dim]):
-					# compute pooling region column indices
-					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
-					
-					indices.extend(
-						[self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, channel)
-						 for channel in range(self.pool_output.shape[self.ch_dim])])
+		# for every region, find max indices
+		max_indices = []
+		# sample size is always 1, as unpooling has image specific switches
+		sample_no = 0
+		for start_row, end_row, start_col, end_col, i, j in self.region_indices:
+			max_indices.extend([self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, channel)
+								for channel in range(self.pool_input.shape[self.ch_dim])])
 		
 		if K.backend() == 'tensorflow':
 			# use tensorflow
-			recreated_input = tf.scatter_nd(indices=indices,
+			recreated_input = tf.scatter_nd(indices=max_indices,
 											updates=tf.reshape(inputs, [-1]),
-											# updates=[recreated_output[i] for _, i in indices],
 											shape=self.pool_input.shape,
 											name=self.name + '_output')
 		else:
 			# use theano
 			# very inefficient
 			recreated_input = tht.zeros(self.pool_input.shape)
-			for (input_index, output_index) in indices:
+			for input_index, output_index in max_indices:
 				recreated_input = tht.set_subtensor(recreated_input[input_index], inputs[output_index])
 		
 		return recreated_input
 	
+	def compute_output_shape(self, input_shape):
+		return (input_shape[0],) + self.pool_input.shape[1:]
+	
 	##############################################
 	### what follows are custom helper methods ###
 	##############################################
-	
+
 	def get_region_max_index(self, sample_no, start_row, end_row, start_col, end_col, i, j, channel):
-		
+
 		if K.backend() == 'tensorflow':
 			# use tensorflow dimensions
 			for row in range(start_row, end_row):
@@ -637,7 +629,8 @@ class MaxUnpooling2D(_Pooling2D):
 	# index for the region entry in such a matrix
 	# tuple_no describes where in the strides and pool size tuples one should get values from, with row values at tuple
 	# index 0 and column values are at tuple index 1
-	def compute_index_interval(self, region_index, tuple_no, offset, dim):
+	def compute_index_interval(self, region_index, tuple_no, offset, max_index):
+		
 		start_index = region_index * self.strides[tuple_no] - offset
 		end_index = start_index + self.pool_size[tuple_no]
 		
@@ -645,7 +638,7 @@ class MaxUnpooling2D(_Pooling2D):
 		# or end index larger than largest index in original pooling input, correct
 		if start_index < 0:
 			start_index = 0
-		if end_index > self.pool_input.shape[dim]:
-			end_index = self.pool_input.shape[dim]
+		if end_index > max_index:
+			end_index = max_index
 		
 		return start_index, end_index

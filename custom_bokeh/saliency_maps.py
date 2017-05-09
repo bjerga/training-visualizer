@@ -45,9 +45,9 @@ orig_img_width = orig_img.shape[1]
 
 # create plot for the original image
 orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
-					outline_line_color="black", outline_line_width=3)
-orig_img_fig.x_range = Range1d(0, orig_img_height, bounds=(0, orig_img_height))
-orig_img_fig.y_range = Range1d(0, orig_img_width, bounds=(0, orig_img_width))
+						x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
+						y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+						outline_line_color="black", outline_line_width=3)
 orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
 orig_img_fig.axis.visible = False
 orig_img_fig.toolbar.logo = None
@@ -56,9 +56,8 @@ add_image_from_array(orig_img_fig, orig_img)
 
 # create plot for the saliency maps image
 saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="reset, save, pan",
-					outline_line_color="black", outline_line_width=3)
-saliency_fig.x_range = orig_img_fig.x_range
-saliency_fig.y_range = orig_img_fig.y_range
+						x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range, outline_line_color="black",
+						outline_line_width=3)
 saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
 saliency_fig.axis.visible = False
 saliency_fig.toolbar.logo = None

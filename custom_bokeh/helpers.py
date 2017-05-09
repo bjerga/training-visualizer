@@ -24,21 +24,29 @@ def is_grayscale(img):
 	return False
 
 
-def add_image_from_array(fig, img):
+def add_image_from_array(fig, img, dw=None, dh=None):
+	if not dw:
+		dw = img.shape[1]
+	if not dh:
+		dh = img.shape[0]
 	if is_grayscale(img):
 		img = process_image_dim(img)
-		fig.image(image=[img[::-1]], x=0, y=0, dw=img.shape[1], dh=img.shape[0])
+		fig.image(image=[img[::-1]], x=0, y=0, dw=dw, dh=dh)
 	else:
 		img = process_image_dim(img)
-		fig.image_rgba(image=[img[::-1]], x=0, y=0, dw=img.shape[1], dh=img.shape[0])
+		fig.image_rgba(image=[img[::-1]], x=0, y=0, dw=dw, dh=dh)
 
 
-def add_image_from_source(fig, source, img, img_name, add_to_source=True, always_grayscale = False):
+def add_image_from_source(fig, source, img, img_name, dw=None, dh=None, add_to_source=True, always_grayscale=False):
+	if not dw:
+		dw = img.shape[1]
+	if not dh:
+		dh = img.shape[0]
 	if is_grayscale(img) or always_grayscale:
 		img = process_image_dim(img)
-		fig.image(image=img_name, x=0, y=0, dw=img.shape[1], dh=img.shape[0], source=source)
+		fig.image(image=img_name, x=0, y=0, dw=dw, dh=dh, source=source)
 	else:
 		img = process_image_dim(img)
-		fig.image_rgba(image=img_name, x=0, y=0, dw=img.shape[1], dh=img.shape[0], source=source)
+		fig.image_rgba(image=img_name, x=0, y=0, dw=dw, dh=dh, source=source)
 	if add_to_source:
 		source.add([img[::-1]], name=img_name)

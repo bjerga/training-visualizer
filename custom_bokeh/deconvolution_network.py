@@ -2,7 +2,7 @@ from os import listdir
 
 from bokeh.io import curdoc
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Div, Paragraph, Column, Range1d
+from bokeh.models import ColumnDataSource, Div, Paragraph, Column, Range1d, BoxZoomTool
 
 from os.path import join
 
@@ -71,18 +71,18 @@ def add_image_from_source(fig, source, img, img_name):
 
 
 # create plot for the original image
-img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="box_zoom, reset, save, pan",
-					outline_line_color="black", outline_line_width=3)
-img_fig.x_range = Range1d(0, image_width, bounds=(0, image_width))
-img_fig.y_range = Range1d(0, image_height, bounds=(0, image_height))
-img_fig.axis.visible = False
+orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
+						x_range=Range1d(0, image_width, bounds=(0, image_width)),
+						y_range=Range1d(0, image_height, bounds=(0, image_height)),
+						outline_line_color="black", outline_line_width=3)
+orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+orig_img_fig.axis.visible = False
 
+add_image_from_array(orig_img_fig, orig_img)
 
-add_image_from_array(img_fig, orig_img)
+orig_img_grid = gridplot([orig_img_fig], ncols=1, toolbar_options=dict(logo=None))
 
-img_grid = gridplot([img_fig], ncols=1, toolbar_options=dict(logo=None))
-
-layout.children.append(img_grid)
+layout.children.append(orig_img_grid)
 
 
 def fill_data_source(deconvolution_data):
@@ -98,9 +98,11 @@ def fill_data_source(deconvolution_data):
 		name = "{}_{}".format(layer_name, i)
 		title = "Feature map #{} in {}".format(i, layer_name)
 
-		fig = figure(title=title, tools="box_zoom, reset, save, pan", plot_width=250, plot_height=250,
-						outline_line_color="black", outline_line_width=3, x_range=img_fig.x_range, y_range=img_fig.y_range)
+		fig = figure(title=title, tools="reset, save, pan", plot_width=250, plot_height=250, outline_line_color="black",
+						outline_line_width=3, x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range)
+		fig.add_tools(BoxZoomTool(match_aspect=True))
 		fig.axis.visible = False
+
 		add_image_from_source(fig, deconvolution_source, array, name)
 
 		figures.append(fig)

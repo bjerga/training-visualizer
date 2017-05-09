@@ -3,6 +3,7 @@ from os.path import dirname
 
 import numpy as np
 
+import keras.backend as K
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Flatten
 from keras.datasets import mnist
@@ -14,10 +15,17 @@ from custom_keras.callbacks import CustomCallbacks
 # find path to save networks and results
 save_path = dirname(__file__)
 
+if K.image_data_format() == 'channels_last':
+	# use tensorflow dimensions
+	input_shape = (28, 28, 1)
+else:
+	# use theano dimensions
+	input_shape = (1, 28, 28)
+
 
 def create_model():
 	# define model
-	inputs = Input(shape=(28, 28, 1))
+	inputs = Input(shape=input_shape)
 	x = Conv2D(32, (3, 3), activation='relu', padding='valid')(inputs)
 	x = Conv2D(32, (3, 3), activation='relu', padding='valid')(x)
 	x = MaxPooling2D(pool_size=(2, 2))(x)
@@ -48,7 +56,7 @@ def train(model, no_of_epochs=10):
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution_network(3, 16, interval=10)
 	callbacks.register_deep_visualization([(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
-										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=100)
+										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=10)
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()
@@ -74,7 +82,7 @@ def test(model, no_of_tests=1, verbose=True):
 	for i in random_indices:
 
 		# get model classification
-		classification = model.predict(test_data[i].reshape(1, 28, 28, 1))
+		classification = model.predict(test_data[i].reshape((1,) + input_shape))
 
 		# find correct classification
 		correct = test_targets[i]
@@ -93,8 +101,8 @@ def load_data():
 	(training_data, training_targets), (test_data, test_targets) = mnist.load_data()
 
 	# reshape data
-	training_data = training_data.reshape(training_data.shape[0], 28, 28, 1)
-	test_data = test_data.reshape(test_data.shape[0], 28, 28, 1)
+	training_data = training_data.reshape((training_data.shape[0],) + input_shape)
+	test_data = test_data.reshape((test_data.shape[0],) + input_shape)
 
 	# normalize data
 	training_data = training_data.astype('float32')

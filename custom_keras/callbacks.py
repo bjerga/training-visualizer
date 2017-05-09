@@ -255,8 +255,11 @@ class SaliencyMaps(Callback):
 			
 			# remove batch dimension
 			saliency = saliency[0]
-
+			
 			if K.image_data_format() == 'channels_first':
+				# if greyscale image with no color dimension, add dimension
+				if len(saliency.shape) == 2:
+					saliency = np.expand_dims(saliency, 0)
 				# alter dimensions from (color, height, width) to (height, width, color)
 				saliency = saliency.transpose((1, 2, 0))
 

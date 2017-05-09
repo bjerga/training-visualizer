@@ -199,6 +199,7 @@ class DeconvolutionModel:
 		for i in range(len(feat_maps_tuples)):
 			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
 			
+			# TODO: currently results in a RecursionError for Theano
 			# feed to deconv. model to produce reconstruction
 			reconstruction = self.compute_layer_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
 													   processed_feat_maps)

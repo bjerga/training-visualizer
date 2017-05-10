@@ -31,11 +31,16 @@ train_data_amount = 1281167
 
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
+if K.image_data_format() == 'channels_last':
+	input_shape = (224, 224, 3)
+else:
+	input_shape = (3, 224, 224)
+
 with open(join(imagenet_path, 'wnid_index_map.pickle'), 'rb') as f:
 	wnid_index_map = pickle.load(f)
 
 
-def create_model(input_shape):
+def create_model():
 	# define model
 	model = VGG16(include_top=True, weights=None, input_shape=input_shape)
 	model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
@@ -45,7 +50,7 @@ def create_model(input_shape):
 	return model
 
 
-def create_model_untrainable(input_shape):
+def create_model_untrainable():
 
 	model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
 	for i in range(len(model.layers)):
@@ -57,7 +62,7 @@ def create_model_untrainable(input_shape):
 	return model
 
 
-def create_model_new_top(input_shape):
+def create_model_new_top():
 
 	img_input = Input(shape=input_shape)
 
@@ -136,6 +141,7 @@ def train(model, no_of_epochs=50):
 	
 	return model
 
+
 def data_generator(batch_size):
 	
 	while True:
@@ -154,9 +160,11 @@ def data_generator(batch_size):
 
 		yield np.array(x_data), to_categorical(y_data, 1000)
 
+
 def load_image(img_path, img_name):
 	img = image.load_img(join(img_path, img_name))
 	return image.img_to_array(img)
+
 
 def preprocess_data(img_array, target_size=(224, 224)):
 	
@@ -191,14 +199,10 @@ def main():
 	# create a model, then train and test it.
 	
 	start_time = time()
-	
-	if K.image_data_format() == 'channels_last':
-		input_shape = (224, 224, 3)
-	else:
-		input_shape = (3, 224, 224)
 
-	model = create_model(input_shape)
-	# model = create_model_new_top(input_shape)
+	# model = create_model()
+	model = create_model_untrainable()
+	# model = create_model_new_top()
 
 	model = train(model)
 	

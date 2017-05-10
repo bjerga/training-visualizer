@@ -37,14 +37,20 @@ with open(join(imagenet_path, 'wnid_index_map.pickle'), 'rb') as f:
 
 def create_model(input_shape):
 	# define model
-	# model = VGG16(include_top=True, weights=None, input_shape=input_shape)
-	# model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+	model = VGG16(include_top=True, weights=None, input_shape=input_shape)
+	model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+
+	print('\nModel successfully created')
+	
+	return model
+
+
+def create_model_untrainable(input_shape):
 
 	model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
-	# for i in range(len(model.layers[:-4])):
 	for i in range(len(model.layers)):
 		model.layers[i].trainable = False
-	model.compile(optimizer=RMSprop(lr=0.0000000000001), loss='categorical_crossentropy', metrics=['accuracy'])
+	model.compile(optimizer=RMSprop(lr=0), loss='categorical_crossentropy', metrics=['accuracy'])
 
 	print('\nModel successfully created')
 	
@@ -98,6 +104,8 @@ def create_model_new_top(input_shape):
 		model.layers[i].trainable = False
 
 	model.compile(optimizer=RMSprop(lr=0.000001), loss='categorical_crossentropy', metrics=['accuracy'])
+
+	print('\nModel successfully created')
 
 	return model
 

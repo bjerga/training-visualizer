@@ -53,11 +53,12 @@ class CustomCallbacks:
 			interval = self.base_interval
 		self.callback_list.append(SaliencyMaps(self.file_folder, self.custom_preprocess, self.custom_postprocess, interval))
 		
-	def register_deconvolution_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=None):
+	def register_deconvolution_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None,
+									   custom_keras_model_info=None, interval=None):
 		if interval is None:
 			interval = self.base_interval
 		self.callback_list.append(DeconvolutionNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
-													   self.custom_preprocess, self.custom_postprocess, interval))
+													   self.custom_preprocess, self.custom_postprocess, custom_keras_model_info, interval))
 		
 	def register_deep_visualization(self, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 									blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
@@ -119,7 +120,7 @@ class TrainingProgress(Callback):
 		with open(join(self.results_folder, 'training_progress.txt'), 'a') as f:
 			# saves accuracy at each finished training batch as lines of "x-value acc loss"
 			f.write("{} {} {}\n".format(self.epoch + (batch / self.batches_in_epoch), logs['acc'], logs['loss']))
-
+		
 	def on_epoch_end(self, epoch, logs={}):
 		self.epoch += 1
 		if self.params['do_validation']:
@@ -296,7 +297,8 @@ class SaliencyMaps(Callback):
 
 
 class DeconvolutionNetwork(Callback):
-	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None, custom_postprocess=None, interval=100):
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None,
+				 custom_postprocess=None, custom_keras_model_info=None, interval=100):
 		super(DeconvolutionNetwork, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
@@ -310,16 +312,22 @@ class DeconvolutionNetwork(Callback):
 		# load image as array
 		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
 		
+		# used for reconstruction production
 		self.feat_map_layer_no = feat_map_layer_no
 		self.feat_map_amount = feat_map_amount
 		self.feat_map_nos = feat_map_nos
+		
+		# deconvolution model info
+		self.deconv_model = None
+		self.custom_keras_model_info = custom_keras_model_info
 		
 		# save pre- and postprocessing methods
 		self.custom_preprocess = custom_preprocess
 		self.custom_postprocess = custom_postprocess
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess)
+		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
+											   self.custom_keras_model_info)
 	
 	def on_batch_end(self, batch, logs=None):
 

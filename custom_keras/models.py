@@ -25,7 +25,7 @@ urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img, custom_preprocess=None, custom_postprocess=None):
+	def __init__(self, link_model, input_img, custom_preprocess=None, custom_postprocess=None, custom_keras_model_info=None):
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
@@ -42,17 +42,31 @@ class DeconvolutionModel:
 		self.custom_postprocess = custom_postprocess
 		self.input_img = self.preprocess_img(input_img)
 		
-		self.deconv_model, self.layer_map = self.create_deconv_model()
+		if custom_keras_model_info is None:
+			# custom deconvolution Keras model info is not specified, try to create automatically
+			self.deconv_keras_model, self.layer_map = self.create_deconv_keras_model()
+			
+			# custom update is then not specified
+			self.custom_update = None
+		else:
+			if None in custom_keras_model_info:
+				raise ValueError("'None'-value found in 'custom_keras_model_info'-tuple. Tuple should contain (in respective "
+								 "order): a deconvolution Keras model based on your original model, a dictionary mapping "
+								 "from original model layer numbers to the corresponding deconv. model layer numbers, "
+								 "and an update method for the deconv. model which returns new deconv. model and layer map "
+								 "(if no update needed, input a method with pass).")
+			# unpack custom keras model info tuple
+			self.deconv_keras_model, self.layer_map, self.custom_update = custom_keras_model_info
 	
 		# print deconv info
 		# print('\n***DECONVOLUTIONAL MODEL INFO***')
-		# print('Deconv. input shape:', self.deconv_model.input_shape)
-		# print('Deconv. output shape:', self.deconv_model.output_shape)
+		# print('Deconv. input shape:', self.deconv_keras_model.input_shape)
+		# print('Deconv. output shape:', self.deconv_keras_model.output_shape)
 		# print('\nLayers in deconv. model:')
-		# for layer in self.deconv_model.layers:
+		# for layer in self.deconv_keras_model.layers:
 		# 	print(layer.name)
 	
-	def create_deconv_model(self):
+	def create_deconv_keras_model(self):
 		
 		start_time = time()
 		
@@ -153,7 +167,10 @@ class DeconvolutionModel:
 		if new_img is not None:
 			self.input_img = new_img
 		
-		self.deconv_model, self.layer_map = self.create_deconv_model()
+		if self.custom_update is None:
+			self.deconv_keras_model, self.layer_map = self.create_deconv_keras_model()
+		else:
+			self.deconv_keras_model, self.layer_map = self.custom_update()
 	
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
@@ -201,7 +218,7 @@ class DeconvolutionModel:
 			
 			# TODO: currently results in a RecursionError for Theano
 			# feed to deconv. model to produce reconstruction
-			reconstruction = self.compute_layer_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
+			reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
 													   processed_feat_maps)
 			
 			# save reconstruction to designated folder (returns saved array and name)
@@ -260,7 +277,7 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				# feed to deconv. model to produce reconstruction
-				reconstruction = self.compute_layer_output(self.deconv_model, -1, self.layer_map[feat_map_layer_no],
+				reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
 														   processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)

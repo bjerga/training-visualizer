@@ -124,11 +124,12 @@ def preprocess_data(img_array, target_size=(224, 224)):
 
 
 def postprocess_data(img_array):
+	# add mean values
+	img_array += MEAN_VALUES.reshape((1, 1, 3))
+	
 	# change back to RGB
 	img_array = img_array[:, :, ::-1]
 
-	# subtract mean values
-	img_array += MEAN_VALUES.reshape((1, 1, 3))
 	return img_array
 
 

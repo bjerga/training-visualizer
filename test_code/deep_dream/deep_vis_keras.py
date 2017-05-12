@@ -76,8 +76,11 @@ def deprocess(vis_array):
         img_array = img_array.transpose((1, 2, 0))
 
     if is_VGG16:
-        img_array = img_array[:, :, ::-1]
+        # add mean values
         img_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
+        
+        # change back to RGB
+        img_array = img_array[:, :, ::-1]
 
     # clip in [0, 255], and convert to uint8
     img_array = np.clip(img_array, 0, 255).astype('uint8')

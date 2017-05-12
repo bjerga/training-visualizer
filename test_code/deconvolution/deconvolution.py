@@ -89,7 +89,8 @@ def custom_preprocess(img_array):
 	if img.size != height_weight_tuple:
 		img = img.resize(height_weight_tuple)
 		img_array = image.img_to_array(img)
-	
+
+	# change to BGR and subtract mean values
 	if K.image_data_format() == 'channels_last':
 		img_array = img_array[:, :, ::-1]
 		img_array -= MEAN_VALUES.reshape((1, 1, 3))
@@ -101,8 +102,12 @@ def custom_preprocess(img_array):
 
 
 def custom_postprocess(img_array):
-	img_array = img_array[:, :, ::-1]
+	# add mean values
 	img_array += MEAN_VALUES.reshape((1, 1, 3))
+	
+	# change back to RGB
+	img_array = img_array[:, :, ::-1]
+
 	return img_array
 	
 

@@ -7,9 +7,6 @@ from os.path import join, dirname
 import numpy as np
 
 import keras.backend as K
-from keras.models import Model
-from keras.layers import Input, Flatten, Dense, Conv2D, MaxPooling2D
-from keras.optimizers import RMSprop
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
 from keras.utils.np_utils import to_categorical
@@ -40,78 +37,18 @@ with open(join(imagenet_path, 'wnid_index_map.pickle'), 'rb') as f:
 	wnid_index_map = pickle.load(f)
 
 
-def create_model():
+def create_model(weights=None, untrainable=False):
 	# define model
-	model = VGG16(include_top=True, weights=None, input_shape=input_shape)
+	model = VGG16(include_top=True, weights=weights, input_shape=input_shape)
+	
+	if untrainable:
+		for i in range(len(model.layers)):
+			model.layers[i].trainable = False
+	
 	model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
 	print('\nModel successfully created')
 	
-	return model
-
-
-def create_model_untrainable():
-
-	model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
-	for i in range(len(model.layers)):
-		model.layers[i].trainable = False
-	model.compile(optimizer=RMSprop(lr=0), loss='categorical_crossentropy', metrics=['accuracy'])
-
-	print('\nModel successfully created')
-	
-	return model
-
-
-def create_model_new_top():
-
-	img_input = Input(shape=input_shape)
-
-	# Block 1
-	x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
-	x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv2')(x)
-	x = MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool')(x)
-
-	# Block 2
-	x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv1')(x)
-	x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv2')(x)
-	x = MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool')(x)
-
-	# Block 3
-	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv1')(x)
-	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv2')(x)
-	x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv3')(x)
-	x = MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool')(x)
-
-	# Block 4
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv1')(x)
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv2')(x)
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv3')(x)
-	x = MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool')(x)
-
-	# Block 5
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv1')(x)
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv2')(x)
-	x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
-	x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
-
-	# Classification block
-	x = Flatten(name='flatten')(x)
-	x = Dense(4096, activation='relu', name='fc1')(x)
-	x = Dense(4096, activation='relu', name='fc2')(x)
-	x = Dense(1000, activation='softmax', name='predictions')(x)
-
-	base_model = VGG16(include_top=True, weights='imagenet', input_shape=input_shape)
-
-	model = Model(inputs=img_input, outputs=x)
-
-	for i in range(len(base_model.layers[:-4])):
-		model.layers[i].set_weights(base_model.layers[i].get_weights())
-		model.layers[i].trainable = False
-
-	model.compile(optimizer=RMSprop(lr=0.000001), loss='categorical_crossentropy', metrics=['accuracy'])
-
-	print('\nModel successfully created')
-
 	return model
 
 
@@ -128,9 +65,9 @@ def train(model, no_of_epochs=50):
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(18, 10, interval=10)
-	# callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
-	# 									  blur_interval=4, blur_std=1.0, interval=10)
+	callbacks.register_deconvolution_network(18, 10, interval=100)
+	callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
+										  blur_interval=4, blur_std=1.0, interval=100)
 
 	print('Steps per epoch:', steps_per_epoch)
 
@@ -201,8 +138,7 @@ def main():
 	start_time = time()
 
 	# model = create_model()
-	model = create_model_untrainable()
-	# model = create_model_new_top()
+	model = create_model('imagenet', True)
 
 	model = train(model)
 	

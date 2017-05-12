@@ -23,7 +23,7 @@ training_data = []
 
 counter = 0
 
-for actor_path in actors:
+'''for actor_path in actors:
 	actor = os.path.basename(actor_path)
 	movies = glob.glob(os.path.join(actor_path, '*'))
 	for movie_path in movies:
@@ -48,7 +48,7 @@ for actor_path in actors:
 					#print("{}: {} --> {}".format(img_path, expression, expression_vector))
 	counter += 1
 
-print(len(training_data))
+print(len(training_data))'''
 
 #with open(os.path.join('/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/visualizer/case_study', 'imfdb_training_data.pickle'), 'wb') as f:
 #	pickle.dump(training_data, f)
@@ -73,6 +73,9 @@ img_size = (130, 130)
 
 def get_averages():
 
+	r, g, b = 0, 0, 0
+	number_of_pixels = 0
+
 	number_of_images = 0
 	widths = 0
 	heights = 0
@@ -83,10 +86,21 @@ def get_averages():
 
 	for x in training_data:
 		number_of_images += 1
+		print(number_of_images)
 		image = Image.open(os.path.join(base_url, x[0]))
-		width, height = image.size
+		#width, height = image.size
 
-		if height < min_height:
+		pixels = list(image.getdata())
+
+		number_of_pixels += len(pixels)
+
+		pixels = list(zip(*pixels))
+
+		r += sum(pixels[0])
+		g += sum(pixels[1])
+		b += sum(pixels[2])
+
+		'''if height < min_height:
 			min_height = height
 		if width < min_width:
 			min_width = width
@@ -96,7 +110,12 @@ def get_averages():
 			max_width = width
 
 		widths += width
-		heights += height
+		heights += height'''
+
+
+	print("{} pixels".format(number_of_pixels))
+	print("{} red, {} green, {} blue".format(r, g, b))
+	print("Average: {} red, {} green, {} blue".format(r/number_of_pixels, g/number_of_pixels, b/number_of_pixels))
 
 
 def pad_images():
@@ -121,4 +140,4 @@ def pad_images():
 
 
 
-
+get_averages()

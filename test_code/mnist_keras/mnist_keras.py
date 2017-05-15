@@ -91,9 +91,9 @@ def test(model, no_of_tests=1, verbose=True):
 		if np.argmax(classification) == np.argmax(correct):
 			correctly_classified += 1
 		elif verbose:
-			print('Incorrectly classified %d as %d' % (np.argmax(correct), np.argmax(classification)))
+			print('Incorrectly classified {} as {}'.format(np.argmax(correct), np.argmax(classification)))
 
-	print('Model correctly classified %d/%d MNIST images' % (correctly_classified, no_of_tests))
+	print('Model correctly classified {}/{} MNIST images'.format(correctly_classified, no_of_tests))
 
 
 def load_data():
@@ -128,7 +128,7 @@ def main():
 
 	test(model, 1000, True)
 
-	print('This took %.2f seconds' % (time() - start_time))
+	print('This took {:.2f} seconds'.format(time() - start_time))
 
 
 main()

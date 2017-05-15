@@ -143,7 +143,7 @@ def main():
 
 	model = train(model)
 	
-	print('This took %.2f seconds' % (time() - start_time))
+	print('This took {:.2f} seconds'.format(time() - start_time))
 
 
 main()

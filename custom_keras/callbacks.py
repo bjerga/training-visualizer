@@ -11,7 +11,7 @@ from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Dropout, Flatten
+from keras.layers import Input, Dropout, Flatten
 from keras.preprocessing import image
 from keras.callbacks import Callback
 
@@ -19,7 +19,7 @@ from custom_keras.models import DeconvolutionModel
 
 
 # choose which layers to exclude from layer activation visualization by default
-EXCLUDE_LAYERS = (Dropout, Flatten)
+EXCLUDE_LAYERS = (Input, Dropout, Flatten)
 
 
 class CustomCallbacks:

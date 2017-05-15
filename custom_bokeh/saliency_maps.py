@@ -1,9 +1,8 @@
 from os import listdir
 
 from bokeh.io import curdoc
-import numpy as np
 from bokeh.layouts import layout
-from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d
+from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d, BoxZoomTool
 
 from os.path import join
 
@@ -12,6 +11,7 @@ from PIL import Image
 import pickle
 
 from visualizer.config import UPLOAD_FOLDER
+from custom_bokeh.helpers import *
 
 document = curdoc()
 
@@ -27,7 +27,7 @@ results_path = join(UPLOAD_FOLDER, user, file, 'results')
 # get original image
 images_folder = join(UPLOAD_FOLDER, user, file, 'images')
 image_name = listdir(images_folder)[-1]  # TODO: throw error here
-original_image = np.array(Image.open(join(images_folder, image_name)))
+orig_img = np.array(Image.open(join(images_folder, image_name)))
 
 grid = []
 
@@ -40,28 +40,31 @@ grid.append([p])
 # flip image to display correctly in coordinate system with placeholder
 saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
 
-image_height = original_image.shape[0]
-image_width = original_image.shape[1]
+orig_img_height = orig_img.shape[0]
+orig_img_width = orig_img.shape[1]
 
+# create plot for the original image
+orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
+						x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
+						y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+						outline_line_color="black", outline_line_width=3)
+orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+orig_img_fig.axis.visible = False
+orig_img_fig.toolbar.logo = None
 
-def create_figure(title, x_range, y_range, tools="box_zoom, reset, save, pan"):
-	fig = figure(tools=tools, x_range=x_range, y_range=y_range)
-	fig.title.text = title
-	fig.axis.visible = False
-	fig.toolbar.logo = None
-	return fig
+add_image_from_array(orig_img_fig, orig_img)
 
+# create plot for the saliency maps image
+saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="reset, save, pan",
+						x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range, outline_line_color="black",
+						outline_line_width=3)
+saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
+saliency_fig.axis.visible = False
+saliency_fig.toolbar.logo = None
 
-# create figures and add to grid
-range_x = Range1d(0, image_width, bounds=(0, image_width))
-range_y = Range1d(0, image_height, bounds=(0, image_height))
+add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False, always_grayscale=True)
 
-fig1 = create_figure('Original Image', range_x, range_y)
-fig1.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
-fig2 = create_figure('Saliency Map', fig1.x_range, fig1.y_range)
-fig2.image(image='image', x=0, y=0, dw=image_width, dh=image_height, source=saliency_maps_source)
-
-grid.append([fig1, fig2])
+grid.append([orig_img_fig, saliency_fig])
 
 
 def update_data():
@@ -69,9 +72,8 @@ def update_data():
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
 		p.text = ""
-		# flip image to display correctly in coordinate system
-		new_saliency_maps_data = dict(image=[saliency_maps_data[::-1]])
-		saliency_maps_source.data = new_saliency_maps_data
+		img = process_image_dim(saliency_maps_data.astype('uint8'))
+		saliency_maps_source.data['image'] = [img[::-1]]
 	except FileNotFoundError:
 		# if no visualization has been produced yet, simply skip visualization
 		return

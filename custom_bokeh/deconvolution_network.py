@@ -2,20 +2,18 @@ from os import listdir
 
 from bokeh.io import curdoc
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Div, Paragraph, Column, Range1d
+from bokeh.models import ColumnDataSource, Div, Paragraph, Column, Range1d, BoxZoomTool
 
 from os.path import join
-
-import numpy as np
 
 from bokeh.plotting import figure
 from PIL import Image
 import pickle
 
 from visualizer.config import UPLOAD_FOLDER
+from custom_bokeh.helpers import *
 
 document = curdoc()
-
 args = document.session_context.request.arguments
 
 # TODO: throw error if these are not provided
@@ -28,41 +26,66 @@ results_path = join(UPLOAD_FOLDER, user, file, 'results')
 # get original image
 images_folder = join(UPLOAD_FOLDER, user, file, 'images')
 image_name = listdir(images_folder)[-1]  # TODO: throw error here
-original_image = np.array(Image.open(join(images_folder, image_name)))
+orig_img = np.array(Image.open(join(images_folder, image_name)))
 
 # used to determine if the data source should be created
 # this is needed to avoid error when the script is just started
 create_source = True
+deconvolution_source = ColumnDataSource(data=dict())
 
-div = Div(text="<h3>Deconvolution</h3>", width=500)
+div = Div(text="<h3>Deconvolution Network</h3>", width=500)
 layout = Column(children=[div])
 
 p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
 layout.children.append(p)
 
-image_height = original_image.shape[0]
-image_width = original_image.shape[1]
+image_height = orig_img.shape[0]
+image_width = orig_img.shape[1]
+
+
+def is_grayscale(img):
+	if img.ndim == 2:
+		return True
+	if img.shape[2] == 1:
+		return True
+	return False
+
+
+def add_image_from_array(fig, img):
+	if is_grayscale(img):
+		img = process_image_dim(img)
+		fig.image(image=[img[::-1]], x=0, y=0, dw=img.shape[0], dh=img.shape[1])
+	else:
+		img = process_image_dim(img)
+		fig.image_rgba(image=[img[::-1]], x=0, y=0, dw=img.shape[0], dh=img.shape[1])
+
+
+def add_image_from_source(fig, source, img, img_name):
+	if is_grayscale(img):
+		img = process_image_dim(img)
+		fig.image(image=img_name, x=0, y=0, dw=img.shape[0], dh=img.shape[1], source=source)
+	else:
+		img = process_image_dim(img)
+		fig.image_rgba(image=img_name, x=0, y=0, dw=img.shape[0], dh=img.shape[1], source=source)
+	source.add([img[::-1]], name=img_name)
+
 
 # create plot for the original image
-img_fig = figure(tools="box_zoom, reset, save, pan")
-img_fig.image(image=[original_image[::-1]], x=0, y=0, dw=image_width, dh=image_height)
-img_fig.x_range = Range1d(0, image_width, bounds=(0, image_width))
-img_fig.y_range = Range1d(0, image_height, bounds=(0, image_height))
-img_fig.title.text = "Original Image"
-img_fig.outline_line_color = "black"
-img_fig.outline_line_width = 3
-img_fig.axis.visible = False
-img_fig.plot_width = 250
-img_fig.plot_height = 250
+orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
+						x_range=Range1d(0, image_width, bounds=(0, image_width)),
+						y_range=Range1d(0, image_height, bounds=(0, image_height)),
+						outline_line_color="black", outline_line_width=3)
+orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+orig_img_fig.axis.visible = False
 
-img_grid = gridplot([img_fig], ncols=1, toolbar_options=dict(logo=None))
-layout.children.append(img_grid)
+add_image_from_array(orig_img_fig, orig_img)
 
-deconvolution_source = ColumnDataSource(data=dict())
+orig_img_grid = gridplot([orig_img_fig], ncols=1, toolbar_options=dict(logo=None))
+
+layout.children.append(orig_img_grid)
 
 
 def fill_data_source(deconvolution_data):
-
 	p.text = "Visualizations are being produced..."
 	figures = []
 
@@ -75,13 +98,13 @@ def fill_data_source(deconvolution_data):
 		name = "{}_{}".format(layer_name, i)
 		title = "Feature map #{} in {}".format(i, layer_name)
 
-		# add image to the data source
-		deconvolution_source.add([array[::-1]], name=name)
+		fig = figure(title=title, tools="reset, save, pan", plot_width=250, plot_height=250, outline_line_color="black",
+						outline_line_width=3, x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range)
+		fig.add_tools(BoxZoomTool(match_aspect=True))
+		fig.axis.visible = False
 
-		# create plots for feature map
-		fig = create_figure(deconvolution_source, name, title, array.shape[0], array.shape[1])
-		fig.x_range = img_fig.x_range
-		fig.y_range = img_fig.y_range
+		add_image_from_source(fig, deconvolution_source, array, name)
+
 		figures.append(fig)
 
 	# make a grid of the feature maps
@@ -90,21 +113,10 @@ def fill_data_source(deconvolution_data):
 	p.text = ""
 
 
-def create_figure(source, image_name, title, dw, dh, tools="box_zoom, reset, save, pan"):
-	# link range to plot of original image
-	fig = figure(tools=tools, plot_width=250, plot_height=250, x_range=img_fig.x_range, y_range=img_fig.y_range)
-	fig.title.text = title
-	fig.image(image=image_name, x=0, y=0, dw=dw, dh=dh, source=source)
-	fig.outline_line_color = "black"
-	fig.outline_line_width = 3
-	fig.axis.visible = False
-	return fig
-
-
 def update_data():
 	global create_source
 	try:
-		with open(join(results_path, 'deconvolution.pickle'), 'rb') as f:
+		with open(join(results_path, 'deconvolution_network.pickle'), 'rb') as f:
 			deconvolution_data = pickle.load(f)
 
 		# if it is the first time data is detected, we need to fill the data source with the images
@@ -120,7 +132,9 @@ def update_data():
 				layer_name = deconvolution_data[i][0]
 				array = deconvolution_data[i][1]
 				name = "{}_{}".format(layer_name, i)
-				deconvolution_source.data[name] = [array[::-1]]
+
+				img = process_image_dim(array)
+				deconvolution_source.data[name] = [img[::-1]]
 
 	except FileNotFoundError:
 		# this means deconvolution data has not been created yet, skip visualization
@@ -128,6 +142,7 @@ def update_data():
 	except EOFError:
 		# this means deconvolution data has been created, but is empty, skip visualization
 		return
+
 
 document.add_root(layout)
 document.add_periodic_callback(update_data, 5000)

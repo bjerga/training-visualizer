@@ -1,23 +1,73 @@
 import numpy as np
 import pickle
-import math
 
+from math import ceil
 from os import mkdir, listdir
 from os.path import join, basename
 
 from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
-
 from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
-from keras.callbacks import Callback
+from keras.layers import Input, Dropout, Flatten
 from keras.preprocessing import image
+from keras.callbacks import Callback
 
 from custom_keras.models import DeconvolutionModel
-from keras.layers import Dropout
-from keras.layers import Flatten
+
+
+# choose which layers to exclude from layer activation visualization by default
+EXCLUDE_LAYERS = (Input, Dropout, Flatten)
+
+
+class CustomCallbacks:
+
+	def __init__(self, file_folder, custom_preprocess=None, custom_postprocess=None, base_interval=10):
+		
+		self.file_folder = file_folder
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
+		self.base_interval = base_interval
+		
+		# add list to store all callbacks registered in
+		self.callback_list = []
+		
+	def get_list(self):
+		return self.callback_list
+		
+	def register_network_saver(self):
+		self.callback_list.append(NetworkSaver(self.file_folder))
+		
+	def register_training_progress(self):
+		self.callback_list.append(TrainingProgress(self.file_folder))
+		
+	def register_layer_activations(self, exclude_layers=EXCLUDE_LAYERS, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(LayerActivations(self.file_folder, exclude_layers, self.custom_preprocess, interval))
+		
+	def register_saliency_maps(self, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(SaliencyMaps(self.file_folder, self.custom_preprocess, self.custom_postprocess, interval))
+		
+	def register_deconvolution_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None,
+									   custom_keras_model_info=None, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(DeconvolutionNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
+													   self.custom_preprocess, self.custom_postprocess, custom_keras_model_info, interval))
+		
+	def register_deep_visualization(self, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
+									blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
+									abs_contribution_percentile=0, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(DeepVisualization(self.file_folder, neurons_to_visualize, learning_rate, no_of_iterations,
+													l2_decay, blur_interval, blur_std, value_percentile, norm_percentile,
+													contribution_percentile, abs_contribution_percentile, self.custom_postprocess, interval))
 
 
 class NetworkSaver(Callback):
@@ -51,7 +101,13 @@ class TrainingProgress(Callback):
 		self.epoch = 0
 
 	def on_train_begin(self, logs={}):
-		self.batches_in_epoch = math.ceil(self.params['samples'] / self.params['batch_size'])
+		try:
+			# assume regular fit-method is being used
+			self.batches_in_epoch = ceil(self.params['samples'] / self.params['batch_size'])
+		except KeyError:
+			# params are missing 'batch_size' key, fit_generator is being used
+			self.batches_in_epoch = self.params['steps']
+
 		# ensure file creation
 		with open(join(self.results_folder, 'training_progress.txt'), 'w') as f:
 			f.write('')
@@ -64,7 +120,7 @@ class TrainingProgress(Callback):
 		with open(join(self.results_folder, 'training_progress.txt'), 'a') as f:
 			# saves accuracy at each finished training batch as lines of "x-value acc loss"
 			f.write("{} {} {}\n".format(self.epoch + (batch / self.batches_in_epoch), logs['acc'], logs['loss']))
-
+		
 	def on_epoch_end(self, epoch, logs={}):
 		self.epoch += 1
 		if self.params['do_validation']:
@@ -76,25 +132,28 @@ class TrainingProgress(Callback):
 # saves activation arrays for each layer as tuples: (layer-name, array)
 class LayerActivations(Callback):
 
-	def __init__(self, file_folder, interval=10, exclude_layers=None):
+	def __init__(self, file_folder, exclude_layers=EXCLUDE_LAYERS, custom_preprocess=None, interval=10):
 
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
 
-		# needed to overcome mutable default arguments
-		if exclude_layers is None:
-			exclude_layers = [Dropout, Flatten]
 		self.exclude_layers = exclude_layers
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		img = Image.open(join(images_folder, img_name))
-
-		# set input tensor and reshape to (1, width, height, 1)
-		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
+		
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		
+		# if supplied, apply custom preprocessing
+		if custom_preprocess is not None:
+			self.img_array = custom_preprocess(self.img_array)
+		
+		# add batch dimension
+		self.img_array = np.expand_dims(self.img_array, 0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -116,7 +175,19 @@ class LayerActivations(Callback):
 					# create function using keras-backend for getting activation array
 					get_activation_array = K.function([self.model.input, K.learning_phase()], [layer.output])
 					# use function to find activation array for the chosen image
-					act_array = get_activation_array([self.input_tensor, 0])[0][0]
+					act_array = get_activation_array([self.img_array, 0])[0]
+					
+					# remove batch dimension
+					act_array = act_array[0]
+					
+					# if theano dimensions
+					if K.image_data_format() == 'channels_first':
+						# if greyscale image with no color dimension, add dimension
+						if len(act_array.shape) == 2:
+							act_array = np.expand_dims(act_array, 0)
+						# alter dimensions from (color, height, width) to (height, width, color)
+						if len(act_array.shape) == 3:
+							act_array = act_array.transpose((1, 2, 0))
 
 					# scale to fit between [0.0, 255.0]
 					if act_array.max() != 0.0:
@@ -137,19 +208,40 @@ class LayerActivations(Callback):
 
 class SaliencyMaps(Callback):
 
-	def __init__(self, file_folder, interval=10):
+	def __init__(self, file_folder, custom_preprocess=None, custom_postprocess=None, interval=10):
 		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
+		
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
 
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		img = Image.open(join(images_folder, img_name))
+		
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		
+		# if supplied, apply custom preprocessing
+		if self.custom_preprocess is not None:
+			self.img_array = self.custom_preprocess(self.img_array)
+		
+		# add batch dimension
+		self.img_array = np.expand_dims(self.img_array, 0)
+		
+	def on_train_begin(self, logs=None):
 
-		# convert to correct format TODO: check if this is needed, and generalize
-		self.input_tensor = np.array(img)[np.newaxis, :, :, np.newaxis]
+		# set which output tensor of model to use
+		self.output_tensor = self.model.output
+		# if last layer uses softmax activation
+		if self.model.layers[-1].get_config()['activation'] == 'softmax':
+			# update chosen output tensor to be output tensor of second to last layer
+			self.output_tensor = self.model.layers[-2].output
+
+		# set prediction function based on output tensor chosen
+		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -158,31 +250,45 @@ class SaliencyMaps(Callback):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 
-			output_layer = self.model.layers[-1]
-			# ignore the top layer of prediction if it is a softmax layer
-			if output_layer.get_config()['activation'] == 'softmax':
-				output_layer = self.model.layers[-2]
-
-			predict_func = K.function([self.model.input, K.learning_phase()], [output_layer.output])
 			# predict using the chosen image
-			predictions = predict_func([self.input_tensor, 0])[0]
+			predictions = self.predict_func([self.img_array, 0])[0]
 
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
 			# compute the gradient of the input with respect to the loss
-			loss = output_layer.output[0, max_class]
+			loss = self.output_tensor[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
 			get_saliency_function = K.function([self.model.input, K.learning_phase()], [saliency])
-			saliency = get_saliency_function([self.input_tensor, 0])[0][0][:, :, ::-1]
+			saliency = get_saliency_function([self.img_array, 0])[0]
+			
+			# remove batch dimension
+			saliency = saliency[0]
+			
+			# if theano dimensions
+			if K.image_data_format() == 'channels_first':
+				# if greyscale image with no color dimension, add dimension
+				if len(saliency.shape) == 2:
+					saliency = np.expand_dims(saliency, 0)
+				# alter dimensions from (color, height, width) to (height, width, color)
+				saliency = saliency.transpose((1, 2, 0))
 
 			# get the absolute value of the saliency
 			abs_saliency = np.abs(saliency)
 
+			# convert from RGB to greyscale (take max of each RGB value)
+			abs_saliency = np.amax(abs_saliency, axis=2)
+
+			# add inner channel dimension
+			abs_saliency = np.expand_dims(abs_saliency, axis=3)
+
 			# scale to fit between [0.0, 255.0]
 			if abs_saliency.max() != 0.0:
 				abs_saliency *= (255.0 / abs_saliency.max())
+
+			# convert to uint8
+			abs_saliency = abs_saliency.astype('uint8')
 
 			with open(join(self.results_folder, 'saliency_maps.pickle'), 'wb') as f:
 				pickle.dump(abs_saliency, f)
@@ -190,9 +296,10 @@ class SaliencyMaps(Callback):
 			self.counter = 0
 
 
-class Deconvolution(Callback):
-	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, interval=100):
-		super(Deconvolution, self).__init__()
+class DeconvolutionNetwork(Callback):
+	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None,
+				 custom_postprocess=None, custom_keras_model_info=None, interval=100):
+		super(DeconvolutionNetwork, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
@@ -201,17 +308,26 @@ class Deconvolution(Callback):
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
-		pil_img = Image.open(join(images_folder, img_name))
 		
-		# convert to array and add batch dimension
-		self.img = np.expand_dims(image.img_to_array(pil_img), axis=0)
+		# load image as array
+		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
 		
+		# used for reconstruction production
 		self.feat_map_layer_no = feat_map_layer_no
 		self.feat_map_amount = feat_map_amount
 		self.feat_map_nos = feat_map_nos
+		
+		# deconvolution model info
+		self.deconv_model = None
+		self.custom_keras_model_info = custom_keras_model_info
+		
+		# save pre- and postprocessing methods
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img)
+		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
+											   self.custom_keras_model_info)
 	
 	def on_batch_end(self, batch, logs=None):
 
@@ -219,12 +335,17 @@ class Deconvolution(Callback):
 
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
+
+			# update weights
+			self.deconv_model.update_deconv_model()
+
+			# produce reconstructions
 			reconstructions = self.deconv_model.produce_reconstructions_with_fixed_image(self.feat_map_layer_no,
 																						 self.feat_map_amount,
 																						 self.feat_map_nos)
 			
 			# save reconstructions as pickle
-			with open(join(self.results_folder, 'deconvolution.pickle'), 'wb') as f:
+			with open(join(self.results_folder, 'deconvolution_network.pickle'), 'wb') as f:
 				pickle.dump(reconstructions, f)
 			
 			self.counter = 0
@@ -261,7 +382,7 @@ class DeepVisualization(Callback):
 	# chosen neurons to visualize must be a list with elements on form tuple(layer number, neuron number)
 	def __init__(self, file_folder, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 				 blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
-				 abs_contribution_percentile=0, interval=1000):
+				 abs_contribution_percentile=0, custom_postprocess=None, interval=1000):
 		
 		super(DeepVisualization, self).__init__()
 		
@@ -274,6 +395,7 @@ class DeepVisualization(Callback):
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
 		self.counter = 0
+		self.custom_postprocess = custom_postprocess
 		
 		# vanilla (required) values
 		self.neurons_to_visualize = neurons_to_visualize
@@ -345,9 +467,10 @@ class DeepVisualization(Callback):
 					visualization = self.apply_ensemble_regularization(visualization, pixel_gradients, i)
 					
 				# process visualization to match with standard image dimensions
-				visualization = self.deprocess(visualization)
+				visualization = to_image_standard(visualization, self.custom_postprocess)
 				
 				# add to list of all visualization info
+				# use self.model instead of self.vis_model to get original layer name if last layer
 				vis_info.append((visualization, self.model.layers[layer_no].name, neuron_no, loss_value))
 				
 			# save visualization images, complete with info about creation environment
@@ -483,21 +606,6 @@ class DeepVisualization(Callback):
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])
 	
-	# utility function used to convert an array into a savable image array
-	def deprocess(self, vis_array):
-		
-		# remove batch dimension, and alter color dimension accordingly
-		img_array = vis_array[0]
-		
-		if K.image_data_format() == 'channels_first':
-			# alter dimensions from (color, height, width) to (height, width, color)
-			img_array = img_array.transpose((1, 2, 0))
-		
-		# clip in [0, 255], and convert to uint8
-		img_array = np.clip(img_array, 0, 255).astype('uint8')
-		
-		return img_array
-	
 	# TODO: delete image saving part (modify, but don't delete info text) when done with testing
 	# saves the visualization and a txt-file describing its creation environment
 	def save_visualization_info(self, vis_info):
@@ -550,3 +658,22 @@ class DeepVisualization(Callback):
 		# write visualization info to pickle file
 		with open(join(self.results_folder, 'deep_visualization.pickle'), 'wb') as f:
 			pickle.dump(vis_info, f)
+
+
+# utility function used to convert an array into a savable image array
+def to_image_standard(img_array, custom_postprocess):
+
+	# remove batch dimension, and alter color dimension accordingly
+	img_array = img_array[0]
+
+	if K.image_data_format() == 'channels_first':
+		# alter dimensions from (color, height, width) to (height, width, color)
+		img_array = img_array.transpose((1, 2, 0))
+
+	if custom_postprocess is not None:
+		img_array = custom_postprocess(img_array)
+
+	# clip in [0, 255], and convert to uint8
+	img_array = np.clip(img_array, 0, 255).astype('uint8')
+
+	return img_array

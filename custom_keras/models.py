@@ -2,16 +2,13 @@ import numpy as np
 import tensorflow as tf
 import theano.tensor as tht
 import scipy.misc
-import pickle
 
 from time import time
-from os import listdir
 from os.path import dirname, join
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Input, InputLayer, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
-from keras.layers.pooling import _Pooling2D
+from keras.layers import Layer, Input, InputLayer, Conv2D, MaxPooling2D, Activation, Conv2DTranspose
 from keras.preprocessing import image
 
 # for images from URLs
@@ -23,16 +20,12 @@ from io import BytesIO
 # define layers from which we can create a deconvolution model
 USABLE_LAYERS = (InputLayer, Conv2D, MaxPooling2D)
 
-# TODO: delete when done with testing
-is_VGG16 = False
-VGG16_MEAN_VALUES = np.array([103.939, 116.779, 123.68])
-
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
 class DeconvolutionModel:
-	def __init__(self, link_model, input_img):
+	def __init__(self, link_model, input_img, custom_preprocess=None, custom_postprocess=None, custom_keras_model_info=None):
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
@@ -45,23 +38,39 @@ class DeconvolutionModel:
 			self.ch_dim = 1
 		
 		self.link_model = link_model
-		self.input_img = input_img
+		self.custom_preprocess = custom_preprocess
+		self.custom_postprocess = custom_postprocess
+		self.input_img = self.preprocess_img(input_img)
 		
-		self.deconv_model, self.layer_map = self.create_deconv_model()
+		if custom_keras_model_info is None:
+			# custom deconvolution Keras model info is not specified, try to create automatically
+			self.deconv_keras_model, self.layer_map = self.create_deconv_keras_model()
+			
+			# custom update is then not specified
+			self.custom_update = None
+		else:
+			if None in custom_keras_model_info:
+				raise ValueError("'None'-value found in 'custom_keras_model_info'-tuple. Tuple should contain (in respective "
+								 "order): a deconvolution Keras model based on your original model, a dictionary mapping "
+								 "from original model layer numbers to the corresponding deconv. model layer numbers, "
+								 "and an update method for the deconv. model which returns new deconv. model and layer map "
+								 "(if no update needed, input a method with pass).")
+			# unpack custom keras model info tuple
+			self.deconv_keras_model, self.layer_map, self.custom_update = custom_keras_model_info
 	
 		# print deconv info
 		# print('\n***DECONVOLUTIONAL MODEL INFO***')
-		# print('Deconv. input shape:', self.deconv_model.input_shape)
-		# print('Deconv. output shape:', self.deconv_model.output_shape)
+		# print('Deconv. input shape:', self.deconv_keras_model.input_shape)
+		# print('Deconv. output shape:', self.deconv_keras_model.output_shape)
 		# print('\nLayers in deconv. model:')
-		# for layer in self.deconv_model.layers:
+		# for layer in self.deconv_keras_model.layers:
 		# 	print(layer.name)
 	
-	def create_deconv_model(self):
+	def create_deconv_keras_model(self):
 		
 		start_time = time()
 		
-		# create layer map between conv. layers and deconv. layers
+		# create layer map between conv. model layers and deconv. model layers
 		layer_map = {}
 		
 		# get info used to create unpooling layers
@@ -79,17 +88,16 @@ class DeconvolutionModel:
 			
 			# if convolution layer in linked model
 			if isinstance(layer, Conv2D):
-				# add activation before deconvolution layer
+				# add activation before transposed convolution layer
 				x = Activation(layer.activation)(x)
 				
-				# add deconvolution layer (called Conv2DTranspose in Keras)
+				# add transposed convolution layer
 				x = Conv2DTranspose(filters=layer.input_shape[self.ch_dim],
 									kernel_size=layer.kernel_size,
 									strides=layer.strides,
 									padding=layer.padding,
 									data_format=layer.data_format,
 									dilation_rate=layer.dilation_rate,
-									# weights=flip_weights(layer.get_weights()),
 									weights=[layer.get_weights()[0]],
 									use_bias=False)(x)
 				
@@ -139,8 +147,8 @@ class DeconvolutionModel:
 			# if MaxPooling2D layer, collect information needed to create corresponding MaxUnpooling2D layer
 			if isinstance(self.link_model.layers[layer_no], MaxPooling2D):
 				# compute input and output for pooling layers
-				pool_input, pool_output = self.compute_layer_input_and_output(self.link_model, layer_no,
-																			  start_layer_no, start_input)
+				pool_input = self.compute_layer_input(self.link_model, layer_no, start_layer_no, start_input)
+				pool_output = self.compute_layer_output(self.link_model, layer_no, layer_no, pool_input)
 				
 				# add to info dict
 				unpool_info[layer_no] = (pool_input, pool_output)
@@ -154,11 +162,15 @@ class DeconvolutionModel:
 		# return last layer examined as start layer of deconvolution model, and info needed for unpooling
 		return layer_no - 1, unpool_info
 	
-	# update model with by creating new model with updated unpooling layers (unpooling is image specific)
-	def update_deconv_model(self, new_img):
-		self.input_img = new_img
+	# update model with by creating new model with updated layers
+	def update_deconv_model(self, new_img=None):
+		if new_img is not None:
+			self.input_img = new_img
 		
-		self.deconv_model, self.layer_map = self.create_deconv_model()
+		if self.custom_update is None:
+			self.deconv_keras_model, self.layer_map = self.create_deconv_keras_model()
+		else:
+			self.deconv_keras_model, self.layer_map = self.custom_update()
 	
 	# either uses maximally activated feature maps or specified ones
 	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
@@ -191,8 +203,7 @@ class DeconvolutionModel:
 			feat_maps_tuples = []
 			for feat_map_no in feat_map_nos:
 				# get conv. model output (feat maps) for desired feature map layer
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
-																   self.input_img)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 				
 				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
 				
@@ -200,15 +211,16 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
-		
+
 		reconstructions = []
 		for i in range(len(feat_maps_tuples)):
 			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
 			
+			# TODO: currently results in a RecursionError for Theano
 			# feed to deconv. model to produce reconstruction
-			_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
-																	self.layer_map[feat_map_layer_no],
-																	processed_feat_maps)
+			reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
+													   processed_feat_maps)
+			
 			# save reconstruction to designated folder (returns saved array and name)
 			img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i)
 			
@@ -257,8 +269,7 @@ class DeconvolutionModel:
 				self.update_deconv_model(max_img)
 				
 				# get conv. model output (feat maps) for desired feature map layer
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0,
-																   self.input_img)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 				
 				max_act, max_act_pos = self.get_max_activation_and_pos(feat_maps, feat_map_no)
 				
@@ -266,9 +277,8 @@ class DeconvolutionModel:
 				processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_act, max_act_pos)
 				
 				# feed to deconv. model to produce reconstruction
-				_, reconstruction = self.compute_layer_input_and_output(self.deconv_model, -1,
-																		self.layer_map[feat_map_layer_no],
-																		processed_feat_maps)
+				reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
+														   processed_feat_maps)
 				
 				# save reconstruction to designated folder (returns saved array and name)
 				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i, False)
@@ -277,17 +287,18 @@ class DeconvolutionModel:
 		
 		return reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no
 	
-	def compute_layer_input_and_output(self, model, end_layer_no, start_layer_no, start_input):
+	def compute_layer_input(self, model, end_layer_no, start_layer_no, input_array):
 		
 		input_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								[model.layers[end_layer_no].input])
-		layer_input = input_func([start_input, 0])[0]
+		return input_func([input_array, 0])[0]
+	
+	def compute_layer_output(self, model, end_layer_no, start_layer_no, input_array):
 		
-		output_func = K.function([model.layers[end_layer_no].input, K.learning_phase()],
+		output_func = K.function([model.layers[start_layer_no].input, K.learning_phase()],
 								 [model.layers[end_layer_no].output])
-		layer_output = output_func([layer_input, 0])[0]
 		
-		return layer_input, layer_output
+		return output_func([input_array, 0])[0]
 	
 	def get_max_activation_and_pos(self, feat_maps, feat_map_no):
 		
@@ -325,7 +336,7 @@ class DeconvolutionModel:
 	# find feature maps with largest single element values
 	def get_max_feature_maps(self, feat_map_layer_no, amount):
 		
-		_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, self.input_img)
+		feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, self.input_img)
 		
 		max_activations = []
 		max_positions = []
@@ -383,7 +394,7 @@ class DeconvolutionModel:
 				
 				urls.append(url)
 				
-				_, feat_maps = self.compute_layer_input_and_output(self.link_model, feat_map_layer_no, 0, img_array)
+				feat_maps = self.compute_layer_output(self.link_model, feat_map_layer_no, 0, img_array)
 				
 				if K.image_data_format() == 'channels_last':
 					for feat_map_no in feat_map_nos:
@@ -429,25 +440,25 @@ class DeconvolutionModel:
 			
 		return chosen_images_dict, max_imgs_info_by_feat_map_no
 	
-	# TODO: methods below are written for VGG16-model. remove support for this model when appropriate.
-	
-	# TODO: modify when done with testing
+	def preprocess_img(self, img_array):
+		
+		# apply custom preprocessing if supplied
+		if self.custom_preprocess is not None:
+			img_array = self.custom_preprocess(img_array)
+			
+		# expand with batch dimension
+		img_array = np.expand_dims(img_array, 0)
+		
+		return img_array
+		
 	# NOTE: throws requests.exceptions.RequestException, ValueError, OSError
 	def load_image_from_url(self, url):
 		response = requests.get(url, timeout=5)
 		
-		pil_img = Image.open(BytesIO(response.content))
-		img_array = image.img_to_array(pil_img)
-		img_array = scipy.misc.imresize(img_array, (224, 224))
-		img_array = img_array.astype('float64')
+		img_array = image.img_to_array(Image.open(BytesIO(response.content)))
+		img_array = self.preprocess_img(img_array)
 		
-		if is_VGG16:
-			if K.image_data_format() == 'channels_last':
-				img_array -= VGG16_MEAN_VALUES.reshape((1, 1, 3))
-			else:
-				img_array -= VGG16_MEAN_VALUES.reshape((3, 1, 1))
-		
-		return np.expand_dims(img_array, axis=0)
+		return img_array
 	
 	# TODO: modify when done with testing
 	# processes and saves the reconstruction and returns processed array and name
@@ -460,9 +471,9 @@ class DeconvolutionModel:
 		if K.image_data_format() == 'channels_first':
 			# alter dimensions from (color, height, width) to (height, width, color)
 			rec_array = rec_array.transpose((1, 2, 0))
-		
-		if is_VGG16:
-			rec_array += VGG16_MEAN_VALUES.reshape((1, 1, 3))
+			
+		if self.custom_postprocess is not None:
+			rec_array = self.custom_postprocess(rec_array)
 		
 		# clip in [0, 255] and convert to uint8
 		rec_array = rec_array.clip(0, 255).astype('uint8')
@@ -478,6 +489,7 @@ class DeconvolutionModel:
 		# use self.ch_dim - 1 as we have removed batch dimension
 		if img_to_save.shape[self.ch_dim - 1] == 1:
 			# if greyscale image, remove inner dimension before save
+			# TODO: when this is deleted, also check necessity of self.row_dim and self.col_dim
 			img_to_save = img_to_save.reshape((img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
 
 		# save the resulting image to disk
@@ -492,7 +504,7 @@ class DeconvolutionModel:
 # generates a recreated pooling input from pooling output and pooling configuration
 # the recreated input is zero, except from entries where the pooling output entries where originally chosen from,
 # where the value is the same as the corresponding pooling output entry
-class MaxUnpooling2D(_Pooling2D):
+class MaxUnpooling2D(Layer):
 	#########################################################
 	### these three initial methods are required by Layer ###
 	#########################################################
@@ -502,16 +514,15 @@ class MaxUnpooling2D(_Pooling2D):
 		# check backend to detect dimensions used
 		if K.image_data_format() == 'channels_last':
 			# tensorflow is used, dimension are (samples, rows, columns, channels)
-			self.row_dim = 1
-			self.col_dim = 2
+			row_dim = 1
+			col_dim = 2
 			self.ch_dim = 3
 		else:
 			# theano is used, dimension are (samples, channels, rows, columns)
-			self.row_dim = 2
-			self.col_dim = 3
+			row_dim = 2
+			col_dim = 3
 			self.ch_dim = 1
-		
-		# create placeholder values for pooling input and output
+			
 		self.pool_input = pool_input
 		self.pool_output = pool_output
 		
@@ -519,14 +530,13 @@ class MaxUnpooling2D(_Pooling2D):
 		# pool size and strides are both (rows, columns)-tuples
 		self.pool_size = pool_size
 		self.strides = strides
-		# border mode is either 'valid' or 'same'
-		self.padding = padding
 		
-		# if border mode is same, use offsets to correct computed pooling regions (simulates padding)
-		# initialize offset to 0, as it is not needed when border mode is valid
-		self.row_offset = 0
-		self.col_offset = 0
-		if self.padding == 'same':
+		# if padding is same, use offsets to correct computed pooling regions (simulates padding)
+		# initialize offset to 0, as it is not needed when padding is valid
+		row_offset = 0
+		col_offset = 0
+		# padding is either 'valid' or 'same'
+		if padding == 'same':
 			
 			if K.backend() == 'tensorflow':
 				# when using tensorflow, padding is not always added, and a pooling region center is never in the padding.
@@ -539,17 +549,15 @@ class MaxUnpooling2D(_Pooling2D):
 				
 				# find offset (to simulate padding) by computing total region space that falls outside of original tensor
 				# and divide by two to distribute to top-bottom/left-right of original tensor
-				self.row_offset = ((self.pool_output.shape[self.row_dim] - 1) * self.strides[0] +
-								   self.pool_size[0] - self.pool_input.shape[self.row_dim]) // 2
-				self.col_offset = ((self.pool_output.shape[self.col_dim] - 1) * self.strides[1] +
-								   self.pool_size[1] - self.pool_input.shape[self.col_dim]) // 2
+				row_offset = ((pool_output.shape[row_dim] - 1) * strides[0] + pool_size[0] - pool_input.shape[row_dim]) // 2
+				col_offset = ((pool_output.shape[col_dim] - 1) * strides[1] + pool_size[1] - pool_input.shape[col_dim]) // 2
 				
 				# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
 				# computed offset can be negative, but this equals no offset
-				if self.row_offset < 0:
-					self.row_offset = 0
-				if self.col_offset < 0:
-					self.col_offset = 0
+				if row_offset < 0:
+					row_offset = 0
+				if col_offset < 0:
+					col_offset = 0
 			else:
 				# when using theano, padding is always added, and a pooling region center is never in the padding.
 				# if there is no obvious center in the pooling region, unlike in 3x3, the max pooling
@@ -560,61 +568,65 @@ class MaxUnpooling2D(_Pooling2D):
 				# in a 3X4 region.
 				
 				# set offset (to simulate padding) to lowermost and rightmost entries by default
-				self.row_offset = self.pool_size[0] - 1
-				self.col_offset = self.pool_size[1] - 1
+				row_offset = pool_size[0] - 1
+				col_offset = pool_size[1] - 1
 				
 				# if rows have a clear center, update offset
-				if self.pool_size[0] % 2 == 1:
-					self.row_offset //= 2
+				if pool_size[0] % 2 == 1:
+					row_offset //= 2
 				
 				# if columns have a clear center, update offset
-				if self.pool_size[1] % 2 == 1:
-					self.col_offset //= 2
+				if pool_size[1] % 2 == 1:
+					col_offset //= 2
+					
+		# compute region indices for every element in pooling output
+		self.region_indices = []
+		for i in range(pool_output.shape[row_dim]):
+			# compute pooling region row indices
+			start_row, end_row = self.compute_index_interval(i, 0, row_offset, pool_input.shape[row_dim])
+			
+			for j in range(pool_output.shape[col_dim]):
+				# compute pooling region column indices
+				start_col, end_col = self.compute_index_interval(j, 1, col_offset, pool_input.shape[col_dim])
+				
+				self.region_indices.append((start_row, end_row, start_col, end_col, i, j))
 		
 		super(MaxUnpooling2D, self).__init__(**kwargs)
 	
-	def _pooling_function(self, inputs, pool_size, strides, padding, data_format):
+	def call(self, inputs):
 		
-		indices = []
-		
-		# TODO: sample_no in potentially always 0, as deconv. model only ever receives one input image (images are switch specific in unpool, so >1 image for input makes no sense)
-		# for every sample
-		for sample_no in range(self.pool_output.shape[0]):
-			# for every element in pooling output
-			for i in range(self.pool_output.shape[self.row_dim]):
-				# compute pooling region row indices
-				start_row, end_row = self.compute_index_interval(i, 0, self.row_offset, self.row_dim)
-				
-				for j in range(self.pool_output.shape[self.col_dim]):
-					# compute pooling region column indices
-					start_col, end_col = self.compute_index_interval(j, 1, self.col_offset, self.col_dim)
-					
-					indices.extend(
-						[self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, channel)
-						 for channel in range(self.pool_output.shape[self.ch_dim])])
+		# for every region, find max indices
+		max_indices = []
+		# sample size is always 1, as unpooling has image specific switches
+		sample_no = 0
+		for start_row, end_row, start_col, end_col, i, j in self.region_indices:
+			max_indices.extend([self.get_region_max_index(sample_no, start_row, end_row, start_col, end_col, i, j, channel)
+								for channel in range(self.pool_input.shape[self.ch_dim])])
 		
 		if K.backend() == 'tensorflow':
 			# use tensorflow
-			recreated_input = tf.scatter_nd(indices=indices,
+			recreated_input = tf.scatter_nd(indices=max_indices,
 											updates=tf.reshape(inputs, [-1]),
-											# updates=[recreated_output[i] for _, i in indices],
 											shape=self.pool_input.shape,
 											name=self.name + '_output')
 		else:
 			# use theano
 			# very inefficient
 			recreated_input = tht.zeros(self.pool_input.shape)
-			for (input_index, output_index) in indices:
+			for input_index, output_index in max_indices:
 				recreated_input = tht.set_subtensor(recreated_input[input_index], inputs[output_index])
 		
 		return recreated_input
 	
+	def compute_output_shape(self, input_shape):
+		return (input_shape[0],) + self.pool_input.shape[1:]
+	
 	##############################################
 	### what follows are custom helper methods ###
 	##############################################
-	
+
 	def get_region_max_index(self, sample_no, start_row, end_row, start_col, end_col, i, j, channel):
-		
+
 		if K.backend() == 'tensorflow':
 			# use tensorflow dimensions
 			for row in range(start_row, end_row):
@@ -633,7 +645,8 @@ class MaxUnpooling2D(_Pooling2D):
 	# index for the region entry in such a matrix
 	# tuple_no describes where in the strides and pool size tuples one should get values from, with row values at tuple
 	# index 0 and column values are at tuple index 1
-	def compute_index_interval(self, region_index, tuple_no, offset, dim):
+	def compute_index_interval(self, region_index, tuple_no, offset, max_index):
+		
 		start_index = region_index * self.strides[tuple_no] - offset
 		end_index = start_index + self.pool_size[tuple_no]
 		
@@ -641,7 +654,7 @@ class MaxUnpooling2D(_Pooling2D):
 		# or end index larger than largest index in original pooling input, correct
 		if start_index < 0:
 			start_index = 0
-		if end_index > self.pool_input.shape[dim]:
-			end_index = self.pool_input.shape[dim]
+		if end_index > max_index:
+			end_index = max_index
 		
 		return start_index, end_index

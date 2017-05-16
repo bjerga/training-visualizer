@@ -1,6 +1,5 @@
 from keras.engine import Model
 from keras.layers import Flatten, Dense
-from keras.optimizers import SGD
 from keras_vggface.vggface import VGGFace
 from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
@@ -18,7 +17,8 @@ from PIL import Image
 # find path to save networks and results
 #save_path = os.path.dirname(__file__)
 
-base_path = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt'
+#base_path = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt'
+base_path = '/home/mikaelbj/Documents/case_study_training_data'
 
 with open(os.path.join(base_path, 'imfdb_training_data.pickle'), 'rb') as f:
 	training_data = pickle.load(f)
@@ -31,6 +31,7 @@ hidden_dim = 512  # TODO: check if this is better than 1024
 batch_size = 64
 steps_per_epoch = math.ceil(len(training_data) / batch_size)
 no_of_epochs = 5
+
 
 img_size = (130, 130)
 
@@ -67,12 +68,14 @@ def create_finetuning_model():
 	out = Dense(nb_class, activation='softmax', name='predictions')(x)
 
 	custom_vgg_model = Model(vgg_model.input, out)
+
 	custom_vgg_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 
 	return custom_vgg_model
 
 
 def train_model(model):
+
 
 	# initialize custom callbacks
 	'''callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
@@ -136,10 +139,10 @@ def preprocess_data(img_array):
 	# change to BGR and subtract mean values
 	if image_data_format() == 'channels_last':
 		img_array = img_array[:, :, ::-1]
-		img_array -= MEAN_VALUES.reshape((1, 1, 3))
 	else:
 		img_array = img_array[::-1, :, :]
-		img_array -= MEAN_VALUES.reshape((3, 1, 1))
+
+	img_array -= MEAN_VALUES
 
 	return img_array
 
@@ -156,7 +159,7 @@ def postprocess_data(img_array):
 
 def main():
 	model = create_finetuning_model()
-	#train_model(model)
+	train_model(model)
 
 
 main()

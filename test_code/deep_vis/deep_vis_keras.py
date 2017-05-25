@@ -95,8 +95,8 @@ def create_model():
 	# save weights from last layer (softmax)
 	softmax_weights = base_model.layers[-1].get_weights()
 
-	# create new last layer for model with linear activation and connect to second last in original model
-	out = Dense(1000, activation='linear', weights=softmax_weights)(base_model.layers[-2].output)
+	# create new last layer for model with linear activation and connect to same layer as old layer
+	out = Dense(1000, activation='linear', weights=softmax_weights)(base_model.layers[-1].input)
 
 	return Model(base_model.input, out)
 

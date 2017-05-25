@@ -237,8 +237,8 @@ class SaliencyMaps(Callback):
 		self.output_tensor = self.model.output
 		# if last layer uses softmax activation
 		if self.model.layers[-1].get_config()['activation'] == 'softmax':
-			# update chosen output tensor to be output tensor of second to last layer
-			self.output_tensor = self.model.layers[-2].output
+			# update chosen output tensor to be output tensor of previous layer
+			self.output_tensor = self.model.layers[-1].input
 
 		# set prediction function based on output tensor chosen
 		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])

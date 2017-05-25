@@ -1,5 +1,5 @@
 from keras.engine import Model
-from keras.layers import Flatten, Dense
+from keras.layers import Input, Flatten, Dense, Concatenate
 from keras_vggface.vggface import VGGFace
 from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
@@ -19,24 +19,35 @@ from custom_keras.callbacks import CustomCallbacks
 save_path = os.path.dirname(__file__)
 
 #base_path = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt'
-base_path = '/home/mikaelbj/Documents/case_study_training_data'
+meta_path = '/home/mikaelbj/Documents/GitHub/training-visualizer/case_study/metadata'
+data_path = '/home/mikaelbj/Documents/case_study_data'
 
-with open(os.path.join(base_path, 'imfdb_training_data.pickle'), 'rb') as f:
-	training_data = pickle.load(f)
+# collect meta data files
+with open(os.path.join(meta_path, 'IMFDB_training_meta.pickle'), 'rb') as f:
+	training_meta = pickle.load(f)
+with open(os.path.join(meta_path, 'IMFDB_validation_meta.pickle'), 'rb') as f:
+	validation_meta = pickle.load(f)
+
+# get emotion vector size
+emotion_range = len(training_meta[0][2])
 
 
 # custom parameters
+experimental = True
 nb_class = 98
 hidden_dim = 512  # TODO: check if this is better than 1024
 
-batch_size = 64
-steps_per_epoch = math.ceil(len(training_data) / batch_size)
+batch_size = 128
 no_of_epochs = 10
-
 
 img_size = (130, 130)
 
-#MEAN_VALUES = np.array([112.9470, 83.4040, 72.5764])
+# compute steps for generators
+steps_per_epoch = math.ceil(len(training_meta) / batch_size)
+# val_steps_per_epoch = math.ceil(len(validation_meta) / batch_size)
+
+
+# MEAN_VALUES = np.array([112.9470, 83.4040, 72.5764])
 MEAN_VALUES = np.array([93.5940, 104.7624, 129.1863]) # BGR from keras vgg-face github
 
 if image_data_format() == 'channels_last':
@@ -52,9 +63,26 @@ def create_model():
 	for layer in vgg_model.layers[:-1]:
 		layer.trainable = False
 
-	out = Dense(nb_class, activation='softmax', name='predictions')(vgg_model.layers[-2].output)
+	# get standard inputs from standard VGGFace model
+	output_layer_input = vgg_model.layers[-1].input
+	model_input = vgg_model.input
 
-	custom_vgg_model = Model(vgg_model.input, out)
+	if experimental:
+		# define extra input
+		expression_input = Input(shape=(emotion_range,))
+
+		# add Concatenate layer to merge expression input with standard input
+		concat = Concatenate()([vgg_model.layers[-1].input, expression_input])
+
+		# update output layer input
+		output_layer_input = concat
+
+		# model should now receive two inputs
+		model_input = [vgg_model.input, expression_input]
+
+	output_layer = Dense(nb_class, activation='softmax', name='predictions')(output_layer_input)
+
+	custom_vgg_model = Model(model_input, output_layer)
 	custom_vgg_model.compile(optimizer=RMSprop(lr=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
 
 	return custom_vgg_model
@@ -82,30 +110,28 @@ def create_finetuning_model():
 
 def train_model(model):
 
-
-	# initialize custom callbacks
-	# callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
+	# initialize custom callbacks (visualization techniques will not work for experimental network)
 	callbacks = CustomCallbacks(save_path, base_interval=20)
-	callbacks.register_network_saver()
-	callbacks.register_training_progress()
-	# callbacks.register_layer_activations()
-	# callbacks.register_saliency_maps()
+	# callbacks.register_network_saver()
+	# callbacks.register_training_progress()
 
-	model.fit_generator(generator=data_generation(), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs, verbose=1,
+	model.fit_generator(generator=data_generation(training_meta), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs,
+						verbose=1, validation_data=data_generation(validation_meta), validation_steps=steps_per_epoch,
 						callbacks=callbacks.get_list())
 
 
-def data_generation():
+def data_generation(metadata):
 
 	while True:
-		x_data = []
-		y_data = []
+		images = []
+		identifications = []
+		expressions = []
 
-		indices = random.sample(range(len(training_data)), batch_size)
+		indices = random.sample(range(len(metadata)), batch_size)
 
 		for i in indices:
-			img_path, id_vector, expression_vector = training_data[i]
-			img = Image.open(os.path.join(base_path, img_path))
+			img_rel_path, id_vector, expression_vector = metadata[i]
+			img = Image.open(os.path.join(data_path, img_rel_path))
 			img = img.resize((224, 224))
 			img_array = img_to_array(img)
 
@@ -117,10 +143,17 @@ def data_generation():
 				img_array = img_array[::-1, :, :]
 				img_array -= MEAN_VALUES.reshape((3, 1, 1))
 
-			x_data.append(img_array)
-			y_data.append(id_vector)
+			images.append(img_array)
+			identifications.append(id_vector)
+			expressions.append(expression_vector)
 
-		yield np.array(x_data), np.array(y_data)
+		data = np.array(images)
+		targets = np.array(identifications)
+
+		if experimental:
+			data = [np.array(images), np.array(expressions)]
+
+		yield data, targets
 
 
 def preprocess_data(img_array):
@@ -166,6 +199,7 @@ def postprocess_data(img_array):
 
 
 def main():
+
 	# model = create_finetuning_model()
 	model = create_model()
 	train_model(model)

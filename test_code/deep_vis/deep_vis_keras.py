@@ -6,7 +6,7 @@ from os import mkdir
 from os.path import dirname, join
 from time import time
 
-from keras.models import Sequential
+from keras.models import Model
 from keras.layers import Dense
 from keras import backend as K
 from keras.applications.vgg16 import VGG16
@@ -92,22 +92,13 @@ def deprocess(vis_array):
 def create_model():
 	base_model = VGG16(include_top=True, weights='imagenet')
 
-	vgg_model = Sequential()
-
 	# save weights from last layer (softmax)
 	softmax_weights = base_model.layers[-1].get_weights()
 
-	# remove softmax layer
-	base_model.layers.pop()
+	# create new last layer for model with linear activation and connect to second last in original model
+	out = Dense(1000, activation='linear', weights=softmax_weights)(base_model.layers[-2].output)
 
-	# add VGG base layers (add separately to avoid adding one, big layer)
-	for layer in base_model.layers:
-		vgg_model.add(layer)
-
-	# add new, linear layer
-	vgg_model.add(Dense(1000, activation='linear', weights=softmax_weights))
-
-	return vgg_model
+	return Model(base_model.input, out)
 
 
 # saves the visualization and a text file describing its creation environment
@@ -314,12 +305,11 @@ def main():
 		# used to time generation of each image
 		start_time = time()
 		
-		if layer_no < 0 or layer_no > len(model.layers):
+		if layer_no < 0 or layer_no >= len(model.layers):
 			raise ValueError('Invalid layer number {}: Layer numbers should be between {} and {}'.format(layer_no, 0, len(model.layers) - 1))
 		
 		# create and save loss and gradient function for current unit
-		# use get_output_at(-1) to get output tensor of model with linear activation in last layer
-		compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.layers[layer_no].get_output_at(-1), unit_index)
+		compute_loss_and_gradients = get_loss_and_gradient_function(model.input, model.layers[layer_no].output, unit_index)
 	
 		# create an initial visualization image
 		visualization = create_initial_image(model.input_shape)

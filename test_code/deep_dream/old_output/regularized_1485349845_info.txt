@@ -1,8 +1,0 @@
-Learning rate: 1000.000000
-Number of iterations: 500
-L2-decay: 0.000100
-Blur every and std: 4 & 0.300000
-Value percentile: 10
-Norm percentile: 0
-Contribution percentile: 0
-Abs. contribution percentile: 0

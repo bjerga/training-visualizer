@@ -3,6 +3,7 @@ from keras.layers import Flatten, Dense
 from keras_vggface.vggface import VGGFace
 from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
+from keras.optimizers import RMSprop
 
 import pickle
 import math
@@ -12,10 +13,10 @@ import numpy as np
 from PIL import Image
 
 # import callbacks for visualizing
-#from custom_keras.callbacks import CustomCallbacks
+from custom_keras.callbacks import CustomCallbacks
 
 # find path to save networks and results
-#save_path = os.path.dirname(__file__)
+save_path = os.path.dirname(__file__)
 
 #base_path = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt'
 base_path = '/home/mikaelbj/Documents/case_study_training_data'
@@ -30,7 +31,7 @@ hidden_dim = 512  # TODO: check if this is better than 1024
 
 batch_size = 64
 steps_per_epoch = math.ceil(len(training_data) / batch_size)
-no_of_epochs = 5
+no_of_epochs = 10
 
 
 img_size = (130, 130)
@@ -46,12 +47,17 @@ else:
 
 def create_model():
 
-	vgg_model = VGGFace(include_top=True, input_shape=(130, 130, 3))
+	vgg_model = VGGFace(include_top=True, input_shape=(224, 224, 3))
 
-	for layer in vgg_model.layers:
+	for layer in vgg_model.layers[:-1]:
 		layer.trainable = False
 
-	return vgg_model
+	out = Dense(nb_class, activation='softmax', name='predictions')(vgg_model.layers[-2].output)
+
+	custom_vgg_model = Model(vgg_model.input, out)
+	custom_vgg_model.compile(optimizer=RMSprop(lr=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+
+	return custom_vgg_model
 
 
 def create_finetuning_model():
@@ -78,14 +84,15 @@ def train_model(model):
 
 
 	# initialize custom callbacks
-	'''callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
+	# callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
+	callbacks = CustomCallbacks(save_path, base_interval=20)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
-	callbacks.register_layer_activations()
-	callbacks.register_saliency_maps()'''
+	# callbacks.register_layer_activations()
+	# callbacks.register_saliency_maps()
 
-	model.fit_generator(generator=data_generation(), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs, verbose=1)
-						#callbacks=callbacks.get_list())
+	model.fit_generator(generator=data_generation(), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs, verbose=1,
+						callbacks=callbacks.get_list())
 
 
 def data_generation():
@@ -99,6 +106,7 @@ def data_generation():
 		for i in indices:
 			img_path, id_vector, expression_vector = training_data[i]
 			img = Image.open(os.path.join(base_path, img_path))
+			img = img.resize((224, 224))
 			img_array = img_to_array(img)
 
 			# alter to BGR
@@ -158,7 +166,8 @@ def postprocess_data(img_array):
 
 
 def main():
-	model = create_finetuning_model()
+	# model = create_finetuning_model()
+	model = create_model()
 	train_model(model)
 
 

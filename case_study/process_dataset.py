@@ -4,6 +4,8 @@ import pickle
 from PIL import Image
 import math
 
+# TODO: this whole file should be updated to be cleaner
+
 root = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt/IMFDB'
 
 expressions = ['NEUTRAL', 'ANGER', 'HAPPINESS', 'SADNESS', 'SURPRISE', 'FEAR', 'DISGUST']

@@ -15,11 +15,11 @@ MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 target_size = (224, 224)
 
 # define output path and make folder
-output_path = join(dirname(__file__), 'deconv_output')
+output_path = join(dirname(__file__), 'output')
 
 
 def load_image_from_file(img_name):
-	img_path = join(dirname(__file__), 'deconv_input', img_name)
+	img_path = join(dirname(__file__), 'input', img_name)
 	img = image.load_img(img_path)
 	img = image.img_to_array(img)
 
@@ -63,11 +63,11 @@ def deconv_example():
 		# reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no = deconv_model.produce_reconstruction_from_top_images(feat_map_layer_no, 100, 5, feat_map_nos=[88, 351, 178])
 
 		# save reconstructions as pickle
-		with open(join(dirname(__file__), 'deconv_output', 'deconvolution_network.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'output', 'deconvolution_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions_by_feat_map_no, f)
 			
 		# save max images as pickle
-		with open(join(dirname(__file__), 'deconv_output', 'deconv_max_images.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'output', 'max_images.pickle'), 'wb') as f:
 			pickle.dump(max_imgs_info_by_feat_map_no, f)
 	
 	else:
@@ -75,7 +75,7 @@ def deconv_example():
 		# reconstructions = deconv_model.produce_reconstruction_with_fixed_image(feat_map_layer_no, feat_map_nos=[88, 351, 178, 0, 5])
 		
 		# save as pickle
-		with open(join(dirname(__file__), 'deconv_output', 'deconvolution_network.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'output', 'deconvolution_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions, f)
 	
 	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))

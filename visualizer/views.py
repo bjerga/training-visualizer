@@ -1,7 +1,11 @@
+from visualizer.forms import *
+from visualizer.helpers import *
+from visualizer.models import *
+
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
-from os.path import join, dirname, getmtime, split
+from os.path import join, getmtime, split
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
 from flask_login import login_required, login_user, logout_user, current_user
@@ -9,9 +13,6 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
 from tailer import tail
-
-from visualizer.forms import *
-from visualizer.helpers import *
 
 # Import the database, application, and login_manager object from the main visualizer module
 from visualizer import db, app, login_manager

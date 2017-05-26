@@ -1,3 +1,11 @@
+import pickle
+import random
+from math import ceil
+from os.path import dirname, join
+
+import numpy as np
+from PIL import Image
+
 from keras.engine import Model
 from keras.layers import Input, Flatten, Dense, Concatenate
 from keras_vggface.vggface import VGGFace
@@ -5,35 +13,26 @@ from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
 from keras.optimizers import RMSprop
 
-import pickle
-import math
-import os
-import random
-import numpy as np
-from PIL import Image
-
 # import callbacks for visualizing
 from custom_keras.callbacks import CustomCallbacks
 
 # find path to save networks and results
-save_path = os.path.dirname(__file__)
+save_path = dirname(__file__)
 
-#base_path = '/Users/annieaa/Documents/NTNU/Fordypningsprosjekt'
 meta_path = '/home/mikaelbj/Documents/GitHub/training-visualizer/case_study/metadata'
 data_path = '/home/mikaelbj/Documents/case_study_data'
 
 # collect meta data files
-with open(os.path.join(meta_path, 'IMFDB_training_meta.pickle'), 'rb') as f:
+with open(join(meta_path, 'IMFDB_training_meta.pickle'), 'rb') as f:
 	training_meta = pickle.load(f)
-with open(os.path.join(meta_path, 'IMFDB_validation_meta.pickle'), 'rb') as f:
+with open(join(meta_path, 'IMFDB_validation_meta.pickle'), 'rb') as f:
 	validation_meta = pickle.load(f)
 
 # get emotion vector size
 emotion_range = len(training_meta[0][2])
 
-
 # custom parameters
-experimental = True
+experimental = False
 nb_class = 98
 hidden_dim = 512  # TODO: check if this is better than 1024
 
@@ -43,12 +42,11 @@ no_of_epochs = 10
 img_size = (130, 130)
 
 # compute steps for generators
-steps_per_epoch = math.ceil(len(training_meta) / batch_size)
-# val_steps_per_epoch = math.ceil(len(validation_meta) / batch_size)
-
+steps_per_epoch = ceil(len(training_meta) / batch_size)
+val_steps_per_epoch = ceil(len(validation_meta) / batch_size)
 
 # MEAN_VALUES = np.array([112.9470, 83.4040, 72.5764])
-MEAN_VALUES = np.array([93.5940, 104.7624, 129.1863]) # BGR from keras vgg-face github
+MEAN_VALUES = np.array([93.5940, 104.7624, 129.1863])  # BGR mean values from keras vgg-face github
 
 if image_data_format() == 'channels_last':
 	MEAN_VALUES = MEAN_VALUES.reshape(1, 1, 3)
@@ -112,11 +110,11 @@ def train_model(model):
 
 	# initialize custom callbacks (visualization techniques will not work for experimental network)
 	callbacks = CustomCallbacks(save_path, base_interval=20)
-	# callbacks.register_network_saver()
-	# callbacks.register_training_progress()
+	callbacks.register_network_saver()
+	callbacks.register_training_progress()
 
 	model.fit_generator(generator=data_generation(training_meta), steps_per_epoch=steps_per_epoch, epochs=no_of_epochs,
-						verbose=1, validation_data=data_generation(validation_meta), validation_steps=steps_per_epoch,
+						verbose=1, validation_data=data_generation(validation_meta), validation_steps=val_steps_per_epoch,
 						callbacks=callbacks.get_list())
 
 
@@ -131,11 +129,11 @@ def data_generation(metadata):
 
 		for i in indices:
 			img_rel_path, id_vector, expression_vector = metadata[i]
-			img = Image.open(os.path.join(data_path, img_rel_path))
+			img = Image.open(join(data_path, img_rel_path))
 			img = img.resize((224, 224))
 			img_array = img_to_array(img)
 
-			# alter to BGR
+			# alter to BGR and subtract mean values
 			if image_data_format() == 'channels_last':
 				img_array = img_array[:, :, ::-1]
 				img_array -= MEAN_VALUES.reshape((1, 1, 3))
@@ -163,17 +161,16 @@ def preprocess_data(img_array):
 	width, height = image.size
 
 	if width < height:
-		new_width = math.ceil(img_size[1] * width / height)
+		new_width = ceil(img_size[1] * width / height)
 		image = image.resize((new_width, img_size[1]), Image.ANTIALIAS)
 	elif width > height:
-		new_height = math.ceil(img_size[0] * height / width)
+		new_height = ceil(img_size[0] * height / width)
 		image = image.resize((img_size[0], new_height), Image.ANTIALIAS)
 	else:
 		image = image.resize(img_size)
 
 	new_image = Image.new('RGB', img_size)
-	new_image.paste(image, (math.ceil((img_size[0] - image.size[0]) / 2),
-							math.ceil((img_size[1] - image.size[1]) / 2)))
+	new_image.paste(image, (ceil((img_size[0] - image.size[0]) / 2), ceil((img_size[1] - image.size[1]) / 2)))
 
 	img_array = img_to_array(new_image)
 

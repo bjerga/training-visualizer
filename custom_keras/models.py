@@ -29,12 +29,8 @@ class DeconvolutionModel:
 		
 		# set dimensions indices for rows, columns and channels
 		if K.image_data_format() == 'channels_last':
-			self.row_dim = 1
-			self.col_dim = 2
 			self.ch_dim = 3
 		else:
-			self.row_dim = 2
-			self.col_dim = 3
 			self.ch_dim = 1
 		
 		self.link_model = link_model
@@ -213,18 +209,17 @@ class DeconvolutionModel:
 				feat_maps_tuples.append((feat_map_no, processed_feat_maps))
 
 		reconstructions = []
-		for i in range(len(feat_maps_tuples)):
-			feat_map_no, processed_feat_maps = feat_maps_tuples[i]
+		for feat_map_no, processed_feat_maps in feat_maps_tuples:
 			
 			# TODO: currently results in a RecursionError for Theano
 			# feed to deconv. model to produce reconstruction
 			reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
 													   processed_feat_maps)
 			
-			# save reconstruction to designated folder (returns saved array and name)
-			img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i)
+			# perform postprocessing of reconstruction to get usable image
+			img_array = self.postprocess_reconstruction(reconstruction)
 			
-			reconstructions.append((img_name, img_array))
+			reconstructions.append((img_array, self.link_model.layers[feat_map_layer_no].name, feat_map_no))
 			
 		return reconstructions
 	
@@ -233,7 +228,8 @@ class DeconvolutionModel:
 												feat_map_amount=None, feat_map_nos=None):
 		
 		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
-			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
+			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. "
+							 "(Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
 
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
@@ -262,8 +258,8 @@ class DeconvolutionModel:
 		reconstructions_by_feat_map_no = {}
 		for feat_map_no in feat_map_nos:
 			reconstructions_by_feat_map_no[feat_map_no] = []
-			for i in range(len(max_images_dict[feat_map_no])):
-				max_img = max_images_dict[feat_map_no][i]
+			counter = 0
+			for max_img in max_images_dict[feat_map_no]:
 				
 				# update all unpooling layers for the new image
 				self.update_deconv_model(max_img)
@@ -280,10 +276,12 @@ class DeconvolutionModel:
 				reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
 														   processed_feat_maps)
 				
-				# save reconstruction to designated folder (returns saved array and name)
-				img_array, img_name = self.save_as_image(reconstruction, feat_map_no, i, False)
+				# perform postprocessing of reconstruction to get usable image
+				img_array = self.postprocess_reconstruction(reconstruction)
 				
-				reconstructions_by_feat_map_no[feat_map_no].append((img_name, img_array))
+				reconstructions_by_feat_map_no[feat_map_no].append((img_array, self.link_model.layers[feat_map_layer_no].name, counter))
+				
+				counter += 1
 		
 		return reconstructions_by_feat_map_no, max_imgs_info_by_feat_map_no
 	
@@ -349,18 +347,12 @@ class DeconvolutionModel:
 			max_positions.append(max_act_pos)
 		
 		max_feat_maps_tuples = []
-		counter = 0
 		for feat_map_no in np.array(max_activations).argsort()[-amount:][::-1]:
 			# set all entries except max activation of chosen feature map to zero
 			processed_feat_maps = self.preprocess_feat_maps(feat_maps.shape, max_activations[feat_map_no],
 															max_positions[feat_map_no])
 			
 			max_feat_maps_tuples.append((feat_map_no, processed_feat_maps))
-			
-			if max_activations[feat_map_no] < 0.01:
-				counter += 1
-		
-		# print('\nThere were {} minor activations among the feature maps chosen'.format(counter))
 		
 		return max_feat_maps_tuples
 	
@@ -408,7 +400,6 @@ class DeconvolutionModel:
 		for feat_map_no in feat_map_nos:
 			chosen_images_dict[feat_map_no] = []
 			max_imgs_info_by_feat_map_no[feat_map_no] = []
-			count = 1
 			# print('\nChosen image URLs for feat. map no. {}:'.format(feat_map_no))
 			for index in np.array(image_scores[feat_map_no]).argsort()[-choose_amount:][::-1]:
 				# print(urls[index])
@@ -421,22 +412,7 @@ class DeconvolutionModel:
 				img_array = img_array[0]
 				img_array = np.clip(img_array, 0, 255).astype('uint8')
 				
-				max_imgs_info_by_feat_map_no[feat_map_no].append((urls[index], img_array))
-
-				# TODO: delete when visualization on website is confirmed
-				# process image to be saved
-				img_to_save = img_array.copy()
-				# use self.ch_dim - 1 as we have removed batch dimension
-				if img_to_save.shape[self.ch_dim - 1] == 1:
-					# if greyscale image, remove inner dimension before save
-					img_to_save = img_to_save.reshape(
-						(img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
-
-				# save max images for comparison
-				scipy.misc.toimage(img_to_save).save(join(dirname(__file__), 'deconv_max_images',
-						 'feat_map_{}_max_image_{}_index_{}.png'.format(feat_map_no, count, index)))
-				
-				count += 1
+				max_imgs_info_by_feat_map_no[feat_map_no].append((img_array, urls[index]))
 			
 		return chosen_images_dict, max_imgs_info_by_feat_map_no
 	
@@ -462,7 +438,7 @@ class DeconvolutionModel:
 	
 	# TODO: modify when done with testing
 	# processes and saves the reconstruction and returns processed array and name
-	def save_as_image(self, rec_array, feat_map_no, rec_no, fixed_image_used=True):
+	def postprocess_reconstruction(self, rec_array):
 		
 		# process reconstruction array
 		# remove batch dimension
@@ -478,27 +454,7 @@ class DeconvolutionModel:
 		# clip in [0, 255] and convert to uint8
 		rec_array = rec_array.clip(0, 255).astype('uint8')
 		
-		if fixed_image_used:
-			rec_name = 'max_no_{}_feat_map_{}'.format(rec_no, feat_map_no)
-		else:
-			rec_name = 'feat_map_{}_recon_{}'.format(feat_map_no, rec_no)
-		
-		# TODO: delete when visualization on website is confirmed
-		# process image to be saved
-		img_to_save = rec_array.copy()
-		# use self.ch_dim - 1 as we have removed batch dimension
-		if img_to_save.shape[self.ch_dim - 1] == 1:
-			# if greyscale image, remove inner dimension before save
-			# TODO: when this is deleted, also check necessity of self.row_dim and self.col_dim
-			img_to_save = img_to_save.reshape((img_to_save.shape[self.row_dim - 1], img_to_save.shape[self.col_dim - 1]))
-
-		# save the resulting image to disk
-		# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-		scipy.misc.toimage(img_to_save).save(join(dirname(__file__), 'deconv_output', rec_name + '.png'))
-		
-		# print('\nImage has been saved as {!s}.png\n'.format(rec_name))
-		
-		return rec_array, rec_name
+		return rec_array
 
 
 # generates a recreated pooling input from pooling output and pooling configuration

@@ -66,9 +66,6 @@ layout.children.append(orig_img_fig)
 
 def create_image_grid(filters):
 
-	img_width = filters[0].shape[1]
-	img_height = filters[0].shape[0]
-
 	no_of_images = len(filters)
 
 	if no_of_images < 4:
@@ -84,9 +81,7 @@ def create_image_grid(filters):
 	images = np.hstack([np.pad(f, 1, 'constant', constant_values=255) for f in filters])
 
 	total_width = images.shape[1]
-	total_height = images.shape[0]
 
-	# TODO check if this always looks good, may need to generalize
 	if no_of_images > no_of_cols:
 		step = math.ceil(total_width / no_of_rows)
 		images = np.vstack([images[:, x:x + step] for x in range(0, total_width, step)])
@@ -174,14 +169,14 @@ def update_data():
 				if len(filters.shape) == 3:
 					# create a grid of images
 					images = create_image_grid(filters)
-					new_layer_activation_data[layer_name] = [images]
+					new_layer_activation_data[layer_name] = [images[::-1]]
 
 				elif len(filters.shape) == 1:
 					# need to add an extra axis to plot 1d sequence as an image
 					new_layer_activation_data[layer_name] = [filters[np.newaxis, :]]
 
 			# update all images
-			layer_activation_source.data = new_layer_activation_data
+			layer_activation_source.data = new_layer_activation_data  # TODO: check if this is an OK way to do this
 
 	except FileNotFoundError:
 		# this means layer activation data has not been created yet, skip visualization

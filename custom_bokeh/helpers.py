@@ -1,5 +1,8 @@
 import numpy as np
 
+from bokeh.models import LinearColorMapper
+from bokeh.palettes import Greys256
+
 
 # convert image from 3- or 4-dimensional to 2-dimensional
 def process_image_dim(img):
@@ -31,7 +34,7 @@ def add_image_from_array(fig, img, dw=None, dh=None):
 		dh = img.shape[0]
 	if is_grayscale(img):
 		img = process_image_dim(img)
-		fig.image(image=[img[::-1]], x=0, y=0, dw=dw, dh=dh)
+		fig.image(image=[img[::-1]], x=0, y=0, dw=dw, dh=dh, color_mapper=LinearColorMapper(palette=Greys256, low=0, high=255))
 	else:
 		img = process_image_dim(img)
 		fig.image_rgba(image=[img[::-1]], x=0, y=0, dw=dw, dh=dh)
@@ -44,7 +47,7 @@ def add_image_from_source(fig, source, img, img_name, dw=None, dh=None, add_to_s
 		dh = img.shape[0]
 	if is_grayscale(img) or always_grayscale:
 		img = process_image_dim(img)
-		fig.image(image=img_name, x=0, y=0, dw=dw, dh=dh, source=source)
+		fig.image(image=img_name, x=0, y=0, dw=dw, dh=dh, source=source, color_mapper=LinearColorMapper(palette=Greys256, low=0, high=255))
 	else:
 		img = process_image_dim(img)
 		fig.image_rgba(image=img_name, x=0, y=0, dw=dw, dh=dh, source=source)

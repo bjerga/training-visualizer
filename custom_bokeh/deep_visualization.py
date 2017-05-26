@@ -38,11 +38,11 @@ def fill_data_source(deep_visualization_data):
 	p.text = "Visualizations are being produced..."
 	figures = []
 
-	# loop through the neurons
-	for array, layer_name, neuron_no, loss_value in deep_visualization_data:
+	# loop through the units
+	for array, layer_name, unit_index, loss_value in deep_visualization_data:
 
-		name = "{}_{}".format(layer_name, neuron_no)
-		title = "Neuron #{} in {}".format(neuron_no, layer_name)
+		name = "{}_{}".format(layer_name, unit_index)
+		title = "Unit at index {} in {}".format(unit_index, layer_name)
 
 		img_width = array.shape[1]
 		img_height = array.shape[0]
@@ -58,7 +58,7 @@ def fill_data_source(deep_visualization_data):
 
 		figures.append(fig)
 
-	# make a grid of the neurons
+	# make a grid of the units
 	grid = gridplot(figures, ncols=4, toolbar_options=dict(logo=None))
 	layout.children.append(grid)
 	p.text = ""
@@ -79,8 +79,8 @@ def update_data():
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data
 		else:
-			for array, layer_name, neuron_no, loss_value in deep_visualization_data:
-				name = "{}_{}".format(layer_name, neuron_no)
+			for array, layer_name, unit_index, loss_value in deep_visualization_data:
+				name = "{}_{}".format(layer_name, unit_index)
 
 				img = process_image_dim(array)
 				deep_visualization_source.data[name] = [img[::-1]]

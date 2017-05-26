@@ -633,50 +633,24 @@ class DeepVisualization(Callback):
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])
 	
-	# TODO: delete image saving part (modify, but don't delete info text) when done with testing
 	# saves the visualization and a txt-file describing its creation environment
 	def save_visualization_info(self, vis_info):
 		
-		# to hold easily readable information about visualizations' creation environments
-		env_info = ''
-
-		for vis_array, layer_no, unit_index, loss_value in vis_info:
-		
-			# create appropriate name to identify image
-			img_name = 'deep_vis_{}_{}'.format(layer_no, unit_index)
-			
-			# TODO: delete when visualization on website is confirmed
-			# process image to be saved
-			'''img_to_save = vis_array.copy()
-			# use self.ch_dim - 1 as we have removed batch dimension
-			if img_to_save.shape[self.ch_dim - 1] == 1:
-				# if greyscale image, remove inner dimension before save
-				if K.image_data_format() == 'channels_last':
-					img_to_save = img_to_save.reshape((img_to_save.shape[0], img_to_save.shape[1]))
-				else:
-					img_to_save = img_to_save.reshape((img_to_save.shape[1], img_to_save.shape[2]))
-			
-			# save the resulting image to disk
-			# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-			toimage(img_to_save).save(join(self.results_folder, img_name + '.png'))'''
-			
-			# also save a txt-file containing information about creation environment and obtained loss
-			env_info += 'Image "{}.png" was created from unit {} in layer {}, using the following hyperparameters:\n\n' \
-						'Learning rate: {}\n' \
-						'Number of iterations: {}\n' \
-						'----------\n' \
-						'Regularization values\n\n' \
-						'L2-decay: {}\n' \
-						'Blur interval and std: {} & {}\n' \
-						'Value percentile: {}\n' \
-						'Norm percentile: {}\n' \
-						'Contribution percentile: {}\n' \
-						'Abs. contribution percentile: {}\n' \
-						'----------\n' \
-						'Obtained loss value: {}\n\n\n\n' \
-						''.format(img_name, unit_index, layer_no, self.learning_rate, self.no_of_iterations, self.l2_decay,
-								  self.blur_interval, self.blur_std, self.value_percentile, self.norm_percentile,
-								  self.contribution_percentile, self.abs_contribution_percentile, loss_value)
+		# create a txt-file containing information about creation environment
+		env_info = 'The visualizations saved in deep_visualization.pickle were created using the following hyperparameters:\n\n' \
+				   'Learning rate: {}\n' \
+				   'Number of iterations: {}\n' \
+				   '----------\n' \
+				   'Regularization values\n\n' \
+				   'L2-decay: {}\n' \
+				   'Blur interval and std: {} & {}\n' \
+				   'Value percentile: {}\n' \
+				   'Norm percentile: {}\n' \
+				   'Contribution percentile: {}\n' \
+				   'Abs. contribution percentile: {}\n' \
+				   ''.format(self.learning_rate, self.no_of_iterations, self.l2_decay, self.blur_interval,
+							  self.blur_std, self.value_percentile, self.norm_percentile, self.contribution_percentile,
+							  self.abs_contribution_percentile)
 
 		# write creation environment info to text file
 		with open(join(self.results_folder, 'deep_vis_env_info.txt'), 'w') as f:

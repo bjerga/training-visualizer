@@ -86,7 +86,10 @@ def update_data():
 	try:
 		with open(join(results_path, 'training_progress_val.txt')) as f:
 			validation_progress_data = list(zip(*[line.strip().split() for line in f]))
-		new_val_data_length = len(validation_progress_data[0])
+		if validation_progress_data:
+			new_val_data_length = len(validation_progress_data[0])
+		else:
+			new_val_data_length = 0
 	except FileNotFoundError:
 		# this means that no validation data has been created, set to empty
 		validation_progress_data = []

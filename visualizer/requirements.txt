@@ -4,3 +4,6 @@ Flask-SQLAlchemy==2.1
 flask-security==1.7.5
 Pillow==3.1.2
 bokeh==0.12.5
+tailer==0.4.1
+keras==2.0.3
+tornado==4.4.2

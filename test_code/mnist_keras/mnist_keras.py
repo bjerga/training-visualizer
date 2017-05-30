@@ -52,11 +52,8 @@ def train(model, no_of_epochs=10):
 	callbacks = CustomCallbacks(save_path)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
-	callbacks.register_layer_activations()
-	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(3, 16, interval=10)
-	callbacks.register_deep_visualization([(9, i) for i in range(model.layers[9].output_shape[1])],
-										  200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=10)
+	
+	callbacks.register_backup_results('/home/anniea/Code/results', 20)
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()

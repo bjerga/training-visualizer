@@ -17,9 +17,41 @@ from keras.callbacks import Callback
 
 from custom_keras.models import DeconvolutionModel
 
+import datetime
+from shutil import copytree
+
 
 # choose which layers to exclude from layer activation visualization by default
 EXCLUDE_LAYERS = (InputLayer, Dropout, Flatten)
+
+
+class BackupResults(Callback):
+
+	def __init__(self, file_folder, backup_folder, interval):
+		super(BackupResults, self).__init__()
+
+		self.results_folder = join(file_folder, 'results')
+		self.backup_folder = backup_folder
+		self.interval = interval
+		self.counter = 0
+
+	def on_train_begin(self, logs=None):
+		try:
+			mkdir(self.backup_folder)
+		except FileExistsError:
+			# file exists, which is what we want
+			pass
+
+	def on_batch_end(self, epoch, logs=None):
+
+		self.counter += 1
+
+		if self.counter == self.interval:
+
+			timestamp = "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now())
+			copytree(self.results_folder, join(self.backup_folder, timestamp))
+
+			self.counter = 0
 
 
 class CustomCallbacks:
@@ -36,6 +68,9 @@ class CustomCallbacks:
 		
 	def get_list(self):
 		return self.callback_list
+
+	def register_backup_results(self, backup_folder, interval):
+		self.callback_list.append(BackupResults(self.file_folder, backup_folder, interval))
 		
 	def register_network_saver(self):
 		self.callback_list.append(NetworkSaver(self.file_folder))

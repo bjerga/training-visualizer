@@ -1,6 +1,6 @@
 from bokeh.io import curdoc
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Div, Paragraph, Column, BoxZoomTool, Range1d
+from bokeh.models import ColumnDataSource, Paragraph, Column, BoxZoomTool, Range1d
 
 from os.path import join
 
@@ -21,16 +21,10 @@ user = args['user'][0].decode('ascii')
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# used to determine if the data source should be created
-# this is needed to avoid error when the script is just started
-create_source = True
 deep_visualization_source = ColumnDataSource(data=dict())
 
-div = Div(text="<h3>Deep Visualizations</h3>", width=500)
-layout = Column(children=[div])
-
-p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
-layout.children.append(p)
+p = Paragraph(text="", width=500)
+layout = Column(children=[p])
 
 
 def fill_data_source(deep_visualization_data):
@@ -65,31 +59,30 @@ def fill_data_source(deep_visualization_data):
 
 
 def update_data():
-	global create_source
 	try:
 		with open(join(results_path, 'deep_visualization.pickle'), 'rb') as f:
 			deep_visualization_data = pickle.load(f)
 
 		# if it is the first time data is detected, we need to fill the data source with the images
-		if create_source:
+		if not deep_visualization_source.data:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
 			fill_data_source(deep_visualization_data)
-			create_source = False
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data
 		else:
 			for array, layer_name, unit_index, loss_value in deep_visualization_data:
 				name = "{}_{}".format(layer_name, unit_index)
-
 				img = process_image_dim(array)
 				deep_visualization_source.data[name] = [img[::-1]]
 
 	except FileNotFoundError:
 		# this means deconvolution data has not been created yet, skip visualization
+		p.text = "There are no visualization data produced yet."
 		return
 	except EOFError:
 		# this means deconvolution data has been created, but is empty, skip visualization
+		p.text = "There are no visualization data produced yet."
 		return
 
 document.add_root(layout)

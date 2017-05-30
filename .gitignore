@@ -5,7 +5,7 @@ visualizer/static/user_storage
 custom_keras/deconv_output
 custom_keras/deconv_max_images
 test_code/imagenet
-test_code/deconvolution/deconv_output
-test_code/deconvolution/deconv_max_images
-test_code/deep_dream/output
-test_code/deep_dream/old_output
+test_code/deconvolution/output
+test_code/deconvolution/max_images
+test_code/deep_vis/output
+test_code/deep_vis/old_output

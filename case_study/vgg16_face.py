@@ -11,7 +11,7 @@ from keras.layers import Input, Flatten, Dense, Concatenate
 from keras_vggface.vggface import VGGFace
 from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
-from keras.optimizers import RMSprop
+from keras.optimizers import RMSprop, Adam
 
 # import callbacks for visualizing
 from custom_keras.callbacks import CustomCallbacks
@@ -69,11 +69,8 @@ def create_model():
 		# define extra input
 		expression_input = Input(shape=(emotion_range,))
 
-		# add Concatenate layer to merge expression input with standard input
-		concat = Concatenate()([vgg_model.layers[-1].input, expression_input])
-
-		# update output layer input
-		output_layer_input = concat
+		# update output layer input to be Concatenate layer (merge expression input with standard input)
+		output_layer_input = Concatenate()([vgg_model.layers[-1].input, expression_input])
 
 		# model should now receive two inputs
 		model_input = [vgg_model.input, expression_input]
@@ -81,7 +78,7 @@ def create_model():
 	output_layer = Dense(nb_class, activation='softmax', name='predictions')(output_layer_input)
 
 	custom_vgg_model = Model(model_input, output_layer)
-	custom_vgg_model.compile(optimizer=RMSprop(lr=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+	custom_vgg_model.compile(optimizer=Adam(lr=0.0005), loss='categorical_crossentropy', metrics=['accuracy'])
 
 	return custom_vgg_model
 
@@ -109,7 +106,7 @@ def create_finetuning_model():
 def train_model(model):
 
 	# initialize custom callbacks (visualization techniques will not work for experimental network)
-	callbacks = CustomCallbacks(save_path, base_interval=20)
+	callbacks = CustomCallbacks(save_path)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 

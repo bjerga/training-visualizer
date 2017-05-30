@@ -18,7 +18,7 @@ results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
 grid = []
 
-p = Paragraph(text="There seems to be no training progress data produced yet.", width=600)
+p = Paragraph(text="", width=600)
 grid.append([p])
 
 
@@ -81,6 +81,7 @@ def update_data():
 		p.text = ""
 	except FileNotFoundError:
 		# this means that file has not been created yet, skip visualization
+		p.text = "There are no training progress data produced yet."
 		return
 
 	try:

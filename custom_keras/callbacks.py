@@ -69,7 +69,9 @@ class CustomCallbacks:
 	def get_list(self):
 		return self.callback_list
 
-	def register_backup_results(self, backup_folder, interval):
+	def register_backup_results(self, backup_folder, interval=None):
+		if interval is None:
+			interval = self.base_interval
 		self.callback_list.append(BackupResults(self.file_folder, backup_folder, interval))
 		
 	def register_network_saver(self):

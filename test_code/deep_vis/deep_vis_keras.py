@@ -164,8 +164,8 @@ def get_loss_and_gradient_function(input_tensor, output_tensor, unit_index):
 	
 	# loss is the activation of the unit in the chosen output tensor (chosen layer output)
 	loss = output_tensor[unit_index]
-	
-	# gradients are computed from the visualization w.r.t. this loss
+
+	# compute gradients of the loss of the chosen unit w.r.t. the input image
 	gradients = K.gradients(loss, input_tensor)[0]
 	
 	# return function returning the loss and gradients given a visualization image

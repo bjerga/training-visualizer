@@ -256,7 +256,7 @@ class SaliencyMaps(Callback):
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
-			# compute the gradient of the input with respect to the loss
+			# compute the gradients of loss w.r.t. the input image
 			loss = self.output_tensor[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
@@ -573,7 +573,7 @@ class DeepVisualization(Callback):
 		
 		return visualization
 	
-	# returns a function for computing loss and gradients w.r.t. the activations for the chosen unit in the chosen layer
+	# returns a function for computing loss and gradients of the loss for the chosen unit in the chosen layer w.r.t. the input image
 	def get_loss_and_gradient_function(self, layer_no, unit_index):
 	
 		# if unit index is specified as integer, convert to tuple
@@ -600,7 +600,7 @@ class DeepVisualization(Callback):
 		# loss is the activation of the unit in the chosen output tensor (chosen layer output)
 		loss = output_tensor[unit_index]
 		
-		# gradients are computed from the visualization given as input w.r.t. this loss
+		# compute gradients of the loss of the chosen unit w.r.t. the input image
 		gradients = K.gradients(loss, self.vis_model.input)[0]
 		
 		# return function returning the loss and gradients given a visualization image

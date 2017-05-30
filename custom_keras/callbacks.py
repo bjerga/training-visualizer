@@ -11,7 +11,7 @@ from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
-from keras.layers import Input, Dropout, Flatten
+from keras.layers import InputLayer, Dropout, Flatten
 from keras.preprocessing import image
 from keras.callbacks import Callback
 
@@ -19,7 +19,7 @@ from custom_keras.models import DeconvolutionModel
 
 
 # choose which layers to exclude from layer activation visualization by default
-EXCLUDE_LAYERS = (Input, Dropout, Flatten)
+EXCLUDE_LAYERS = (InputLayer, Dropout, Flatten)
 
 
 class CustomCallbacks:
@@ -60,12 +60,12 @@ class CustomCallbacks:
 		self.callback_list.append(DeconvolutionNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
 													   self.custom_preprocess, self.custom_postprocess, custom_keras_model_info, interval))
 		
-	def register_deep_visualization(self, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
+	def register_deep_visualization(self, units_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 									blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
 									abs_contribution_percentile=0, interval=None):
 		if interval is None:
 			interval = self.base_interval
-		self.callback_list.append(DeepVisualization(self.file_folder, neurons_to_visualize, learning_rate, no_of_iterations,
+		self.callback_list.append(DeepVisualization(self.file_folder, units_to_visualize, learning_rate, no_of_iterations,
 													l2_decay, blur_interval, blur_std, value_percentile, norm_percentile,
 													contribution_percentile, abs_contribution_percentile, self.custom_postprocess, interval))
 
@@ -237,8 +237,8 @@ class SaliencyMaps(Callback):
 		self.output_tensor = self.model.output
 		# if last layer uses softmax activation
 		if self.model.layers[-1].get_config()['activation'] == 'softmax':
-			# update chosen output tensor to be output tensor of second to last layer
-			self.output_tensor = self.model.layers[-2].output
+			# update chosen output tensor to be output tensor of previous layer
+			self.output_tensor = self.model.layers[-1].input
 
 		# set prediction function based on output tensor chosen
 		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
@@ -256,7 +256,7 @@ class SaliencyMaps(Callback):
 			# find the most likely predicted class
 			max_class = np.argmax(predictions)
 
-			# compute the gradient of the input with respect to the loss
+			# compute the gradients of loss w.r.t. the input image
 			loss = self.output_tensor[0, max_class]
 			saliency = K.gradients(loss, self.model.input)[0]
 
@@ -379,8 +379,9 @@ class DeepVisualization(Callback):
 	- Absolute contribution percentile limit is used to induce sparsity by setting pixels with small absolute contribution to zero
 	"""
 
-	# chosen neurons to visualize must be a list with elements on form tuple(layer number, neuron number)
-	def __init__(self, file_folder, neurons_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
+	# chosen units to visualize must be a list with elements on form tuple(layer number, unit index),
+	# where unit index is tuple for layers with 3D structured output, like convolutional and pooling layers
+	def __init__(self, file_folder, units_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
 				 blur_std=0, value_percentile=0, norm_percentile=0, contribution_percentile=0,
 				 abs_contribution_percentile=0, custom_postprocess=None, interval=1000):
 		
@@ -398,7 +399,7 @@ class DeepVisualization(Callback):
 		self.custom_postprocess = custom_postprocess
 		
 		# vanilla (required) values
-		self.neurons_to_visualize = neurons_to_visualize
+		self.units_to_visualize = units_to_visualize
 		self.learning_rate = learning_rate
 		self.no_of_iterations = no_of_iterations
 		
@@ -442,14 +443,19 @@ class DeepVisualization(Callback):
 		# only update visualization at user specified intervals
 		if self.counter == self.interval:
 			
-			# list to hold visualization info for all chosen neurons
+			# list to hold visualization info for all chosen units
 			vis_info = []
 			
-			# for the chosen layer number and neuron number
-			for layer_no, neuron_no in self.neurons_to_visualize:
+			# for the chosen layer number and unit index
+			for layer_no, unit_index in self.units_to_visualize:
 				
-				# create and save loss and gradient function for current neuron
-				compute_loss_and_gradients = self.get_loss_and_gradient_function(layer_no, neuron_no)
+				# check if layer number is valid
+				if layer_no < 0 or layer_no >= len(self.vis_model.layers):
+					raise ValueError('Invalid layer number {}: Layer numbers should be between {} and {}'
+									 .format(layer_no, 0, len(self.vis_model.layers) - 1))
+				
+				# create and save loss and gradient function for current unit
+				compute_loss_and_gradients = self.get_loss_and_gradient_function(layer_no, unit_index)
 				
 				# create an initial visualization image
 				visualization = self.create_initial_image()
@@ -471,7 +477,7 @@ class DeepVisualization(Callback):
 				
 				# add to list of all visualization info
 				# use self.model instead of self.vis_model to get original layer name if last layer
-				vis_info.append((visualization, self.model.layers[layer_no].name, neuron_no, loss_value))
+				vis_info.append((visualization, self.model.layers[layer_no].name, unit_index, loss_value))
 				
 			# save visualization images, complete with info about creation environment
 			self.save_visualization_info(vis_info)
@@ -567,13 +573,34 @@ class DeepVisualization(Callback):
 		
 		return visualization
 	
-	# returns a function for computing loss and gradients w.r.t. the activations for the chosen neuron in the chosen layer
-	def get_loss_and_gradient_function(self, layer_no, neuron_no):
+	# returns a function for computing loss and gradients of the loss for the chosen unit in the chosen layer w.r.t. the input image
+	def get_loss_and_gradient_function(self, layer_no, unit_index):
+	
+		# if unit index is specified as integer, convert to tuple
+		if isinstance(unit_index, int):
+			unit_index = (unit_index,)
 		
-		# loss is the activation of the neuron in the output of the chosen layer
-		loss = self.vis_model.layers[layer_no].output[0, neuron_no]
+		# get output tensor based on chosen layer number
+		output_tensor = self.vis_model.layers[layer_no].output
 		
-		# gradients are computed from the visualization given as input w.r.t. this loss
+		# check that unit index is the correct length and that content is valid
+		if len(output_tensor.shape[1:]) != len(unit_index):
+			raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
+							 .format(len(output_tensor.shape[1:]), len(unit_index)))
+		else:
+			tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
+			tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
+			if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
+				raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
+								 .format(np.array(unit_index), tensor_min, tensor_max))
+		
+		# pad with batch index
+		unit_index = (0,) + unit_index
+			
+		# loss is the activation of the unit in the chosen output tensor (chosen layer output)
+		loss = output_tensor[unit_index]
+		
+		# compute gradients of the loss of the chosen unit w.r.t. the input image
 		gradients = K.gradients(loss, self.vis_model.input)[0]
 		
 		# return function returning the loss and gradients given a visualization image
@@ -606,50 +633,24 @@ class DeepVisualization(Callback):
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])
 	
-	# TODO: delete image saving part (modify, but don't delete info text) when done with testing
 	# saves the visualization and a txt-file describing its creation environment
 	def save_visualization_info(self, vis_info):
 		
-		# to hold easily readable information about visualizations' creation environments
-		env_info = ''
-
-		for vis_array, layer_no, neuron_no, loss_value in vis_info:
-		
-			# create appropriate name to identify image
-			img_name = 'deep_vis_{}_{}'.format(layer_no, neuron_no)
-			
-			# TODO: delete when visualization on website is confirmed
-			# process image to be saved
-			'''img_to_save = vis_array.copy()
-			# use self.ch_dim - 1 as we have removed batch dimension
-			if img_to_save.shape[self.ch_dim - 1] == 1:
-				# if greyscale image, remove inner dimension before save
-				if K.image_data_format() == 'channels_last':
-					img_to_save = img_to_save.reshape((img_to_save.shape[0], img_to_save.shape[1]))
-				else:
-					img_to_save = img_to_save.reshape((img_to_save.shape[1], img_to_save.shape[2]))
-			
-			# save the resulting image to disk
-			# avoid scipy.misc.imsave because it will normalize the image pixel value between 0 and 255
-			toimage(img_to_save).save(join(self.results_folder, img_name + '.png'))'''
-			
-			# also save a txt-file containing information about creation environment and obtained loss
-			env_info += 'Image "{}.png" was created from neuron {} in layer {}, using the following hyperparameters:\n\n' \
-						'Learning rate: {}\n' \
-						'Number of iterations: {}\n' \
-						'----------\n' \
-						'Regularization values\n\n' \
-						'L2-decay: {}\n' \
-						'Blur interval and std: {} & {}\n' \
-						'Value percentile: {}\n' \
-						'Norm percentile: {}\n' \
-						'Contribution percentile: {}\n' \
-						'Abs. contribution percentile: {}\n' \
-						'----------\n' \
-						'Obtained loss value: {}\n\n\n\n' \
-						''.format(img_name, neuron_no, layer_no, self.learning_rate, self.no_of_iterations, self.l2_decay,
-								  self.blur_interval, self.blur_std, self.value_percentile, self.norm_percentile,
-								  self.contribution_percentile, self.abs_contribution_percentile, loss_value)
+		# create a txt-file containing information about creation environment
+		env_info = 'The visualizations saved in deep_visualization.pickle were created using the following hyperparameters:\n\n' \
+				   'Learning rate: {}\n' \
+				   'Number of iterations: {}\n' \
+				   '----------\n' \
+				   'Regularization values\n\n' \
+				   'L2-decay: {}\n' \
+				   'Blur interval and std: {} & {}\n' \
+				   'Value percentile: {}\n' \
+				   'Norm percentile: {}\n' \
+				   'Contribution percentile: {}\n' \
+				   'Abs. contribution percentile: {}\n' \
+				   ''.format(self.learning_rate, self.no_of_iterations, self.l2_decay, self.blur_interval,
+							  self.blur_std, self.value_percentile, self.norm_percentile, self.contribution_percentile,
+							  self.abs_contribution_percentile)
 
 		# write creation environment info to text file
 		with open(join(self.results_folder, 'deep_vis_env_info.txt'), 'w') as f:

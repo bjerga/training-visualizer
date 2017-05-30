@@ -19,12 +19,16 @@ save_path = dirname(__file__)
 
 # find path to imagenet URLs
 imagenet_path = '/media/mikaelbj/Mikal My Book/ImageNet'
+# imagenet_path = 'E:/ImageNet'
 train_data_path = join(imagenet_path, 'ILSVRC2012_img_train')
 test_data_path = join(imagenet_path, 'ILSVRC2012_img_test')
 val_data_path = join(imagenet_path, 'ILSVRC2012_img_val')
 
 train_img_directories = listdir(train_data_path)
 train_data_amount = 1281167
+
+batch_size = 64
+steps_per_epoch = ceil(train_data_amount / batch_size)
 
 MEAN_VALUES = np.array([103.939, 116.779, 123.68])
 
@@ -55,9 +59,6 @@ def create_model(weights=None, untrainable=False):
 def train(model, no_of_epochs=50):
 	# train top layers of model (self-defined layers)
 	print('\n\nCommence VGG16 model training\n')
-
-	batch_size = 64
-	steps_per_epoch = ceil(train_data_amount / batch_size)
 	
 	# initialize custom callbacks
 	callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
@@ -66,7 +67,7 @@ def train(model, no_of_epochs=50):
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution_network(18, 10, interval=100)
-	callbacks.register_deep_visualization([(-1, 402), (-1, 587), (-1, 950)], 2500.0, 500, l2_decay=0.0001,
+	callbacks.register_deep_visualization([(22, 402), (22, 587), (22, 950)], 2500.0, 500, l2_decay=0.0001,
 										  blur_interval=4, blur_std=1.0, interval=100)
 
 	print('Steps per epoch:', steps_per_epoch)

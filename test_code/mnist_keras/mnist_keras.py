@@ -55,8 +55,8 @@ def train(model, no_of_epochs=10):
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution_network(3, 16, interval=10)
-	callbacks.register_deep_visualization([(-1, 0), (-1, 1), (-1, 2), (-1, 3), (-1, 4), (-1, 5), (-1, 6), (-1, 7), (-1, 8), (-1, 9)],
-										  2500.0, 100, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=10)
+	callbacks.register_deep_visualization([(9, i) for i in range(model.layers[9].output_shape[1])],
+										  200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=10)
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()

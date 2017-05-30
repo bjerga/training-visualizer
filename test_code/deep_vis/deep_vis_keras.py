@@ -144,17 +144,23 @@ def save_visualization(img, layer_no, unit_index, loss_value):
 
 # returns a function for computing loss and gradients w.r.t. the activations for the chosen unit in the output tensor
 def get_loss_and_gradient_function(input_tensor, output_tensor, unit_index):
+	
+	# if unit index is specified as integer, convert to tuple
+	if isinstance(unit_index, int):
+		unit_index = (unit_index,)
+		
+	if len(output_tensor.shape[1:]) != len(unit_index):
+		raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
+						 .format(len(output_tensor.shape[1:]), len(unit_index)))
+	else:
+		tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
+		tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
+		if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
+			raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
+							 .format(np.array(unit_index), tensor_min, tensor_max))
 
 	# pad with batch index
-	unit_index = (0,) + tuple(unit_index)
-	
-	if len(output_tensor.shape) != len(unit_index):
-		raise ValueError('Index mismatch: Unit indices should be of length {}, not {} '.format(len(output_tensor.shape), len(unit_index)))
-	else:
-		tensor_min = np.array([0, 0, 0])
-		tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
-		if np.any(np.array(unit_index[1:]) < tensor_min) or np.any(np.array(unit_index[1:]) > tensor_max):
-			raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'.format(unit_index[1:], tensor_min, tensor_max))
+	unit_index = (0,) + unit_index
 	
 	# loss is the activation of the unit in the chosen output tensor (chosen layer output)
 	loss = output_tensor[unit_index]
@@ -290,10 +296,10 @@ def main():
 	# create model to generate gradients from
 	model = create_model()
 
-	# select units to visualize for by adding (layer number, unit index), where index is tuple for layers with
+	# select units to visualize for by adding (layer number, unit index), where unit index is tuple for layers with
 	# 3D structured output, like convolutional and pooling layers
-	# units_to_visualize = [(-1, 130), (-1, 351), (-1, 736), (-1, 850)]
-	# units_to_visualize = [(-1, 402), (-1, 587), (-1, 950)]
+	# units_to_visualize = [(22, 130), (2, 351), (22, 736), (22, 850)]
+	# units_to_visualize = [(22, 402), (22, 587), (22, 950)]
 	units_to_visualize = [(1, (112, 112, ch)) for ch in range(1)]
 	# unit indices in last layer represent the following classes:
 	# 130 flamingo, 351 hartebeest, 736 pool table, 850 teddy bear

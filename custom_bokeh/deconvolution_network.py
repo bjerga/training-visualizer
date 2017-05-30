@@ -89,14 +89,11 @@ def fill_data_source(deconvolution_data):
 	p.text = "Visualizations are being produced..."
 	figures = []
 
-	# loop through feature maps
-	for i in range(len(deconvolution_data)):
+	# loop through deconvolution data
+	for array, layer_name, feat_map_no in deconvolution_data:
 
-		layer_name = deconvolution_data[i][0]
-		array = deconvolution_data[i][1]
-
-		name = "{}_{}".format(layer_name, i)
-		title = "Feature map #{} in {}".format(i, layer_name)
+		name = "{}_{}".format(layer_name, feat_map_no)
+		title = "Feature map #{} in {}".format(feat_map_no, layer_name)
 
 		fig = figure(title=title, tools="reset, save, pan", plot_width=250, plot_height=250, outline_line_color="black",
 						outline_line_width=3, x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range)
@@ -116,6 +113,7 @@ def fill_data_source(deconvolution_data):
 def update_data():
 	global create_source
 	try:
+		# load deconvolution data, on form tuple(image array, layer name, feat map number)
 		with open(join(results_path, 'deconvolution_network.pickle'), 'rb') as f:
 			deconvolution_data = pickle.load(f)
 
@@ -128,10 +126,8 @@ def update_data():
 			document.add_periodic_callback(update_data, 5000)
 		# if not, we can simply update the data
 		else:
-			for i in range(len(deconvolution_data)):
-				layer_name = deconvolution_data[i][0]
-				array = deconvolution_data[i][1]
-				name = "{}_{}".format(layer_name, i)
+			for array, layer_name, feat_map_no in deconvolution_data:
+				name = "{}_{}".format(layer_name, feat_map_no)
 
 				img = process_image_dim(array)
 				deconvolution_source.data[name] = [img[::-1]]

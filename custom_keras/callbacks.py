@@ -243,8 +243,8 @@ class LayerActivations(Callback):
 						# get on correct format (list of filters)
 						act_array = np.rollaxis(act_array, 2)
 
-					# save tuple (layer name, layer's activation tensor)
-					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array))
+					# save tuple (layer name, layer's activation tensor converted to uint8)
+					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array.astype('uint8')))
 
 			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 				pickle.dump(layer_tuples, f)

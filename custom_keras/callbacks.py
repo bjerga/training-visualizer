@@ -17,7 +17,6 @@ from keras.callbacks import Callback
 
 from custom_keras.models import DeconvolutionModel
 
-import datetime
 from shutil import copytree
 
 
@@ -25,32 +24,38 @@ from shutil import copytree
 EXCLUDE_LAYERS = (InputLayer, Dropout, Flatten)
 
 
-class BackupResults(Callback):
+class VisualizationSnapshot(Callback):
 
-	def __init__(self, file_folder, backup_folder, interval):
-		super(BackupResults, self).__init__()
+	def __init__(self, file_folder, snapshot_folder, interval):
+		super(VisualizationSnapshot, self).__init__()
 
+		self.filename = basename(file_folder)
 		self.results_folder = join(file_folder, 'results')
-		self.backup_folder = backup_folder
+		self.snapshot_folder = snapshot_folder
 		self.interval = interval
 		self.counter = 0
+		self.number = 0
 
 	def on_train_begin(self, logs=None):
 		try:
-			mkdir(self.backup_folder)
+			mkdir(self.snapshot_folder)
 		except FileExistsError:
 			# file exists, which is what we want
 			pass
 
-	def on_batch_end(self, epoch, logs=None):
+		self.counter = self.interval - 1
+		self.on_batch_end(0)
+
+	def on_batch_end(self, batch, logs=None):
 
 		self.counter += 1
 
 		if self.counter == self.interval:
 
-			timestamp = "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now())
-			copytree(self.results_folder, join(self.backup_folder, timestamp))
+			filename = "{}_{}".format(self.filename, self.number)
+			copytree(self.results_folder, join(self.snapshot_folder, filename))
 
+			self.number += 1
 			self.counter = 0
 
 
@@ -69,10 +74,10 @@ class CustomCallbacks:
 	def get_list(self):
 		return self.callback_list
 
-	def register_backup_results(self, backup_folder, interval=None):
+	def register_visualization_snapshot(self, snapshot_folder, interval=None):
 		if interval is None:
 			interval = self.base_interval
-		self.callback_list.append(BackupResults(self.file_folder, backup_folder, interval))
+		self.callback_list.append(VisualizationSnapshot(self.file_folder, snapshot_folder, interval))
 		
 	def register_network_saver(self):
 		self.callback_list.append(NetworkSaver(self.file_folder))
@@ -192,6 +197,10 @@ class LayerActivations(Callback):
 		# add batch dimension
 		self.img_array = np.expand_dims(self.img_array, 0)
 
+	def on_train_begin(self, logs=None):
+		self.counter = self.interval - 1
+		self.on_batch_end(0)
+
 	def on_batch_end(self, batch, logs={}):
 
 		self.counter += 1
@@ -267,7 +276,7 @@ class SaliencyMaps(Callback):
 		
 		# add batch dimension
 		self.img_array = np.expand_dims(self.img_array, 0)
-		
+
 	def on_train_begin(self, logs=None):
 
 		# set which output tensor of model to use
@@ -279,6 +288,9 @@ class SaliencyMaps(Callback):
 
 		# set prediction function based on output tensor chosen
 		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
+
+		self.counter = self.interval - 1
+		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -365,6 +377,9 @@ class DeconvolutionNetwork(Callback):
 	def on_train_begin(self, logs=None):
 		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
 											   self.custom_keras_model_info)
+
+		self.counter = self.interval - 1
+		self.on_batch_end(0)
 	
 	def on_batch_end(self, batch, logs=None):
 
@@ -472,6 +487,9 @@ class DeepVisualization(Callback):
 		else:
 			# if not, original model can be used
 			self.vis_model = self.model
+
+		self.counter = self.interval - 1
+		self.on_batch_end(0)
 			
 	def on_batch_end(self, batch, logs={}):
 
@@ -661,11 +679,6 @@ class DeepVisualization(Callback):
 	
 	# creates an random, initial image to manipulate into a visualization
 	def create_initial_image(self):
-		
-		# TODO: remove when done with testing
-		# set random seed to be able to reproduce initial state of image
-		# used in testing only, and should be remove upon implementation with tool
-		np.random.seed(1337)
 		
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])

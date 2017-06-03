@@ -8,9 +8,6 @@ USERNAME_MINIMUM_LENGTH = 5
 USERNAME_MAXIMUM_LENGTH = 20
 PASSWORD_MINIMUM_LENGTH = 8
 
-# options for visualization dropdown, value is the url corresponding to the visualization
-visualization_choices = [('saliency_maps', 'Saliency Maps'), ('layer_activations', 'Layer Activations')]
-
 
 # custom field for tag form
 class TagListField(Field):
@@ -94,7 +91,3 @@ class SearchForm(FlaskForm):
 # form for tags, uses custom tag field
 class TagForm(FlaskForm):
 	tags = TagListField('Tags')
-
-
-class VisualizationForm(FlaskForm):
-	visualization = SelectField(label="Select a visualization technique:", choices=visualization_choices)

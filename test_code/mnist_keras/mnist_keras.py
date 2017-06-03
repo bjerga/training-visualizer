@@ -2,6 +2,7 @@ from time import time
 from os.path import dirname
 
 import numpy as np
+import math
 
 import keras.backend as K
 from keras.models import Model
@@ -11,9 +12,6 @@ from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
 from custom_keras.callbacks import CustomCallbacks
-
-# find path to save networks and results
-save_path = dirname(__file__)
 
 if K.image_data_format() == 'channels_last':
 	# use tensorflow dimensions
@@ -45,18 +43,29 @@ def create_model():
 	return model
 
 
-def train(model, no_of_epochs=10):
+def train(model, no_of_epochs=2):
 	print('\n\nCommence MNIST model training\n')
-	
-	# initialize custom callbacks
-	callbacks = CustomCallbacks(save_path)
-	callbacks.register_network_saver()
-	callbacks.register_training_progress()
-	
-	callbacks.register_backup_results('/home/anniea/Code/results', 20)
 
 	# get data
 	training_data, training_targets, test_data, test_targets = load_data()
+
+	base_interval = math.floor((len(training_data)/128)/5)
+
+	# initialize custom callbacks, use dirname to find path to save networks and results
+	callbacks = CustomCallbacks(dirname(__file__), base_interval=base_interval)
+	callbacks.register_network_saver()
+	callbacks.register_training_progress()
+	callbacks.register_layer_activations()
+	callbacks.register_saliency_maps()
+	callbacks.register_deconvolution_network(3, 32)
+	liste = [(9, i) for i in range(model.layers[9].output_shape[1])]
+	liste.extend([(8, i) for i in range(0, 64, 8)])
+	liste.extend([(6, i) for i in range(0, 128, 16)])
+	liste.extend([(3, (6, 6, i)) for i in range(0, 32, 8)])
+	liste.extend([(2, (12, 12, i)) for i in range(0, 32, 8)])
+	liste.extend([(1, (13, 13, i)) for i in range(0, 32, 8)])
+	callbacks.register_deep_visualization(liste, 200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0)
+	callbacks.register_visualization_snapshot('/home/anniea/Code/results/mnist_results')
 
 	# train with chosen hyperparameters
 	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True, verbose=1,

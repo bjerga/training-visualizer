@@ -2,10 +2,9 @@
 .idea/
 visualizer/*.db
 visualizer/static/user_storage
-custom_keras/deconv_output
-custom_keras/deconv_max_images
 test_code/imagenet
 test_code/deconvolution/output
 test_code/deconvolution/max_images
 test_code/deep_vis/output
 test_code/deep_vis/old_output
+case_study/metadata_feat

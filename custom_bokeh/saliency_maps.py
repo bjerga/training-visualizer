@@ -1,8 +1,8 @@
 from os import listdir
 
 from bokeh.io import curdoc
-from bokeh.layouts import layout
-from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d, BoxZoomTool
+from bokeh.layouts import gridplot
+from bokeh.models import ColumnDataSource, Paragraph, Range1d, BoxZoomTool, Column
 
 from os.path import join
 
@@ -31,54 +31,67 @@ orig_img = np.array(Image.open(join(images_folder, image_name)))
 
 grid = []
 
-div = Div(text="<h3>Visualization of the saliency maps</h3>", width=500)
-grid.append([div])
-
-p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
-grid.append([p])
+p = Paragraph(text="", width=500)
+layout = Column(children=[p])
 
 # flip image to display correctly in coordinate system with placeholder
-saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
+saliency_maps_source = ColumnDataSource(data=dict())
 
 orig_img_height = orig_img.shape[0]
 orig_img_width = orig_img.shape[1]
 
-# create plot for the original image
-orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
-						x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
-						y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
-						outline_line_color="black", outline_line_width=3)
-orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
-orig_img_fig.axis.visible = False
-orig_img_fig.toolbar.logo = None
 
-add_image_from_array(orig_img_fig, orig_img)
+def fill_data_source(saliency_maps_data):
 
-# create plot for the saliency maps image
-saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="reset, save, pan",
-						x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range, outline_line_color="black",
-						outline_line_width=3)
-saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
-saliency_fig.axis.visible = False
-saliency_fig.toolbar.logo = None
+	# create plot for the original image
+	orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="pan, reset, save",
+							x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
+							y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+							outline_line_color="black", outline_line_width=3)
+	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+	orig_img_fig.axis.visible = False
+	orig_img_fig.toolbar.logo = None
 
-add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False, always_grayscale=True)
+	add_image_from_array(orig_img_fig, orig_img)
 
-grid.append([orig_img_fig, saliency_fig])
+	# create plot for the saliency maps image
+	saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="pan, reset, save",
+							x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range,
+							outline_line_color="black", outline_line_width=3)
+	saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
+	saliency_fig.axis.visible = False
+	saliency_fig.toolbar.logo = None
+
+	add_image_from_source(saliency_fig, saliency_maps_source, saliency_maps_data, 'abs_saliency', always_grayscale=True)
+
+	layout.children.append(gridplot([orig_img_fig, saliency_fig], ncols=2, merge_tools=False))
 
 
 def update_data():
 	try:
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
+
+		if not saliency_maps_source.data:
+			# if the data source is empty, we need to create the figures and fill the data source
+			fill_data_source(saliency_maps_data)
+		else:
+			# if the data source already exists, we can simply update its data
+			img = process_image_dim(saliency_maps_data.astype('uint8'))
+			# dictionary that holds new saliency map
+			new_saliency_maps_data = dict(
+				abs_saliency=[img[::-1]]
+			)
+			saliency_maps_source.data = new_saliency_maps_data
+
 		p.text = ""
-		img = process_image_dim(saliency_maps_data.astype('uint8'))
-		saliency_maps_source.data['image'] = [img[::-1]]
+
 	except FileNotFoundError:
+		p.text = "There are no visualization data produced yet."
 		# if no visualization has been produced yet, simply skip visualization
 		return
 
 update_data()
 
-document.add_root(layout(grid))
+document.add_root(layout)
 document.add_periodic_callback(update_data, 5000)

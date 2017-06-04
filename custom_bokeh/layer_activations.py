@@ -172,7 +172,7 @@ def update_data():
 					new_layer_activation_data[layer_name] = [filters[np.newaxis, :]]
 
 			# update all images
-			layer_activation_source.data = new_layer_activation_data  # TODO: check if this is an OK way to do this
+			layer_activation_source.data = new_layer_activation_data
 
 	except FileNotFoundError:
 		p.text = "There are no visualizations produced yet."

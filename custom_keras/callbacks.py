@@ -4,20 +4,18 @@ import pickle
 from math import ceil
 from os import mkdir, listdir
 from os.path import join, basename
+from shutil import copytree
 
-from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
 from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
 from keras.layers import InputLayer, Dropout, Flatten
-from keras.preprocessing import image
+from keras.preprocessing.image import img_to_array
 from keras.callbacks import Callback
 
 from custom_keras.models import DeconvolutionModel
-
-from shutil import copytree
 
 
 # choose which layers to exclude from layer activation visualization by default
@@ -73,7 +71,7 @@ class CustomCallbacks:
 		
 	def get_list(self):
 		return self.callback_list
-
+	
 	def register_visualization_snapshot(self, snapshot_folder, interval=None):
 		if interval is None:
 			interval = self.base_interval
@@ -188,7 +186,7 @@ class LayerActivations(Callback):
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# if supplied, apply custom preprocessing
 		if custom_preprocess is not None:
@@ -268,7 +266,7 @@ class SaliencyMaps(Callback):
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# if supplied, apply custom preprocessing
 		if self.custom_preprocess is not None:
@@ -359,7 +357,7 @@ class DeconvolutionNetwork(Callback):
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# used for reconstruction production
 		self.feat_map_layer_no = feat_map_layer_no

@@ -31,7 +31,7 @@ class VisualizationSnapshot(Callback):
 		self.results_folder = join(file_folder, 'results')
 		self.snapshot_folder = snapshot_folder
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		self.number = 0
 
 	def on_train_begin(self, logs=None):
@@ -41,7 +41,6 @@ class VisualizationSnapshot(Callback):
 			# file exists, which is what we want
 			pass
 
-		self.counter = self.interval - 1
 		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs=None):
@@ -177,7 +176,7 @@ class LayerActivations(Callback):
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 
 		self.exclude_layers = exclude_layers
 
@@ -196,7 +195,6 @@ class LayerActivations(Callback):
 		self.img_array = np.expand_dims(self.img_array, 0)
 
 	def on_train_begin(self, logs=None):
-		self.counter = self.interval - 1
 		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs={}):
@@ -256,7 +254,7 @@ class SaliencyMaps(Callback):
 		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		
 		self.custom_preprocess = custom_preprocess
 		self.custom_postprocess = custom_postprocess
@@ -287,7 +285,6 @@ class SaliencyMaps(Callback):
 		# set prediction function based on output tensor chosen
 		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
 
-		self.counter = self.interval - 1
 		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs={}):
@@ -350,7 +347,7 @@ class DeconvolutionNetwork(Callback):
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
@@ -376,7 +373,6 @@ class DeconvolutionNetwork(Callback):
 		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
 											   self.custom_keras_model_info)
 
-		self.counter = self.interval - 1
 		self.on_batch_end(0)
 	
 	def on_batch_end(self, batch, logs=None):
@@ -445,7 +441,7 @@ class DeepVisualization(Callback):
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		self.custom_postprocess = custom_postprocess
 		
 		# vanilla (required) values
@@ -486,7 +482,6 @@ class DeepVisualization(Callback):
 			# if not, original model can be used
 			self.vis_model = self.model
 
-		self.counter = self.interval - 1
 		self.on_batch_end(0)
 			
 	def on_batch_end(self, batch, logs={}):

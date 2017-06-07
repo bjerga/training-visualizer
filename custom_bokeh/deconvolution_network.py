@@ -23,39 +23,35 @@ user = args['user'][0].decode('ascii')
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# get original image
-images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-image_name = listdir(images_folder)[-1]  # TODO: throw error here
-orig_img = np.array(Image.open(join(images_folder, image_name)))
-
-orig_img_height = orig_img.shape[0]
-orig_img_width = orig_img.shape[1]
-
 deconvolution_source = ColumnDataSource(data=dict())
 
 p = Paragraph(text="", width=500)
 layout = Column(children=[p])
 
 
-def create_original_image_fig():
+def fill_data_source(deconvolution_data):
+	p.text = "Visualizations are being produced..."
+
+	img_width = deconvolution_data[0][0].shape[0]
+	img_height = deconvolution_data[0][0].shape[1]
+
+	# get original image
+	images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+	image_name = listdir(images_folder)[-1]  # TODO: throw error here
+	orig_img = np.array(Image.open(join(images_folder, image_name)).resize((img_width, img_height)))
+
 
 	# create plot for the original image
 	orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
-						  x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
-						  y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+						  x_range=Range1d(0, img_width, bounds=(0, img_width)),
+						  y_range=Range1d(0, img_height, bounds=(0, img_height)),
 						  outline_line_color="black", outline_line_width=3)
 	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
 	orig_img_fig.axis.visible = False
 	orig_img_fig.toolbar.logo = None
 
 	add_image_from_array(orig_img_fig, orig_img)
-	return orig_img_fig
 
-
-def fill_data_source(deconvolution_data):
-	p.text = "Visualizations are being produced..."
-
-	orig_img_fig = create_original_image_fig()
 	layout.children.append(orig_img_fig)
 
 	figures = []

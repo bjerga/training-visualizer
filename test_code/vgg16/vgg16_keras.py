@@ -14,11 +14,8 @@ from keras.utils.np_utils import to_categorical
 # import callbacks for visualizing
 from custom_keras.callbacks import CustomCallbacks
 
-# find path to save networks and results
-save_path = dirname(__file__)
-
 # find path to imagenet URLs
-imagenet_path = '/media/mikaelbj/Mikal My Book/ImageNet'
+imagenet_path = '/media/anniea/Mikal My Book/ImageNet'
 # imagenet_path = 'E:/ImageNet'
 train_data_path = join(imagenet_path, 'ILSVRC2012_img_train')
 test_data_path = join(imagenet_path, 'ILSVRC2012_img_test')
@@ -56,19 +53,22 @@ def create_model(weights=None, untrainable=False):
 	return model
 
 
-def train(model, no_of_epochs=50):
+def train(model, no_of_epochs=1):
 	# train top layers of model (self-defined layers)
 	print('\n\nCommence VGG16 model training\n')
-	
-	# initialize custom callbacks
-	callbacks = CustomCallbacks(save_path, preprocess_data, postprocess_data)
+
+	# initialize custom callbacks, use dirname to find path to save networks and results
+	callbacks = CustomCallbacks(dirname(__file__), preprocess_data, postprocess_data, base_interval=1)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(18, 10, interval=100)
-	callbacks.register_deep_visualization([(22, 402), (22, 587), (22, 950)], 2500.0, 500, l2_decay=0.0001,
-										  blur_interval=4, blur_std=1.0, interval=100)
+	callbacks.register_deconvolution_network(3, feat_map_amount=20)
+	callbacks.register_deconvolution_network(10, feat_map_nos=[2, 25, 26, 37, 69, 84, 92, 152, 171, 176, 187, 196, 239, 245])
+	liste = [(21, i) for i in range(0, 4096, 512)]
+	callbacks.register_deep_visualization([(22, 76)], 2500.0, 500, l2_decay=0,
+										  blur_interval=4, blur_std=0.5, abs_contribution_percentile=90)
+	callbacks.register_visualization_snapshot('/home/anniea/Code/results/vgg_results')
 
 	print('Steps per epoch:', steps_per_epoch)
 
@@ -108,9 +108,9 @@ def preprocess_data(img_array, target_size=(224, 224)):
 	
 	# change size of image
 	img = image.array_to_img(img_array)
-	height_weight_tuple = (target_size[1], target_size[0])
-	if img.size != height_weight_tuple:
-		img = img.resize(height_weight_tuple)
+	height_width_tuple = (target_size[1], target_size[0])
+	if img.size != height_width_tuple:
+		img = img.resize(height_width_tuple)
 		img_array = image.img_to_array(img)
 	
 	# change to BGR and subtract mean values

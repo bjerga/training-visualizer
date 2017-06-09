@@ -157,7 +157,7 @@ def create_deep_visualization_vis(results_path, save_folder):
 	background2 = [124, 116, 104]
 
 	for array, layer_name, unit_index, loss_value in deep_visualization_data:
-		'''left = 0
+		left = 0
 		right = 100000
 		top = 100000
 		bottom = 0
@@ -177,7 +177,7 @@ def create_deep_visualization_vis(results_path, save_folder):
 		print("{} {} {} {}".format(left, right, top, bottom))
 
 		array = array[top:bottom + 1, right:left + 1, :]
-		print(array.shape)'''
+		print(array.shape)
 
 		postfix = "_".join(os.path.basename(results_path).split('_')[1:])
 		save_path = os.path.join(save_folder, "deepvis_{}_{}_{}.png".format(postfix, layer_name, unit_index))
@@ -198,21 +198,21 @@ def main():
 	for results_path in results:
 		print(results_path)
 
-		#print("layer activations...")
+		'''print("layer activations...")
 		# layer activations
-		#create_layer_activations_vis(results_path, save_folder)
+		create_layer_activations_vis(results_path, save_folder)
 
 		print("saliency maps...")
 		# saliency maps
 		create_saliency_maps_vis(results_path, save_folder)
 
-		'''print("deconvolution...")
+		print("deconvolution...")
 		# deconvolution
-		create_deconvolution_network_vis(results_path, save_folder)
+		create_deconvolution_network_vis(results_path, save_folder)'''
 
 		print("deep visualization...")
 		# deep visualization
-		create_deep_visualization_vis(results_path, save_folder)'''
+		create_deep_visualization_vis(results_path, save_folder)
 
 
 main()

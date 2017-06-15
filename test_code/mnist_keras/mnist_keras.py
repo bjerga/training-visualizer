@@ -43,7 +43,7 @@ def create_model():
 	return model
 
 
-def train(model, no_of_epochs=2):
+def train(model, no_of_epochs=50):
 	print('\n\nCommence MNIST model training\n')
 
 	# get data
@@ -55,7 +55,7 @@ def train(model, no_of_epochs=2):
 	callbacks = CustomCallbacks(dirname(__file__), base_interval=base_interval)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
-	callbacks.register_layer_activations()
+	'''callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
 	callbacks.register_deconvolution_network(3, 32)
 	liste = [(9, i) for i in range(model.layers[9].output_shape[1])]
@@ -65,7 +65,7 @@ def train(model, no_of_epochs=2):
 	liste.extend([(2, (12, 12, i)) for i in range(0, 32, 8)])
 	liste.extend([(1, (13, 13, i)) for i in range(0, 32, 8)])
 	callbacks.register_deep_visualization(liste, 200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0)
-	callbacks.register_visualization_snapshot('/home/anniea/Code/results/mnist_results')
+	callbacks.register_visualization_snapshot('/home/anniea/Code/results/mnist_results')'''
 
 	# train with chosen hyperparameters
 	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True, verbose=1,

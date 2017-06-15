@@ -24,11 +24,6 @@ user = args['user'][0].decode('ascii')
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# get original image
-images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-image_name = listdir(images_folder)[-1]  # TODO: throw error here
-orig_img = np.array(Image.open(join(images_folder, image_name)))
-
 grid = []
 
 p = Paragraph(text="", width=500)
@@ -37,16 +32,21 @@ layout = Column(children=[p])
 # flip image to display correctly in coordinate system with placeholder
 saliency_maps_source = ColumnDataSource(data=dict())
 
-orig_img_height = orig_img.shape[0]
-orig_img_width = orig_img.shape[1]
-
 
 def fill_data_source(saliency_maps_data):
 
+	img_width = saliency_maps_data.shape[0]
+	img_height = saliency_maps_data.shape[1]
+
+	# get original image
+	images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+	image_name = listdir(images_folder)[-1]  # TODO: throw error here
+	orig_img = np.array(Image.open(join(images_folder, image_name)).resize((img_width, img_height)))
+
 	# create plot for the original image
 	orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="pan, reset, save",
-							x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
-							y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+							x_range=Range1d(0, img_width, bounds=(0, img_width)),
+							y_range=Range1d(0, img_height, bounds=(0, img_height)),
 							outline_line_color="black", outline_line_width=3)
 	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
 	orig_img_fig.axis.visible = False

@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 
 from keras.models import Model
-from keras.layers import Input, Dense, Concatenate
+from keras.layers import Input, Dense, Concatenate, Dropout
 from keras_vggface.vggface import VGGFace
 from keras.preprocessing.image import img_to_array, array_to_img
 from keras.backend import image_data_format
@@ -28,28 +28,33 @@ with open(join(case_path, 'metadata', 'IMFDB_training_meta.pickle'), 'rb') as f:
 	training_meta = pickle.load(f)
 with open(join(case_path, 'metadata', 'IMFDB_validation_meta.pickle'), 'rb') as f:
 	validation_meta = pickle.load(f)
+with open(join(case_path, 'metadata', 'IMFDB_testing_meta.pickle'), 'rb') as f:
+	test_meta = pickle.load(f)
 
+# TODO: use flipped for now
 # collect meta data files for features
 with open(join(case_path, 'metadata_feat', 'IMFDB_training_meta_feat.pickle'), 'rb') as f:
 	training_meta_feat = pickle.load(f)
 with open(join(case_path, 'metadata_feat', 'IMFDB_validation_meta_feat.pickle'), 'rb') as f:
 	validation_meta_feat = pickle.load(f)
+with open(join(case_path, 'metadata_feat', 'IMFDB_testing_meta_feat.pickle'), 'rb') as f:
+	test_meta_feat = pickle.load(f)
 
 
 # set model parameters
-# choose if model is to be experimental
-experimental = False
-# choose if model should only consist of top layers (if true, input is features instead of images)
-only_top = True
+# choose if model is to be experimental (False & False = baseline)
+extra_input = False
+extra_output = True
+assert not (extra_input and extra_output)
 # amount of classification possibilities
-class_amount = 98
+id_amount = 98
 
 # set training parameters
-no_of_epochs = 10
-batch_size = 128
+no_of_epochs = 100
+batch_size = 512
 
-# get emotion vector size
-emotion_range = len(training_meta[0][2])
+# get expression vector size
+expression_amount = len(training_meta[0][2])
 
 # compute steps for generators
 steps_per_epoch = ceil(len(training_meta) / batch_size)
@@ -60,8 +65,11 @@ MEAN_VALUES = np.array([93.5940, 104.7624, 129.1863])
 
 if image_data_format() == 'channels_last':
 	MEAN_VALUES = MEAN_VALUES.reshape(1, 1, 3)
+	input_shape = (224, 224, 3)
 else:
 	MEAN_VALUES = MEAN_VALUES.reshape(3, 1, 1)
+	input_shape = (3, 224, 224)
+
 
 """
 
@@ -76,35 +84,85 @@ output_tensor = model.layers[-1].output
 """
 
 
-def create_model():
+# create model only consisting of top layers using features from a VGGFace base model
+def create_top_model():
 
-	vgg_model = VGGFace(include_top=True, input_shape=(224, 224, 3))
+	# load VGGFace model
+	vgg_face_model = VGGFace(include_top=True, input_shape=input_shape)
 
-	for layer in vgg_model.layers[:-1]:
-		layer.trainable = False
+	# get output shape of VGGFace base model (excluding last layer, see note)
+	base_output_shape = vgg_face_model.layers[-2].input_shape[1:]
 
-	# get standard inputs from standard VGGFace model
-	model_input = vgg_model.input
-	output_layer_input = vgg_model.layers[-2].input
+	# define model input
+	model_input = Input(shape=base_output_shape, name='feat_input')
 
-	if only_top:
-		model_input = Input(shape=vgg_model.layers[-2].input_shape[1:], name='feat_input')
-		output_layer_input = model_input
-
-	if experimental:
+	if extra_input:
 		# define extra input
-		expression_input = Input(shape=(emotion_range,), name='emo_input')
+		expression_input = Input(shape=(expression_amount,), name='expression_input')
 
-		# model should now receive two inputs
+		# define experimental structure
+		# use Concatenate layer to merge expression input with standard input
+		x = model_input
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp1')(x)
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp2')(x)
+		x = Dropout(0.5)(x)
+		x = Concatenate()([x, expression_input])
+		x = Dense(1024, activation='relu', name='fc_exp3')(x)
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp4')(x)
+		x = Dropout(0.5)(x)
+		id_output = Dense(id_amount, activation='softmax', name='id_output')(x)
+		model_output = id_output
+
+		# redefine model input to receive two inputs
 		model_input = [model_input, expression_input]
 
-		# update output layer input to be Concatenate layer (merge expression input with standard input)
-		output_layer_input = Concatenate()([output_layer_input, expression_input])
+	elif extra_output:
 
-	output_layer = Dense(class_amount, activation='softmax', name='predictions')(output_layer_input)
+		# define experimental structure
+		x = model_input
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp')(x)
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp1')(x)
+		x_id = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp2')(x_id)
+		x = Dropout(0.5)(x)
+		id_output = Dense(id_amount, activation='softmax', name='id_output')(x)
 
-	custom_vgg_model = Model(model_input, output_layer)
+		# define extra output (with extra layers)
+		x = x_id
+		x = Dense(1024, activation='relu', name='fc_exp3')(x)
+		x = Dropout(0.5)(x)
+		# x = Dense(1024, activation='relu', name='fc_exp3')(x)
+		# x = Dropout(0.5)(x)
+		# x = Dense(512, activation='relu', name='fc_exp4')(x)
+		# x = Dropout(0.5)(x)
+		expression_output = Dense(expression_amount, activation='softmax', name='expression_output')(x)
+
+		# define model output to yield two outputs
+		# model_output = [id_output, expression_output]
+		model_output = Concatenate()([id_output, expression_output])
+
+	else:
+		# define baseline structure
+		x = model_input
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp')(x)
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp1')(x)
+		x = Dropout(0.5)(x)
+		x = Dense(1024, activation='relu', name='fc_exp2')(x)
+		x = Dropout(0.5)(x)
+		id_output = Dense(id_amount, activation='softmax', name='id_output')(x)
+		model_output = id_output
+
+	# create and compile model
+	custom_vgg_model = Model(model_input, model_output)
 	custom_vgg_model.compile(optimizer=Adam(lr=0.0005), loss='categorical_crossentropy', metrics=['accuracy'])
+	# custom_vgg_model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
 	return custom_vgg_model
 
@@ -116,51 +174,15 @@ def train_model(model):
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 
-	train_generator = image_data_generator(training_meta)
-	val_generator = image_data_generator(validation_meta)
-
-	if only_top:
-		train_generator = feat_data_generator(training_meta_feat)
-		val_generator = feat_data_generator(validation_meta_feat)
+	train_generator = feat_data_generator(training_meta_feat)
+	val_generator = feat_data_generator(validation_meta_feat)
 
 	model.fit_generator(generator=train_generator, steps_per_epoch=steps_per_epoch, epochs=no_of_epochs, verbose=1,
 						validation_data=val_generator, validation_steps=val_steps_per_epoch, callbacks=callbacks.get_list())
 
 
-def image_data_generator(metadata):
-
-	while True:
-		images = []
-		identifications = []
-		expressions = []
-
-		indices = random.sample(range(len(metadata)), batch_size)
-
-		for i in indices:
-			img_rel_path, id_vector, expression_vector = metadata[i]
-			img = Image.open(join(data_path, img_rel_path))
-			img = img.resize((224, 224))
-			img_array = img_to_array(img)
-
-			# alter to BGR and subtract mean values
-			if image_data_format() == 'channels_last':
-				img_array = img_array[:, :, ::-1]
-				img_array -= MEAN_VALUES.reshape((1, 1, 3))
-			else:
-				img_array = img_array[::-1, :, :]
-				img_array -= MEAN_VALUES.reshape((3, 1, 1))
-
-			images.append(img_array)
-			identifications.append(id_vector)
-			expressions.append(expression_vector)
-
-		data = np.array(images)
-		targets = np.array(identifications)
-
-		if experimental:
-			data = [data, np.array(expressions)]
-
-		yield data, targets
+def test_model(model):
+	
 
 
 def feat_data_generator(metadata):
@@ -182,8 +204,10 @@ def feat_data_generator(metadata):
 		data = np.array(features)
 		targets = np.array(identifications)
 
-		if experimental:
+		if extra_input:
 			data = [data, np.array(expressions)]
+		elif extra_output:
+			targets = np.array([[*id_vector, *expression_vector] for id_vector, expression_vector in zip(identifications, expressions)])
 
 		yield data, targets
 
@@ -234,8 +258,7 @@ def postprocess_data(img_array):
 
 def main():
 
-	# model = create_finetuning_model()
-	model = create_model()
+	model = create_top_model()
 	train_model(model)
 
 

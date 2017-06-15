@@ -72,6 +72,15 @@ with open(os.path.join(base_url, 'imfdb_training_data.pickle'), 'rb') as f:
 
 img_size = (130, 130)
 
+for x in training_data:
+	expression = x[-1]
+
+	emotion = expressions[expression.index(1)]
+
+	if emotion == 'NEUTRAL':
+		print(x[0])
+
+
 
 def get_averages():
 
@@ -88,11 +97,11 @@ def get_averages():
 
 	for x in training_data:
 		number_of_images += 1
-		print(number_of_images)
+		#print(number_of_images)
 		image = Image.open(os.path.join(base_url, x[0]))
-		#width, height = image.size
+		width, height = image.size
 
-		pixels = list(image.getdata())
+		'''pixels = list(image.getdata())
 
 		number_of_pixels += len(pixels)
 
@@ -100,9 +109,9 @@ def get_averages():
 
 		r += sum(pixels[0])
 		g += sum(pixels[1])
-		b += sum(pixels[2])
+		b += sum(pixels[2])'''
 
-		'''if height < min_height:
+		if height < min_height:
 			min_height = height
 		if width < min_width:
 			min_width = width
@@ -112,12 +121,14 @@ def get_averages():
 			max_width = width
 
 		widths += width
-		heights += height'''
+		heights += height
 
+	print("avg width and height: {}, {}".format(widths/number_of_images, heights/number_of_images))
 
-	print("{} pixels".format(number_of_pixels))
-	print("{} red, {} green, {} blue".format(r, g, b))
-	print("Average: {} red, {} green, {} blue".format(r/number_of_pixels, g/number_of_pixels, b/number_of_pixels))
+	print("width: {} - {}, height: {} - {}".format(min_width, max_width, min_height, max_height))
+	#print("{} pixels".format(number_of_pixels))
+	#print("{} red, {} green, {} blue".format(r, g, b))
+	#print("Average: {} red, {} green, {} blue".format(r/number_of_pixels, g/number_of_pixels, b/number_of_pixels))
 
 
 def pad_images():
@@ -141,5 +152,3 @@ def pad_images():
 		new_image.save(path)
 
 
-
-get_averages()

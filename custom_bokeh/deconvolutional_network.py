@@ -85,7 +85,7 @@ def update_data():
 	global create_source
 	try:
 		# load deconvolution data, on form tuple(image array, layer name, feat map number)
-		with open(join(results_path, 'deconvolution_network.pickle'), 'rb') as f:
+		with open(join(results_path, 'deconvolutional_network.pickle'), 'rb') as f:
 			deconvolution_data = pickle.load(f)
 
 		# if it is the first time data is detected, we need to fill the data source with the images

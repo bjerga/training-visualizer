@@ -95,7 +95,7 @@ def create_saliency_maps_vis(results_path, save_folder):
 
 def create_deconvolution_network_vis(results_path, save_folder):
 
-	with open(os.path.join(results_path, "deconvolution_network.pickle"), "rb") as f:
+	with open(os.path.join(results_path, "deconvolutional_network.pickle"), "rb") as f:
 		deconvolution_network_data = pickle.load(f)
 
 	for array, layer_name, feat_map_no in deconvolution_network_data:

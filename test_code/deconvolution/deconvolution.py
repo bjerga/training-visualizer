@@ -96,7 +96,7 @@ def deconv_example():
 				counter += 1
 
 		# save reconstructions as pickle
-		with open(join(dirname(__file__), 'output', 'deconvolution_network.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'output', 'deconvolutional_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions_by_feat_map_no, f)
 			
 		# save max images as pickle
@@ -117,7 +117,7 @@ def deconv_example():
 			toimage(img_to_save).save(join(dirname(__file__), 'output',  'rec_{}_{}.png'.format(layer_name, feat_map_no)))
 		
 		# save as pickle
-		with open(join(dirname(__file__), 'output', 'deconvolution_network.pickle'), 'wb') as f:
+		with open(join(dirname(__file__), 'output', 'deconvolutional_network.pickle'), 'wb') as f:
 			pickle.dump(reconstructions, f)
 	
 	print('\nTime to perform reconstructions for feat maps was {:.4f} seconds'.format(time() - start_time))

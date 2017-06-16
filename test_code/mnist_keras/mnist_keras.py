@@ -57,7 +57,7 @@ def train(model, no_of_epochs=50):
 	callbacks.register_training_progress()
 	'''callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(3, 32)
+	callbacks.register_deconvolutional_network(3, 32)
 	liste = [(9, i) for i in range(model.layers[9].output_shape[1])]
 	liste.extend([(8, i) for i in range(0, 64, 8)])
 	liste.extend([(6, i) for i in range(0, 128, 16)])

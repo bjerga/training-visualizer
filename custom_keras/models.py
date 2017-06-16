@@ -17,14 +17,14 @@ from requests.exceptions import RequestException
 from PIL import Image
 from io import BytesIO
 
-# define layers from which we can create a deconvolution model
+# define layers from which we can create a deconvolutional model
 USABLE_LAYERS = (InputLayer, Conv2D, MaxPooling2D)
 
 # define path to image URLS
 urls_path = join(dirname(__file__), 'deconv_input', 'fall11_urls.txt')
 
 
-class DeconvolutionModel:
+class DeconvolutionalModel:
 	def __init__(self, link_model, input_img, custom_preprocess=None, custom_postprocess=None, custom_keras_model_info=None):
 		
 		# set dimensions indices for rows, columns and channels
@@ -39,7 +39,7 @@ class DeconvolutionModel:
 		self.input_img = self.preprocess_img(input_img)
 		
 		if custom_keras_model_info is None:
-			# custom deconvolution Keras model info is not specified, try to create automatically
+			# custom deconvolutional Keras model info is not specified, try to create automatically
 			self.deconv_keras_model, self.layer_map = self.create_deconv_keras_model()
 			
 			# custom update is then not specified
@@ -47,7 +47,7 @@ class DeconvolutionModel:
 		else:
 			if None in custom_keras_model_info:
 				raise ValueError("'None'-value found in 'custom_keras_model_info'-tuple. Tuple should contain (in respective "
-								 "order): a deconvolution Keras model based on your original model, a dictionary mapping "
+								 "order): a deconvolutional Keras model based on your original model, a dictionary mapping "
 								 "from original model layer numbers to the corresponding deconv. model layer numbers, "
 								 "and an update method for the deconv. model which returns new deconv. model and layer map "
 								 "(if no update needed, input a method with pass).")
@@ -136,7 +136,7 @@ class DeconvolutionModel:
 		start_layer_no = 0
 		start_input = self.input_img
 		
-		# so long we have consecutive layers that can be used to create deconvolution model
+		# so long we have consecutive layers that can be used to create deconvolutional model
 		layer_no = 0
 		while layer_no < len(self.link_model.layers) and isinstance(self.link_model.layers[layer_no], USABLE_LAYERS):
 			
@@ -155,7 +155,7 @@ class DeconvolutionModel:
 				
 			layer_no += 1
 		
-		# return last layer examined as start layer of deconvolution model, and info needed for unpooling
+		# return last layer examined as start layer of deconvolutional model, and info needed for unpooling
 		return layer_no - 1, unpool_info
 	
 	# update model with by creating new model with updated layers
@@ -172,7 +172,7 @@ class DeconvolutionModel:
 	def produce_reconstructions_with_fixed_image(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None):
 		
 		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
-			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
+			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolutional model. Max value is {}. (Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
 
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]
 		
@@ -228,7 +228,7 @@ class DeconvolutionModel:
 												feat_map_amount=None, feat_map_nos=None):
 		
 		if feat_map_layer_no > np.max(list(self.layer_map.keys())):
-			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolution model. Max value is {}. "
+			raise ValueError("'feat_map_layer_no' value of {} is outside range of deconvolutional model. Max value is {}. "
 							 "(Layers numbers are zero-indexed.)".format(feat_map_layer_no, np.max(list(self.layer_map.keys()))))
 
 		feat_map_no_max = self.link_model.layers[feat_map_layer_no].output_shape[self.ch_dim]

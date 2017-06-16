@@ -63,8 +63,8 @@ def train(model, no_of_epochs=1):
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(3, feat_map_amount=20)
-	callbacks.register_deconvolution_network(10, feat_map_nos=[2, 25, 26, 37, 69, 84, 92, 152, 171, 176, 187, 196, 239, 245])
+	callbacks.register_deconvolutional_network(3, feat_map_amount=20)
+	callbacks.register_deconvolutional_network(10, feat_map_nos=[2, 25, 26, 37, 69, 84, 92, 152, 171, 176, 187, 196, 239, 245])
 	liste = [(21, i) for i in range(0, 4096, 512)]
 	callbacks.register_deep_visualization([(22, 76)], 2500.0, 500, l2_decay=0,
 										  blur_interval=4, blur_std=0.5, abs_contribution_percentile=90)

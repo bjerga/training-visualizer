@@ -22,41 +22,10 @@ user = args['user'][0].decode('ascii')
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# get original image
-images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-image_name = listdir(images_folder)[-1]  # TODO: throw error here
-orig_img = np.array(Image.open(join(images_folder, image_name)))
-
-orig_img_height = orig_img.shape[0]
-orig_img_width = orig_img.shape[1]
-
-if orig_img_width < 100:
-	img_scale = math.ceil(100 / orig_img_width)
-elif orig_img_height < 100:
-	img_scale = math.ceil(100 / orig_img_height)
-else:
-	img_scale = 1
-
-layer_activation_source = ColumnDataSource(data=dict())
-
 p = Paragraph(text="", width=500)
 layout = Column(children=[p])
 
-
-def create_original_image_fig():
-
-	# create plot for the original image
-	orig_img_fig = figure(title="Input", plot_width=orig_img_width*img_scale, plot_height=orig_img_height*img_scale,
-							x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
-							y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
-							tools="pan, reset", toolbar_location="left", toolbar_sticky=False,
-							outline_line_color="black", outline_line_width=3)
-	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
-	orig_img_fig.axis.visible = False
-	orig_img_fig.toolbar.logo = None
-
-	add_image_from_array(orig_img_fig, orig_img)
-	return orig_img_fig
+layer_activation_source = ColumnDataSource(data=dict())
 
 
 def create_image_grid(filters):
@@ -87,7 +56,35 @@ def create_image_grid(filters):
 def fill_data_source(layer_activation_data):
 
 	p.text = "Visualizations are being produced..."
-	figures = [create_original_image_fig()]
+
+	# get original image
+	images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+	image_name = listdir(images_folder)[-1]  # TODO: throw error here
+	orig_img = np.array(Image.open(join(images_folder, image_name)))
+
+	orig_img_height = orig_img.shape[0]
+	orig_img_width = orig_img.shape[1]
+
+	if orig_img_width < 100:
+		img_scale = math.ceil(100 / orig_img_width)
+	elif orig_img_height < 100:
+		img_scale = math.ceil(100 / orig_img_height)
+	else:
+		img_scale = 1
+
+	# create plot for the original image
+	orig_img_fig = figure(title="Input", plot_width=orig_img_width * img_scale, plot_height=orig_img_height * img_scale,
+						  x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
+						  y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
+						  tools="pan, reset", toolbar_location="left", toolbar_sticky=False,
+						  outline_line_color="black", outline_line_width=3)
+	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+	orig_img_fig.axis.visible = False
+	orig_img_fig.toolbar.logo = None
+
+	add_image_from_array(orig_img_fig, orig_img)
+
+	figures = [orig_img_fig]
 
 	for layer_name, filters in layer_activation_data:
 

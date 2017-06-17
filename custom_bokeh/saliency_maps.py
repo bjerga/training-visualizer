@@ -29,7 +29,6 @@ grid = []
 p = Paragraph(text="", width=500)
 layout = Column(children=[p])
 
-# flip image to display correctly in coordinate system with placeholder
 saliency_maps_source = ColumnDataSource(data=dict())
 
 

@@ -5,7 +5,7 @@ from visualizer.models import *
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
-from os.path import join, getmtime, split
+from os.path import join, getmtime, split, basename, dirname
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
 from flask_login import login_required, login_user, logout_user, current_user
@@ -48,19 +48,6 @@ def initdb_command():
 	except FileExistsError:
 		pass
 	print('Initialized the database')
-
-
-# used to overcome browser caching static images
-@app.template_filter('autoversion')
-def get_with_timestamp(rel_file_path):
-	#TODO: get name of app (visualizer) from somewhere
-	full_path = join('visualizer', rel_file_path[1:])
-	try:
-		timestamp = str(getmtime(full_path))
-	except OSError:
-		return rel_file_path
-	new_rel_file_path = "{0}?v={1}".format(rel_file_path, timestamp)
-	return new_rel_file_path
 
 
 # define default home page
@@ -256,8 +243,8 @@ def show_file_overview(filename):
 	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(filename)
-	# get relative path of visualization image associated with the file, if there is one
-	img_path = get_visualization_img_rel_path(filename)
+	has_image = has_visualization_image(filename)
+
 
 	# get content of file
 	file.direct_passthrough = False
@@ -286,8 +273,14 @@ def show_file_overview(filename):
 		return redirect(url_for('show_file_overview', filename=filename))
 	
 	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(), is_running=running,
-						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path,
+						   filename=filename, meta=meta, content=content, has_files=has_files, has_image=has_image,
 						   visualizations=app.config['VISUALIZATIONS'])
+
+
+@app.route('/uploads/<filename>/visualization_image')
+def send_visualization_image(filename):
+	path = get_visualization_img_abs_path(filename)
+	return send_from_directory(dirname(path), basename(path))
 
 
 # page for file visualization view

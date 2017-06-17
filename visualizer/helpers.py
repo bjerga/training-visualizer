@@ -82,9 +82,16 @@ def get_form_errors(form):
 	return form_errors
 
 
-# check if a network has any files associated with it, i.e. networks or visualization data
+# check if a network has networks or visualization data associated with it
 def has_associated_files(filename):
 	return listdir(get_networks_folder(filename)) or listdir(get_results_folder(filename))
+
+
+# check if a network has previously uploaded input image associated with it
+def has_visualization_image(filename):
+	if get_visualization_img_abs_path(filename):
+		return True
+	return False
 
 
 # get path of the folder of a certain file
@@ -105,17 +112,6 @@ def get_networks_folder(filename):
 # get path of the images folder of a certain file
 def get_images_folder(filename):
 	return join(get_file_folder(filename), 'images')
-
-
-# return relative path of visualization image, or none if no image has been uploaded
-def get_visualization_img_rel_path(filename):
-	abs_image_path = get_visualization_img_abs_path(filename)
-	if abs_image_path:
-		rel_image_path = relpath(abs_image_path, UPLOAD_FOLDER)
-		
-		# needs to add 'static' and 'user_storage' to the path
-		return url_for('static', filename=join(basename(UPLOAD_FOLDER), rel_image_path).replace('\\', '/'))
-	return None
 
 
 # return absolute path of visualization image, or none if no image has been uploaded

@@ -1,7 +1,7 @@
 *.pyc
 .idea/
 visualizer/*.db
-visualizer/static/user_storage
+visualizer/user_storage
 test_code/imagenet
 test_code/deconvolution/output
 test_code/deconvolution/max_images

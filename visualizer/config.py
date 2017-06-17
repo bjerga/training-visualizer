@@ -6,7 +6,7 @@ DEBUG = False
 SECRET_KEY = 'thisissupersecretestkeyintheworld'
 
 # entry to hold path to upload folder
-UPLOAD_FOLDER = os.path.join(_basedir, 'static', 'user_storage')
+UPLOAD_FOLDER = os.path.join(_basedir, 'user_storage')
 # number of lines to print of the script output
 NO_OF_OUTPUT_LINES = 50
 

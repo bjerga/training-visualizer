@@ -389,7 +389,11 @@ def show_file_output(filename):
 @login_required
 @app.route('/cli_output/<user>/<filename>')
 def get_cli_output(user, filename):
-	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
+	try:
+		output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
+	except FileNotFoundError:
+		# if output file has not yet been created, return string saying this
+		output = 'No output has been produced.'
 	return jsonify(output=output)
 
 

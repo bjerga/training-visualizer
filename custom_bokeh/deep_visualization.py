@@ -14,9 +14,11 @@ document = curdoc()
 
 args = document.session_context.request.arguments
 
-# TODO: throw error if these are not provided
-file = args['file'][0].decode('ascii')
-user = args['user'][0].decode('ascii')
+try:
+	file = args['file'][0].decode('ascii')
+	user = args['user'][0].decode('ascii')
+except KeyError as e:
+	raise KeyError(str(e) + '. Filename and username must be provided as request parameters.')
 
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')

@@ -40,9 +40,12 @@ def fill_data_source(saliency_maps_data):
 	img_height = saliency_maps_data.shape[1]
 
 	# get original image
-	images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-	image_name = listdir(images_folder)[-1]  # TODO: throw error here
-	orig_img = np.array(Image.open(join(images_folder, image_name)).resize((img_width, img_height)))
+	try:
+		images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+		image_name = listdir(images_folder)[-1]
+		orig_img = np.array(Image.open(join(images_folder, image_name)).resize((img_width, img_height)))
+	except FileNotFoundError:
+		raise FileNotFoundError(str(e) + '. No visualization input image found in the image folder')
 
 	# create plot for the original image
 	orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="pan, reset, save",

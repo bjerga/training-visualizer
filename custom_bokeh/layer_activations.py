@@ -60,9 +60,12 @@ def fill_data_source(layer_activation_data):
 	p.text = "Visualizations are being produced..."
 
 	# get original image
-	images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-	image_name = listdir(images_folder)[-1]  # TODO: throw error here
-	orig_img = np.array(Image.open(join(images_folder, image_name)))
+	try:
+		images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+		image_name = listdir(images_folder)[-1]
+		orig_img = np.array(Image.open(join(images_folder, image_name)))
+	except FileNotFoundError:
+		raise FileNotFoundError(str(e) + '. No visualization input image found in the image folder')
 
 	orig_img_height = orig_img.shape[0]
 	orig_img_width = orig_img.shape[1]

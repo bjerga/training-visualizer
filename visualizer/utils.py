@@ -62,7 +62,6 @@ def allowed_image(filename):
 	return '.' in filename and get_ext(filename).lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
-# TODO: might be possible to manage this directly in the query
 # check if tag already exists
 # if yes, return existing tag
 # if no, return new tag

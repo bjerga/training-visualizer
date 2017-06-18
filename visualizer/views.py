@@ -165,8 +165,7 @@ def upload_file():
 			
 			# make filename secure
 			filename = secure_filename(file.filename)
-			
-			# TODO: make database model unique and handle database-errors instead of checking uniqueness
+
 			# if filename is unique in database
 			if unique_filename(filename):
 				

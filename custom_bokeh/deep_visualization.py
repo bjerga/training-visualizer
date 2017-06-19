@@ -7,7 +7,7 @@ from os.path import join
 from bokeh.plotting import figure
 import pickle
 
-from visualizer.config import UPLOAD_FOLDER, UPDATE_INTERVALS
+from visualizer.config import UPLOAD_FOLDER, BOKEH_UPDATE_INTERVALS
 from custom_bokeh.utils import *
 
 document = curdoc()
@@ -70,7 +70,7 @@ def update_data():
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
 			fill_data_source(deep_visualization_data)
-			document.add_periodic_callback(update_data, UPDATE_INTERVALS['deep_visualization'])
+			document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deep_visualization'])
 		# if not, we can simply update the data
 		else:
 			for array, layer_name, unit_index, loss_value in deep_visualization_data:
@@ -88,4 +88,4 @@ def update_data():
 		return
 
 document.add_root(layout)
-document.add_periodic_callback(update_data, UPDATE_INTERVALS['deep_visualization'])
+document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deep_visualization'])

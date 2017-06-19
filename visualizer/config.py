@@ -22,7 +22,7 @@ VISUALIZATIONS = [('training_progress', 'Training Progress'), ('layer_activation
 				  ('saliency_maps', 'Saliency Maps'), ('deconvolutional_network', 'Deconvolutional Network'),
 				  ('deep_visualization', 'Deep Visualization')]
 # the intervals at which the bokeh visualizations should update at for the various visualizations
-UPDATE_INTERVALS = {'training_progress': 200,
+BOKEH_UPDATE_INTERVALS = {'training_progress': 200,
 					'layer_activations': 10000,  # will take an especially long time to produce if network is large
 					'saliency_maps': 5000,
 					'deconvolutional_network': 5000,

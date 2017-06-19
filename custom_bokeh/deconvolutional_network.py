@@ -10,7 +10,7 @@ from bokeh.plotting import figure
 from PIL import Image
 import pickle
 
-from visualizer.config import UPLOAD_FOLDER, UPDATE_INTERVALS
+from visualizer.config import UPLOAD_FOLDER, BOKEH_UPDATE_INTERVALS
 from custom_bokeh.utils import *
 
 document = curdoc()
@@ -97,7 +97,7 @@ def update_data():
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
 			fill_data_source(deconvolution_data)
-			document.add_periodic_callback(update_data, UPDATE_INTERVALS['deconvolutional_network'])
+			document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deconvolutional_network'])
 		# if not, we can simply update the data
 		else:
 			for array, layer_name, feat_map_no in deconvolution_data:
@@ -118,4 +118,4 @@ def update_data():
 
 
 document.add_root(layout)
-document.add_periodic_callback(update_data, UPDATE_INTERVALS['deconvolutional_network'])
+document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deconvolutional_network'])

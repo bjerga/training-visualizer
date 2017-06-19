@@ -8,7 +8,7 @@ from PIL import Image
 import pickle
 import math
 
-from visualizer.config import UPLOAD_FOLDER, UPDATE_INTERVALS
+from visualizer.config import UPLOAD_FOLDER, BOKEH_UPDATE_INTERVALS
 from custom_bokeh.utils import *
 
 document = curdoc()
@@ -155,7 +155,7 @@ def update_data():
 			document.remove_periodic_callback(update_data)
 			fill_data_source(layer_activation_data)
 			# allow some time for the layer activations to load
-			document.add_periodic_callback(update_data, UPDATE_INTERVALS['layer_activations'])
+			document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['layer_activations'])
 		# if there is data in the data source, we can simply update this data
 		else:
 			# dictionary to hold new images
@@ -182,4 +182,4 @@ def update_data():
 		pass
 
 document.add_root(layout)
-document.add_periodic_callback(update_data, UPDATE_INTERVALS['layer_activations'])
+document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['layer_activations'])

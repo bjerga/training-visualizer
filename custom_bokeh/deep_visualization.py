@@ -8,7 +8,7 @@ from bokeh.plotting import figure
 import pickle
 
 from visualizer.config import UPLOAD_FOLDER
-from custom_bokeh.helpers import *
+from custom_bokeh.utils import *
 
 document = curdoc()
 

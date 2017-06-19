@@ -10,7 +10,7 @@ from bokeh.plotting import figure
 from PIL import Image
 import pickle
 
-from visualizer.config import UPLOAD_FOLDER
+from visualizer.config import UPLOAD_FOLDER, UPDATE_INTERVALS
 from custom_bokeh.utils import *
 
 document = curdoc()
@@ -77,8 +77,10 @@ def update_data():
 			saliency_maps_data = pickle.load(f)
 
 		if not saliency_maps_source.data:
-			# if the data source is empty, we need to create the figures and fill the data source
+			# temporary remove callback to make sure the function is not being called while creating the visualizations
+			document.remove_periodic_callback(update_data)
 			fill_data_source(saliency_maps_data)
+			document.add_periodic_callback(update_data, UPDATE_INTERVALS['saliency_maps'])
 		else:
 			# if the data source already exists, we can simply update its data
 			img = process_image_dim(saliency_maps_data.astype('uint8'))
@@ -95,7 +97,5 @@ def update_data():
 		# if no visualization has been produced yet, simply skip visualization
 		return
 
-update_data()
-
 document.add_root(layout)
-document.add_periodic_callback(update_data, 5000)
+document.add_periodic_callback(update_data, UPDATE_INTERVALS['saliency_maps'])

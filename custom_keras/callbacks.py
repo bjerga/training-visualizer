@@ -631,16 +631,17 @@ class DeepVisualization(Callback):
 		# get output tensor based on chosen layer number
 		output_tensor = self.vis_model.layers[layer_no].output
 		
+		# currently raises an error for Theano
 		# check that unit index is the correct length and that content is valid
-		if len(output_tensor.shape[1:]) != len(unit_index):
-			raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
-							 .format(len(output_tensor.shape[1:]), len(unit_index)))
-		else:
-			tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
-			tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
-			if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
-				raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
-								 .format(np.array(unit_index), tensor_min, tensor_max))
+		# if len(output_tensor.shape[1:]) != len(unit_index):
+		# 	raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
+		# 					 .format(len(output_tensor.shape[1:]), len(unit_index)))
+		# else:
+		# 	tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
+		# 	tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
+		# 	if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
+		# 		raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
+		# 						 .format(np.array(unit_index), tensor_min, tensor_max))
 		
 		# pad with batch index
 		unit_index = (0,) + unit_index

@@ -4,7 +4,7 @@ A web interface for visualizing data produced while training artificial neural n
 The example network `mnist_keras.py` along with example visualization input images are available in the `test_code` folder.
 
 ## Installation & Setup
-This explains how to install and set up the visualization tool ready for use. We assume that the user have Python 3.5 installed.
+This explains how to install and set up the visualization tool ready for use. We assume that the user has Python 3.5 installed.
 
 ### Installation
 The first thing you need to do is download or clone the GitHub repository to your computer. Open a command line interface and navigate to the main directory of the repository, `training-visualizer`.
@@ -18,7 +18,7 @@ pip install -r visualizer/requirements.txt
 **Note:** If you already have an installation of the Python Imaging Library (PIL) package, you will get a failure when trying to install the Pillow package listed in the requirements file. Remove Pillow from the requirements file and rerun the command above.
 
 ### Configuration and Setup
-The visualizer folder of the project contains a configuration file that can be used to configure some settings for the application, most of which are not of importance for a typical user. However, if you are using a different command than `python3` to run Python programs, it is crucial that you change the `PYTHON` variable to the actual command you are using.
+The visualizer folder of the project contains a configuration file that can be used to configure some settings for the application, most of which are not of importance for a typical user. However, if you are using a different command than `python3` to run the desired Python executable, it is crucial that you change the `PYTHON` variable to the actual command you are using.
 
 After the application has been properly configured, we can start performing the necessary setup. To make this process easier for the user, we have created bash scripts for Linux and MacOS, and batch scripts for Windows, containing the necessary commands.
 

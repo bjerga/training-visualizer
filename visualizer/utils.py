@@ -31,12 +31,6 @@ def unique_username(username):
 	return True
 
 
-# to be implemented
-def has_permission(next_access):
-	# TODO: implement
-	return True
-
-
 # check if filename is unique for current user in database
 def unique_filename(filename):
 	if FileMeta.query.filter_by(filename=filename, owner=get_current_user()).first():

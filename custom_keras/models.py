@@ -98,7 +98,7 @@ class DeconvolutionalModel:
 									use_bias=False)(x)
 				
 				# update layer map
-				# TODO: may need to remove the +1 (currently it makes the deconvolution skip RELU-layer on intermediate feature map reconstructions)
+				# the +1 makes the deconvolution skip RELU-layer on intermediate feature map reconstructions
 				layer_map[layer_no] = dc_layer_count + 1
 				dc_layer_count += 2
 			
@@ -126,7 +126,6 @@ class DeconvolutionalModel:
 		# return model and layer map
 		return Model(inputs=dc_input, outputs=x), layer_map
 	
-	# TODO: find efficient way to compute pooling input and output
 	def compute_model_info(self):
 		
 		# create new dict{layer number: tuple(pooling input, pooling output)}
@@ -211,7 +210,7 @@ class DeconvolutionalModel:
 		reconstructions = []
 		for feat_map_no, processed_feat_maps in feat_maps_tuples:
 			
-			# TODO: currently results in a RecursionError for Theano
+			# NOTE: currently results in a RecursionError for Theano, problem lies within Keras
 			# feed to deconv. model to produce reconstruction
 			reconstruction = self.compute_layer_output(self.deconv_keras_model, -1, self.layer_map[feat_map_layer_no],
 													   processed_feat_maps)
@@ -238,9 +237,6 @@ class DeconvolutionalModel:
 				raise ValueError("Neither 'feat_map_amount' or 'feat_maps_nos' are specified. Specify at least one: "
 								 "'feat_map_amount' for a random subset of feature maps or 'feat_maps_nos' for user "
 								 "selected feature maps.")
-			
-			# TODO: delete SEED when done with testing
-			np.random.seed(1337)
 			
 			# select random subset of feature map numbers of specified size
 			feat_map_nos = np.random.choice(feat_map_no_max, feat_map_amount, replace=False)
@@ -310,7 +306,6 @@ class DeconvolutionalModel:
 			# expand with feature map dimension
 			max_activation_pos += (feat_map_no,)
 		else:
-			# TODO: test support for theano
 			# get selected feature map based on input
 			selected_feat_map = feat_maps[:, feat_map_no, :, :]
 			
@@ -356,7 +351,7 @@ class DeconvolutionalModel:
 		
 		return max_feat_maps_tuples
 	
-	# TODO: currently based on ImageNet '11 text file with image URLs
+	# currently based on ImageNet '11 text file with image URLs
 	def get_max_images(self, check_amount, choose_amount, feat_map_layer_no, feat_map_nos):
 		
 		urls = []
@@ -436,7 +431,6 @@ class DeconvolutionalModel:
 		
 		return img_array
 	
-	# TODO: modify when done with testing
 	# processes and saves the reconstruction and returns processed array and name
 	def postprocess_reconstruction(self, rec_array):
 		
@@ -508,7 +502,6 @@ class MaxUnpooling2D(Layer):
 				row_offset = ((pool_output.shape[row_dim] - 1) * strides[0] + pool_size[0] - pool_input.shape[row_dim]) // 2
 				col_offset = ((pool_output.shape[col_dim] - 1) * strides[1] + pool_size[1] - pool_input.shape[col_dim]) // 2
 				
-				# TODO: find alternative to these negative checks, seems to be produced when total stride length == length, and strides > pool size
 				# computed offset can be negative, but this equals no offset
 				if row_offset < 0:
 					row_offset = 0

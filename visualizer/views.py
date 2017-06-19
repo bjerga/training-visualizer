@@ -116,15 +116,8 @@ def login():
 			login_user(user, remember=True)
 			flash('You were logged in', 'success')
 			
-			# TODO: find out how to utilize this
-			next_access = request.args.get('next')
-			# next_is_valid should check if the user has valid
-			# permission to access the `next` url
-			if not has_permission(next_access):
-				return abort(400)
-
 			# redirect to file list page
-			return redirect(next_access or url_for('show_all_files'))
+			return redirect(url_for('show_all_files'))
 	
 	return render_template('login.html', form=form)
 

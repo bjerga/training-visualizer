@@ -2,6 +2,7 @@ from time import time
 from os.path import dirname
 
 import numpy as np
+import math
 
 import keras.backend as K
 from keras.models import Model
@@ -11,9 +12,6 @@ from keras.utils.np_utils import to_categorical
 
 # import callbacks for visualizing
 from custom_keras.callbacks import CustomCallbacks
-
-# find path to save networks and results
-save_path = dirname(__file__)
 
 if K.image_data_format() == 'channels_last':
 	# use tensorflow dimensions
@@ -47,19 +45,22 @@ def create_model():
 
 def train(model, no_of_epochs=10):
 	print('\n\nCommence MNIST model training\n')
-	
-	# initialize custom callbacks
-	callbacks = CustomCallbacks(save_path)
+
+	# get data
+	training_data, training_targets, test_data, test_targets = load_data()
+
+	# produce visualizations 5 times each epoch
+	base_interval = math.floor((len(training_data)/128)/5)
+
+	# initialize custom callbacks, use dirname to find path to save networks and results
+	callbacks = CustomCallbacks(dirname(__file__), base_interval=base_interval)
 	callbacks.register_network_saver()
 	callbacks.register_training_progress()
 	callbacks.register_layer_activations()
 	callbacks.register_saliency_maps()
-	callbacks.register_deconvolution_network(3, 16, interval=10)
-	callbacks.register_deep_visualization([(9, i) for i in range(model.layers[9].output_shape[1])],
-										  200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0, interval=10)
-
-	# get data
-	training_data, training_targets, test_data, test_targets = load_data()
+	callbacks.register_deconvolutional_network(3, feat_map_amount=8)
+	deepvis_units = [(9, i) for i in range(model.layers[9].output_shape[1])]
+	callbacks.register_deep_visualization(deepvis_units, 200.0, 50, l2_decay=0.0001, blur_interval=4, blur_std=1.0)
 
 	# train with chosen hyperparameters
 	model.fit(training_data, training_targets, epochs=no_of_epochs, batch_size=128, shuffle=True, verbose=1,

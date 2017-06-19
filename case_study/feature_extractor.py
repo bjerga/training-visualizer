@@ -24,11 +24,16 @@ with open(join(case_path, 'metadata', 'IMFDB_validation_meta.pickle'), 'rb') as 
 with open(join(case_path, 'metadata', 'IMFDB_testing_meta.pickle'), 'rb') as f:
 	testing_meta = pickle.load(f)
 
+# choose to flip image data horizontally or not
+flip = False
+
 # make lists to hold new meta with features instead of image names
 metadata_feat_list = [[], [], []]
 
 # select names for meta with features
 name_base = 'IMFDB_{}_meta_feat.pickle'
+if flip:
+	name_base = name_base.replace('.', '_flip.')
 metadata_feat_names = [name_base.format('training'), name_base.format('validation'), name_base.format('testing')]
 
 # get original VGGFace model
@@ -47,12 +52,12 @@ for i in range(len(metadata_list)):
 		img_array = img_to_array(img)
 
 		# alter to BGR and subtract mean values
-		if K.image_data_format() == 'channels_last':
-			img_array = img_array[:, :, ::-1]
-			img_array -= MEAN_VALUES.reshape((1, 1, 3))
-		else:
-			img_array = img_array[::-1, :, :]
-			img_array -= MEAN_VALUES.reshape((3, 1, 1))
+		img_array = img_array[:, :, ::-1]
+		img_array -= MEAN_VALUES.reshape((1, 1, 3))
+
+		# flip image array horizontally if 'flip' is set to true
+		if flip:
+			img_array = np.fliplr(img_array)
 
 		metadata_feat_list[i].append((get_features([[img_array], 0])[0][0], id_vector, expression_vector))
 

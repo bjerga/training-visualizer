@@ -4,22 +4,56 @@ import pickle
 from math import ceil
 from os import mkdir, listdir
 from os.path import join, basename
+from shutil import copytree
 
-from scipy.misc import toimage
 from scipy.ndimage.filters import gaussian_filter
 from PIL import Image
 
 import keras.backend as K
 from keras.models import Model
 from keras.layers import InputLayer, Dropout, Flatten
-from keras.preprocessing import image
+from keras.preprocessing.image import img_to_array
 from keras.callbacks import Callback
 
-from custom_keras.models import DeconvolutionModel
+from custom_keras.models import DeconvolutionalModel
 
 
 # choose which layers to exclude from layer activation visualization by default
 EXCLUDE_LAYERS = (InputLayer, Dropout, Flatten)
+
+
+class VisualizationSnapshot(Callback):
+
+	def __init__(self, file_folder, snapshot_folder, interval):
+		super(VisualizationSnapshot, self).__init__()
+
+		self.filename = basename(file_folder)
+		self.results_folder = join(file_folder, 'results')
+		self.snapshot_folder = snapshot_folder
+		self.interval = interval
+		self.counter = interval - 1
+		self.number = 0
+
+	def on_train_begin(self, logs=None):
+		try:
+			mkdir(self.snapshot_folder)
+		except FileExistsError:
+			# file exists, which is what we want
+			pass
+
+		self.on_batch_end(0)
+
+	def on_batch_end(self, batch, logs=None):
+
+		self.counter += 1
+
+		if self.counter == self.interval:
+
+			filename = "{}_{}".format(self.filename, self.number)
+			copytree(self.results_folder, join(self.snapshot_folder, filename))
+
+			self.number += 1
+			self.counter = 0
 
 
 class CustomCallbacks:
@@ -36,6 +70,11 @@ class CustomCallbacks:
 		
 	def get_list(self):
 		return self.callback_list
+	
+	def register_visualization_snapshot(self, snapshot_folder, interval=None):
+		if interval is None:
+			interval = self.base_interval
+		self.callback_list.append(VisualizationSnapshot(self.file_folder, snapshot_folder, interval))
 		
 	def register_network_saver(self):
 		self.callback_list.append(NetworkSaver(self.file_folder))
@@ -53,11 +92,11 @@ class CustomCallbacks:
 			interval = self.base_interval
 		self.callback_list.append(SaliencyMaps(self.file_folder, self.custom_preprocess, self.custom_postprocess, interval))
 		
-	def register_deconvolution_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None,
+	def register_deconvolutional_network(self, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None,
 									   custom_keras_model_info=None, interval=None):
 		if interval is None:
 			interval = self.base_interval
-		self.callback_list.append(DeconvolutionNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
+		self.callback_list.append(DeconvolutionalNetwork(self.file_folder, feat_map_layer_no, feat_map_amount, feat_map_nos,
 													   self.custom_preprocess, self.custom_postprocess, custom_keras_model_info, interval))
 		
 	def register_deep_visualization(self, units_to_visualize, learning_rate, no_of_iterations, l2_decay=0, blur_interval=0,
@@ -137,7 +176,7 @@ class LayerActivations(Callback):
 		super(LayerActivations, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 
 		self.exclude_layers = exclude_layers
 
@@ -146,7 +185,7 @@ class LayerActivations(Callback):
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# if supplied, apply custom preprocessing
 		if custom_preprocess is not None:
@@ -154,6 +193,9 @@ class LayerActivations(Callback):
 		
 		# add batch dimension
 		self.img_array = np.expand_dims(self.img_array, 0)
+
+	def on_train_begin(self, logs=None):
+		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -197,8 +239,8 @@ class LayerActivations(Callback):
 						# get on correct format (list of filters)
 						act_array = np.rollaxis(act_array, 2)
 
-					# save tuple (layer name, layer's activation tensor)
-					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array))
+					# save tuple (layer name, layer's activation tensor converted to uint8)
+					layer_tuples.append(("Layer {0}: {1}".format(layer_no, layer.name), act_array.astype('uint8')))
 
 			with open(join(self.results_folder, 'layer_activations.pickle'), 'wb') as f:
 				pickle.dump(layer_tuples, f)
@@ -212,7 +254,7 @@ class SaliencyMaps(Callback):
 		super(SaliencyMaps, self).__init__()
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		
 		self.custom_preprocess = custom_preprocess
 		self.custom_postprocess = custom_postprocess
@@ -222,7 +264,7 @@ class SaliencyMaps(Callback):
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# if supplied, apply custom preprocessing
 		if self.custom_preprocess is not None:
@@ -230,7 +272,7 @@ class SaliencyMaps(Callback):
 		
 		# add batch dimension
 		self.img_array = np.expand_dims(self.img_array, 0)
-		
+
 	def on_train_begin(self, logs=None):
 
 		# set which output tensor of model to use
@@ -242,6 +284,8 @@ class SaliencyMaps(Callback):
 
 		# set prediction function based on output tensor chosen
 		self.predict_func = K.function([self.model.input, K.learning_phase()], [self.output_tensor])
+
+		self.on_batch_end(0)
 
 	def on_batch_end(self, batch, logs={}):
 
@@ -296,28 +340,28 @@ class SaliencyMaps(Callback):
 			self.counter = 0
 
 
-class DeconvolutionNetwork(Callback):
+class DeconvolutionalNetwork(Callback):
 	def __init__(self, file_folder, feat_map_layer_no, feat_map_amount=None, feat_map_nos=None, custom_preprocess=None,
 				 custom_postprocess=None, custom_keras_model_info=None, interval=100):
-		super(DeconvolutionNetwork, self).__init__()
+		super(DeconvolutionalNetwork, self).__init__()
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		
 		# find image uploaded by user to use in visualization
 		images_folder = join(file_folder, 'images')
 		img_name = listdir(images_folder)[-1]
 		
 		# load image as array
-		self.img_array = image.img_to_array(Image.open(join(images_folder, img_name)))
+		self.img_array = img_to_array(Image.open(join(images_folder, img_name)))
 		
 		# used for reconstruction production
 		self.feat_map_layer_no = feat_map_layer_no
 		self.feat_map_amount = feat_map_amount
 		self.feat_map_nos = feat_map_nos
 		
-		# deconvolution model info
+		# deconvolutional model info
 		self.deconv_model = None
 		self.custom_keras_model_info = custom_keras_model_info
 		
@@ -326,8 +370,10 @@ class DeconvolutionNetwork(Callback):
 		self.custom_postprocess = custom_postprocess
 	
 	def on_train_begin(self, logs=None):
-		self.deconv_model = DeconvolutionModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
+		self.deconv_model = DeconvolutionalModel(self.model, self.img_array, self.custom_preprocess, self.custom_postprocess,
 											   self.custom_keras_model_info)
+
+		self.on_batch_end(0)
 	
 	def on_batch_end(self, batch, logs=None):
 
@@ -345,7 +391,7 @@ class DeconvolutionNetwork(Callback):
 																						 self.feat_map_nos)
 			
 			# save reconstructions as pickle
-			with open(join(self.results_folder, 'deconvolution_network.pickle'), 'wb') as f:
+			with open(join(self.results_folder, 'deconvolutional_network.pickle'), 'wb') as f:
 				pickle.dump(reconstructions, f)
 			
 			self.counter = 0
@@ -395,7 +441,7 @@ class DeepVisualization(Callback):
 		
 		self.results_folder = join(file_folder, 'results')
 		self.interval = interval
-		self.counter = 0
+		self.counter = interval - 1
 		self.custom_postprocess = custom_postprocess
 		
 		# vanilla (required) values
@@ -435,6 +481,8 @@ class DeepVisualization(Callback):
 		else:
 			# if not, original model can be used
 			self.vis_model = self.model
+
+		self.on_batch_end(0)
 			
 	def on_batch_end(self, batch, logs={}):
 
@@ -583,16 +631,17 @@ class DeepVisualization(Callback):
 		# get output tensor based on chosen layer number
 		output_tensor = self.vis_model.layers[layer_no].output
 		
+		# currently raises an error for Theano
 		# check that unit index is the correct length and that content is valid
-		if len(output_tensor.shape[1:]) != len(unit_index):
-			raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
-							 .format(len(output_tensor.shape[1:]), len(unit_index)))
-		else:
-			tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
-			tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
-			if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
-				raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
-								 .format(np.array(unit_index), tensor_min, tensor_max))
+		# if len(output_tensor.shape[1:]) != len(unit_index):
+		# 	raise ValueError('Index mismatch: Unit indices should be of length {}, not {}'
+		# 					 .format(len(output_tensor.shape[1:]), len(unit_index)))
+		# else:
+		# 	tensor_min = np.array([0 for _ in output_tensor.shape[1:]])
+		# 	tensor_max = np.array([int(dim) - 1 for dim in output_tensor.shape[1:]])
+		# 	if np.any(np.array(unit_index) < tensor_min) or np.any(np.array(unit_index) > tensor_max):
+		# 		raise ValueError('Invalid unit index {}: Unit indices should have values between {} and {}'
+		# 						 .format(np.array(unit_index), tensor_min, tensor_max))
 		
 		# pad with batch index
 		unit_index = (0,) + unit_index
@@ -624,11 +673,6 @@ class DeepVisualization(Callback):
 	
 	# creates an random, initial image to manipulate into a visualization
 	def create_initial_image(self):
-		
-		# TODO: remove when done with testing
-		# set random seed to be able to reproduce initial state of image
-		# used in testing only, and should be remove upon implementation with tool
-		np.random.seed(1337)
 		
 		# add (1,) for batch dimension
 		return np.random.normal(0, 10, (1,) + self.vis_model.input_shape[1:])

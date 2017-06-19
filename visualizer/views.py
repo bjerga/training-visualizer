@@ -1,7 +1,11 @@
+from visualizer.forms import *
+from visualizer.utils import *
+from visualizer.models import *
+
 from datetime import date, datetime
 from shutil import rmtree
 from os import mkdir, listdir, remove
-from os.path import join, dirname, getmtime, split
+from os.path import join, getmtime, split, basename, dirname
 
 from flask import request, redirect, url_for, render_template, flash, send_from_directory, jsonify, abort
 from flask_login import login_required, login_user, logout_user, current_user
@@ -9,9 +13,6 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, distinct
 
 from tailer import tail
-
-from visualizer.forms import *
-from visualizer.helpers import *
 
 # Import the database, application, and login_manager object from the main visualizer module
 from visualizer import db, app, login_manager
@@ -47,19 +48,6 @@ def initdb_command():
 	except FileExistsError:
 		pass
 	print('Initialized the database')
-
-
-# used to overcome browser caching static images
-@app.template_filter('autoversion')
-def get_with_timestamp(rel_file_path):
-	#TODO: get name of app (visualizer) from somewhere
-	full_path = join('visualizer', rel_file_path[1:])
-	try:
-		timestamp = str(getmtime(full_path))
-	except OSError:
-		return rel_file_path
-	new_rel_file_path = "{0}?v={1}".format(rel_file_path, timestamp)
-	return new_rel_file_path
 
 
 # define default home page
@@ -128,15 +116,8 @@ def login():
 			login_user(user, remember=True)
 			flash('You were logged in', 'success')
 			
-			# TODO: find out how to utilize this
-			next_access = request.args.get('next')
-			# next_is_valid should check if the user has valid
-			# permission to access the `next` url
-			if not has_permission(next_access):
-				return abort(400)
-
 			# redirect to file list page
-			return redirect(next_access or url_for('show_all_files'))
+			return redirect(url_for('show_all_files'))
 	
 	return render_template('login.html', form=form)
 
@@ -177,8 +158,7 @@ def upload_file():
 			
 			# make filename secure
 			filename = secure_filename(file.filename)
-			
-			# TODO: make database model unique and handle database-errors instead of checking uniqueness
+
 			# if filename is unique in database
 			if unique_filename(filename):
 				
@@ -255,8 +235,8 @@ def show_file_overview(filename):
 	file = send_from_directory(get_file_folder(filename), filename)
 	# check whether the file has produced any results or networks
 	has_files = has_associated_files(filename)
-	# get relative path of visualization image associated with the file, if there is one
-	img_path = get_visualization_img_rel_path(filename)
+	has_image = has_visualization_image(filename)
+
 
 	# get content of file
 	file.direct_passthrough = False
@@ -285,8 +265,14 @@ def show_file_overview(filename):
 		return redirect(url_for('show_file_overview', filename=filename))
 	
 	return render_template('show_file_overview.html', run_form=RunForm(), tag_form=TagForm(), is_running=running,
-						   filename=filename, meta=meta, content=content, has_files=has_files, vis_img=img_path,
+						   filename=filename, meta=meta, content=content, has_files=has_files, has_image=has_image,
 						   visualizations=app.config['VISUALIZATIONS'])
+
+
+@app.route('/uploads/<filename>/visualization_image')
+def send_visualization_image(filename):
+	path = get_visualization_img_abs_path(filename)
+	return send_from_directory(dirname(path), basename(path))
 
 
 # page for file visualization view
@@ -395,7 +381,11 @@ def show_file_output(filename):
 @login_required
 @app.route('/cli_output/<user>/<filename>')
 def get_cli_output(user, filename):
-	output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
+	try:
+		output = '\n'.join(tail(open(get_output_file(user, filename)), app.config['NO_OF_OUTPUT_LINES']))
+	except FileNotFoundError:
+		# if output file has not yet been created, return string saying this
+		output = 'No output has been produced.'
 	return jsonify(output=output)
 
 

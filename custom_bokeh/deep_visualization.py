@@ -1,36 +1,32 @@
 from bokeh.io import curdoc
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Div, Paragraph, Column, BoxZoomTool, Range1d
+from bokeh.models import ColumnDataSource, Paragraph, Column, BoxZoomTool, Range1d
 
 from os.path import join
 
 from bokeh.plotting import figure
 import pickle
 
-from visualizer.config import UPLOAD_FOLDER
-from custom_bokeh.helpers import *
+from visualizer.config import UPLOAD_FOLDER, BOKEH_UPDATE_INTERVALS
+from custom_bokeh.utils import *
 
 document = curdoc()
 
 args = document.session_context.request.arguments
 
-# TODO: throw error if these are not provided
-file = args['file'][0].decode('ascii')
-user = args['user'][0].decode('ascii')
+try:
+	file = args['file'][0].decode('ascii')
+	user = args['user'][0].decode('ascii')
+except KeyError as e:
+	raise KeyError(str(e) + '. Filename and username must be provided as request parameters.')
 
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# used to determine if the data source should be created
-# this is needed to avoid error when the script is just started
-create_source = True
 deep_visualization_source = ColumnDataSource(data=dict())
 
-div = Div(text="<h3>Deep Visualizations</h3>", width=500)
-layout = Column(children=[div])
-
-p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
-layout.children.append(p)
+p = Paragraph(text="", width=500)
+layout = Column(children=[p])
 
 
 def fill_data_source(deep_visualization_data):
@@ -38,11 +34,11 @@ def fill_data_source(deep_visualization_data):
 	p.text = "Visualizations are being produced..."
 	figures = []
 
-	# loop through the neurons
-	for array, layer_name, neuron_no, loss_value in deep_visualization_data:
+	# loop through the units
+	for array, layer_name, unit_index, loss_value in deep_visualization_data:
 
-		name = "{}_{}".format(layer_name, neuron_no)
-		title = "Neuron #{} in {}".format(neuron_no, layer_name)
+		name = "{}_{}".format(layer_name, unit_index)
+		title = "Unit at index {} in {}".format(unit_index, layer_name)
 
 		img_width = array.shape[1]
 		img_height = array.shape[0]
@@ -58,40 +54,38 @@ def fill_data_source(deep_visualization_data):
 
 		figures.append(fig)
 
-	# make a grid of the neurons
+	# make a grid of the units
 	grid = gridplot(figures, ncols=4, toolbar_options=dict(logo=None))
 	layout.children.append(grid)
 	p.text = ""
 
 
 def update_data():
-	global create_source
 	try:
 		with open(join(results_path, 'deep_visualization.pickle'), 'rb') as f:
 			deep_visualization_data = pickle.load(f)
 
 		# if it is the first time data is detected, we need to fill the data source with the images
-		if create_source:
+		if not deep_visualization_source.data:
 			# temporary remove callback to make sure the function is not being called while creating the visualizations
 			document.remove_periodic_callback(update_data)
 			fill_data_source(deep_visualization_data)
-			create_source = False
-			document.add_periodic_callback(update_data, 5000)
+			document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deep_visualization'])
 		# if not, we can simply update the data
 		else:
-			for array, layer_name, neuron_no, loss_value in deep_visualization_data:
-				name = "{}_{}".format(layer_name, neuron_no)
-
+			for array, layer_name, unit_index, loss_value in deep_visualization_data:
+				name = "{}_{}".format(layer_name, unit_index)
 				img = process_image_dim(array)
 				deep_visualization_source.data[name] = [img[::-1]]
 
 	except FileNotFoundError:
 		# this means deconvolution data has not been created yet, skip visualization
+		p.text = "There are no visualization data produced yet."
 		return
 	except EOFError:
 		# this means deconvolution data has been created, but is empty, skip visualization
+		p.text = "There are no visualization data produced yet."
 		return
 
 document.add_root(layout)
-document.add_periodic_callback(update_data, 5000)
-update_data()
+document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['deep_visualization'])

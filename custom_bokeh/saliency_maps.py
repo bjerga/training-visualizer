@@ -1,8 +1,8 @@
 from os import listdir
 
 from bokeh.io import curdoc
-from bokeh.layouts import layout
-from bokeh.models import ColumnDataSource, Div, Paragraph, Range1d, BoxZoomTool
+from bokeh.layouts import gridplot
+from bokeh.models import ColumnDataSource, Paragraph, Range1d, BoxZoomTool, Column
 
 from os.path import join
 
@@ -10,75 +10,92 @@ from bokeh.plotting import figure
 from PIL import Image
 import pickle
 
-from visualizer.config import UPLOAD_FOLDER
-from custom_bokeh.helpers import *
+from visualizer.config import UPLOAD_FOLDER, BOKEH_UPDATE_INTERVALS
+from custom_bokeh.utils import *
 
 document = curdoc()
 
 args = document.session_context.request.arguments
 
-# TODO: throw error if these are not provided
-file = args['file'][0].decode('ascii')
-user = args['user'][0].decode('ascii')
+try:
+	file = args['file'][0].decode('ascii')
+	user = args['user'][0].decode('ascii')
+except KeyError as e:
+	raise KeyError(str(e) + '. Filename and username must be provided as request parameters.')
 
 # find path for result data
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
-# get original image
-images_folder = join(UPLOAD_FOLDER, user, file, 'images')
-image_name = listdir(images_folder)[-1]  # TODO: throw error here
-orig_img = np.array(Image.open(join(images_folder, image_name)))
-
 grid = []
 
-div = Div(text="<h3>Visualization of the saliency maps</h3>", width=500)
-grid.append([div])
+p = Paragraph(text="", width=500)
+layout = Column(children=[p])
 
-p = Paragraph(text="There seems to be no visualizations produced yet.", width=500)
-grid.append([p])
+saliency_maps_source = ColumnDataSource(data=dict())
 
-# flip image to display correctly in coordinate system with placeholder
-saliency_maps_source = ColumnDataSource(data=dict(image=[np.zeros((1, 1, 1))]))
 
-orig_img_height = orig_img.shape[0]
-orig_img_width = orig_img.shape[1]
+def fill_data_source(saliency_maps_data):
 
-# create plot for the original image
-orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="reset, save, pan",
-						x_range=Range1d(0, orig_img_width, bounds=(0, orig_img_width)),
-						y_range=Range1d(0, orig_img_height, bounds=(0, orig_img_height)),
-						outline_line_color="black", outline_line_width=3)
-orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
-orig_img_fig.axis.visible = False
-orig_img_fig.toolbar.logo = None
+	img_width = saliency_maps_data.shape[0]
+	img_height = saliency_maps_data.shape[1]
 
-add_image_from_array(orig_img_fig, orig_img)
+	# get original image
+	try:
+		images_folder = join(UPLOAD_FOLDER, user, file, 'images')
+		image_name = listdir(images_folder)[-1]
+		orig_img = np.array(Image.open(join(images_folder, image_name)).resize((img_width, img_height)))
+	except FileNotFoundError:
+		raise FileNotFoundError(str(e) + '. No visualization input image found in the image folder')
 
-# create plot for the saliency maps image
-saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="reset, save, pan",
-						x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range, outline_line_color="black",
-						outline_line_width=3)
-saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
-saliency_fig.axis.visible = False
-saliency_fig.toolbar.logo = None
+	# create plot for the original image
+	orig_img_fig = figure(title="Original Image", plot_width=250, plot_height=250, tools="pan, reset, save",
+							x_range=Range1d(0, img_width, bounds=(0, img_width)),
+							y_range=Range1d(0, img_height, bounds=(0, img_height)),
+							outline_line_color="black", outline_line_width=3)
+	orig_img_fig.add_tools(BoxZoomTool(match_aspect=True))
+	orig_img_fig.axis.visible = False
+	orig_img_fig.toolbar.logo = None
 
-add_image_from_source(saliency_fig, saliency_maps_source, orig_img, 'image', add_to_source=False, always_grayscale=True)
+	add_image_from_array(orig_img_fig, orig_img)
 
-grid.append([orig_img_fig, saliency_fig])
+	# create plot for the saliency maps image
+	saliency_fig = figure(title="Absolute Saliency", plot_width=250, plot_height=250, tools="pan, reset, save",
+							x_range=orig_img_fig.x_range, y_range=orig_img_fig.y_range,
+							outline_line_color="black", outline_line_width=3)
+	saliency_fig.add_tools(BoxZoomTool(match_aspect=True))
+	saliency_fig.axis.visible = False
+	saliency_fig.toolbar.logo = None
+
+	add_image_from_source(saliency_fig, saliency_maps_source, saliency_maps_data, 'abs_saliency', always_grayscale=True)
+
+	layout.children.append(gridplot([orig_img_fig, saliency_fig], ncols=2, merge_tools=False))
 
 
 def update_data():
 	try:
 		with open(join(results_path, 'saliency_maps.pickle'), 'rb') as f:
 			saliency_maps_data = pickle.load(f)
+
+		if not saliency_maps_source.data:
+			# temporary remove callback to make sure the function is not being called while creating the visualizations
+			document.remove_periodic_callback(update_data)
+			fill_data_source(saliency_maps_data)
+			document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['saliency_maps'])
+		else:
+			# if the data source already exists, we can simply update its data
+			img = process_image_dim(saliency_maps_data.astype('uint8'))
+			# dictionary that holds new saliency map
+			new_saliency_maps_data = dict(
+				abs_saliency=[img[::-1]]
+			)
+			saliency_maps_source.data = new_saliency_maps_data
+
 		p.text = ""
-		img = process_image_dim(saliency_maps_data.astype('uint8'))
-		saliency_maps_source.data['image'] = [img[::-1]]
+
 	except FileNotFoundError:
+		p.text = "There are no visualization data produced yet."
 		# if no visualization has been produced yet, simply skip visualization
 		return
 
-update_data()
-
-document.add_root(layout(grid))
-document.add_periodic_callback(update_data, 5000)
+document.add_root(layout)
+document.add_periodic_callback(update_data, BOKEH_UPDATE_INTERVALS['saliency_maps'])

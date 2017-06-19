@@ -176,11 +176,6 @@ def get_loss_and_gradient_function(input_tensor, output_tensor, unit_index):
 # creates an random, initial image to manipulate into a visualization
 def create_initial_image(model_input_shape):
 	
-	# TODO: remove when done with testing
-	# set random seed to be able to reproduce initial state of image
-	# used in testing only, and should be remove upon implementation with tool
-	np.random.seed(1337)
-	
 	# add (1,) for batch dimension
 	return np.random.normal(0, 10, (1,) + model_input_shape[1:])
 

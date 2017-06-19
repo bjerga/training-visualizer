@@ -10,34 +10,31 @@ document = curdoc()
 
 args = document.session_context.request.arguments
 
-#TODO: throw error if these are not provided
-file = args['file'][0].decode('ascii')
-user = args['user'][0].decode('ascii')
+try:
+	file = args['file'][0].decode('ascii')
+	user = args['user'][0].decode('ascii')
+except KeyError as e:
+	raise KeyError(str(e) + '. Filename and username must be provided as request parameters.')
 
 results_path = join(UPLOAD_FOLDER, user, file, 'results')
 
 grid = []
 
-div = Div(text="<h3>Visualization of the training progress</h3>", width=500)
-grid.append([div])
-
-p = Paragraph(text="There seems to be no training progress data produced yet.", width=600)
+p = Paragraph(text="", width=600)
 grid.append([p])
 
 
-def create_figure(title, label_x, label_y, x_range, y_range, tools="box_zoom, reset, save"):
-	fig = figure(tools=tools, plot_width=900, plot_height=300)
+def create_figure(title, label_x, label_y, x_range, y_range, tools="box_zoom, pan, reset, save"):
+	fig = figure(tools=tools, plot_width=900, plot_height=300, x_range=x_range, y_range=y_range)
 	fig.title.text = title
 	fig.xaxis.axis_label = label_x
 	fig.yaxis.axis_label = label_y
-	fig.x_range = x_range
-	fig.y_range = y_range
 	fig.toolbar.logo = None
 	return fig
 
 
 def create_circle(y, size=6):
-	return Circle(x='x', y=y, line_color='green', fill_color='green', fill_alpha=0.5, size=size)
+	return Circle(x='x', y=y, line_color='green', fill_color='green', fill_alpha=1, size=size)
 
 
 def create_hover_tool(render, y_title, y_value):
@@ -45,11 +42,11 @@ def create_hover_tool(render, y_title, y_value):
 
 
 # create the accuracy figure
-accuracy_fig = create_figure('Accuracy', 'Epoch', 'Accuracy', DataRange1d(start=0), Range1d(0, 1))
+accuracy_fig = create_figure('Batch Accuracy', 'Epoch', 'Accuracy', DataRange1d(start=0, bounds="auto"), Range1d(0, 1.05, bounds="auto"))
 grid.append([accuracy_fig])
 
 # create the loss figure
-loss_fig = create_figure('Loss', 'Epoch', 'Loss', DataRange1d(start=0), DataRange1d(start=0))
+loss_fig = create_figure('Batch Loss', 'Epoch', 'Loss', DataRange1d(start=0, bounds="auto"), DataRange1d(start=-0.05, bounds="auto"))
 grid.append([loss_fig])
 
 # Initialize sources for holding the data
@@ -86,12 +83,16 @@ def update_data():
 		p.text = ""
 	except FileNotFoundError:
 		# this means that file has not been created yet, skip visualization
+		p.text = "There are no training progress data produced yet."
 		return
 
 	try:
 		with open(join(results_path, 'training_progress_val.txt')) as f:
 			validation_progress_data = list(zip(*[line.strip().split() for line in f]))
-		new_val_data_length = len(validation_progress_data)
+		if validation_progress_data:
+			new_val_data_length = len(validation_progress_data[0])
+		else:
+			new_val_data_length = 0
 	except FileNotFoundError:
 		# this means that no validation data has been created, set to empty
 		validation_progress_data = []
